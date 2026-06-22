@@ -25,7 +25,7 @@ export class PlanningService implements OnModuleInit {
   /** Everything needed for the planner page. */
   async overview(slug: string) {
     const tripId = await this.tripId(slug);
-    const [tickets, documents, events] = await Promise.all([
+    const [tickets, documents, events, hotels] = await Promise.all([
       this.prisma.ticket.findMany({ where: { tripId }, orderBy: { departAt: 'asc' } }),
       this.prisma.tripDocument.findMany({ where: { tripId }, orderBy: { createdAt: 'desc' } }),
       this.prisma.calendarEvent.findMany({
@@ -33,8 +33,55 @@ export class PlanningService implements OnModuleInit {
         orderBy: { startAt: 'asc' },
         include: { reminders: true },
       }),
+      this.prisma.hotel.findMany({ where: { tripId }, orderBy: { checkIn: 'asc' } }),
     ]);
-    return { tickets, documents, events };
+    return { tickets, documents, events, hotels };
+  }
+
+  // ── Hotels ───────────────────────────────────────────────
+  async createHotel(slug: string, data: any) {
+    const tripId = await this.tripId(slug);
+    return this.prisma.hotel.create({
+      data: {
+        tripId,
+        name: data.name,
+        cityLabel: data.cityLabel,
+        address: data.address,
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        checkIn: data.checkIn ? new Date(data.checkIn) : null,
+        checkOut: data.checkOut ? new Date(data.checkOut) : null,
+        url: data.url,
+        area: data.area,
+        priceNote: data.priceNote,
+        notes: data.notes,
+        photoUrl: data.photoUrl,
+        photos: data.photos ?? [],
+        source: 'cms-user-input',
+        dataStatus: 'VERIFIED',
+      },
+    });
+  }
+  deleteHotel(id: string) {
+    return this.prisma.hotel.delete({ where: { id } }).then(() => ({ ok: true }));
+  }
+
+  // ── Chat (HTTP polling) ──────────────────────────────────
+  async listChat(slug: string, sinceISO?: string) {
+    const tripId = await this.tripId(slug);
+    return this.prisma.chatMessage.findMany({
+      where: { tripId, ...(sinceISO ? { createdAt: { gt: new Date(sinceISO) } } : {}) },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+  }
+  async postChat(slug: string, text: string, userId: string) {
+    const tripId = await this.tripId(slug);
+    return this.prisma.chatMessage.create({
+      data: { tripId, userId, text },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
   }
 
   // ── Tickets ──────────────────────────────────────────────

@@ -130,10 +130,17 @@ model Hotel {
   trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
   cityLabel  String?  // which city this hotel is in
   name       String
+  address    String?
+  lat        Float?
+  lng        Float?
+  checkIn    DateTime?
+  checkOut   DateTime?
   url        String?  // booking / official link
   area       String?  // district / near what
   priceNote  String?  // free-form, e.g. "от 6 000 ₽/ночь" — only if user enters it
-  photoUrl   String?
+  notes      String?
+  photoUrl   String?  // primary photo
+  photos     String[] @default([])
   rating     Float?
   source     String?
   dataStatus DataStatus @default(PENDING)
@@ -174,6 +181,7 @@ model Trip {
   tickets     Ticket[]
   documents   TripDocument[]
   events      CalendarEvent[]
+  chatMessages ChatMessage[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -401,6 +409,18 @@ model Reminder {
   createdAt     DateTime        @default(now())
 }
 
+// Group chat message within a trip (HTTP + polling, stored in Postgres).
+model ChatMessage {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("UserMessages", fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+  @@index([tripId, createdAt])
+}
+
 // ─────────────────────────── Auth & RBAC ───────────────────────────
 enum UserRole {
   SUPER_ADMIN
@@ -437,6 +457,7 @@ model User {
   tickets             Ticket[]       @relation("UserTickets")
   documents           TripDocument[] @relation("UserDocuments")
   events              CalendarEvent[] @relation("UserEvents")
+  messages            ChatMessage[]  @relation("UserMessages")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

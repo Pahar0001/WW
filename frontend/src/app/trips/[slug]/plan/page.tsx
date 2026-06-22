@@ -7,6 +7,7 @@ import { auth, type AuthUser } from '@/lib/auth';
 import {
   planning, uploadFile,
   type PlanningOverview, type Ticket, type TripDocument, type CalendarEvent, type TicketKind, type EventType,
+  type Hotel, type ChatMessage,
 } from '@/lib/planning';
 
 const inp = 'w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-paper placeholder:text-paper-faint outline-none focus:border-aurora/60';
@@ -25,7 +26,7 @@ export default function PlanPage() {
   const slug = String(useParams().slug);
   const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
   const [data, setData] = useState<PlanningOverview | null>(null);
-  const [tab, setTab] = useState<'tickets' | 'documents' | 'calendar'>('tickets');
+  const [tab, setTab] = useState<'tickets' | 'documents' | 'calendar' | 'hotels' | 'chat'>('tickets');
   const [err, setErr] = useState<string | null>(null);
 
   const canEdit = !!me && ['ORGANIZER', 'ADMIN', 'SUPER_ADMIN'].includes(me.role);
@@ -52,10 +53,10 @@ export default function PlanPage() {
       <h1 className="font-serif text-4xl tracking-tightest">Планирование поездки</h1>
       <p className="mt-2 text-paper-dim">Билеты, документы и календарь событий с напоминаниями.</p>
 
-      <div className="mt-8 flex gap-2">
-        {(['tickets', 'documents', 'calendar'] as const).map((t) => (
+      <div className="mt-8 flex flex-wrap gap-2">
+        {([['tickets', 'Билеты'], ['hotels', 'Отели'], ['documents', 'Документы'], ['calendar', 'Календарь'], ['chat', 'Чат']] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-5 py-2 text-sm transition-colors ${tab === t ? 'bg-paper text-ink' : 'border border-ink-line text-paper-dim hover:text-paper'}`}>
-            {t === 'tickets' ? 'Билеты' : t === 'documents' ? 'Документы' : 'Календарь'}
+            {label}
           </button>
         ))}
       </div>
@@ -64,8 +65,10 @@ export default function PlanPage() {
 
       <div className="mt-8">
         {tab === 'tickets' && <Tickets slug={slug} tickets={data?.tickets ?? []} canEdit={canEdit} onChange={load} />}
+        {tab === 'hotels' && <Hotels slug={slug} hotels={data?.hotels ?? []} canEdit={canEdit} onChange={load} />}
         {tab === 'documents' && <Documents slug={slug} docs={data?.documents ?? []} canEdit={canEdit} onChange={load} />}
         {tab === 'calendar' && <Calendar slug={slug} events={data?.events ?? []} canEdit={canEdit} onChange={load} />}
+        {tab === 'chat' && <Chat slug={slug} meId={me?.id} />}
       </div>
     </main>
   );
@@ -307,6 +310,138 @@ function MonthGrid({ events }: { events: CalendarEvent[] }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ── Hotels ───────────────────────────────────────────────
+function Hotels({ slug, hotels, canEdit, onChange }: { slug: string; hotels: Hotel[]; canEdit: boolean; onChange: () => void }) {
+  const [f, setF] = useState({ name: '', cityLabel: '', address: '', lat: '', lng: '', checkIn: '', checkOut: '', url: '', area: '', priceNote: '', notes: '', photoUrl: '' });
+  const [busy, setBusy] = useState(false);
+  const set = (p: Partial<typeof f>) => setF((s) => ({ ...s, ...p }));
+
+  async function add() {
+    if (!f.name) return;
+    setBusy(true);
+    try {
+      await planning.createHotel(slug, {
+        name: f.name, cityLabel: f.cityLabel || undefined, address: f.address || undefined,
+        lat: f.lat ? Number(f.lat) : undefined, lng: f.lng ? Number(f.lng) : undefined,
+        checkIn: f.checkIn ? new Date(f.checkIn).toISOString() : undefined,
+        checkOut: f.checkOut ? new Date(f.checkOut).toISOString() : undefined,
+        url: f.url || undefined, area: f.area || undefined, priceNote: f.priceNote || undefined,
+        notes: f.notes || undefined, photoUrl: f.photoUrl || undefined,
+      } as Partial<Hotel>);
+      setF({ name: '', cityLabel: '', address: '', lat: '', lng: '', checkIn: '', checkOut: '', url: '', area: '', priceNote: '', notes: '', photoUrl: '' });
+      onChange();
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-6">
+      {hotels.length === 0 && <p className="text-paper-faint">Отелей пока нет.</p>}
+      <div className="grid gap-3 md:grid-cols-2">
+        {hotels.map((h) => (
+          <div key={h.id} className="overflow-hidden rounded-xl border border-ink-line">
+            {h.photoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={h.photoUrl} alt={h.name} className="h-32 w-full object-cover" />
+            )}
+            <div className="p-4">
+              <div className="flex items-start justify-between">
+                <div className="text-paper">{h.name}</div>
+                {canEdit && <button onClick={() => planning.deleteHotel(h.id).then(onChange)} className="text-xs text-paper-faint hover:text-red-300">Удалить</button>}
+              </div>
+              {h.cityLabel && <div className="text-xs text-paper-faint">{h.cityLabel}</div>}
+              {h.address && <div className="mt-1 text-sm text-paper-dim">{h.address}</div>}
+              <div className="mt-1 text-sm text-paper-dim">
+                {h.checkIn ? `Заезд: ${fmtDT(h.checkIn)}` : ''}{h.checkOut ? ` · Выезд: ${fmtDT(h.checkOut)}` : ''}
+              </div>
+              {h.priceNote && <div className="mt-1 text-sm text-paper">{h.priceNote}</div>}
+              {h.url && <a href={h.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm text-aurora hover:underline">Бронирование →</a>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {canEdit && (
+        <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+          <h3 className="mb-3 font-serif text-xl tracking-tightest">Добавить отель</h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            <input className={inp} placeholder="Название" value={f.name} onChange={(e) => set({ name: e.target.value })} />
+            <input className={inp} placeholder="Город" value={f.cityLabel} onChange={(e) => set({ cityLabel: e.target.value })} />
+            <input className={inp} placeholder="Адрес" value={f.address} onChange={(e) => set({ address: e.target.value })} />
+            <input className={inp} placeholder="Ссылка на бронирование" value={f.url} onChange={(e) => set({ url: e.target.value })} />
+            <input className={inp} placeholder="Широта (lat)" value={f.lat} onChange={(e) => set({ lat: e.target.value })} />
+            <input className={inp} placeholder="Долгота (lng)" value={f.lng} onChange={(e) => set({ lng: e.target.value })} />
+            <label className="text-sm text-paper-faint">Заезд<input type="date" className={inp} value={f.checkIn} onChange={(e) => set({ checkIn: e.target.value })} /></label>
+            <label className="text-sm text-paper-faint">Выезд<input type="date" className={inp} value={f.checkOut} onChange={(e) => set({ checkOut: e.target.value })} /></label>
+            <input className={inp} placeholder="Цена (опц.)" value={f.priceNote} onChange={(e) => set({ priceNote: e.target.value })} />
+            <input className={inp} placeholder="Заметки" value={f.notes} onChange={(e) => set({ notes: e.target.value })} />
+          </div>
+          <FileField label="Фото отеля" value={f.photoUrl} onUploaded={(url) => set({ photoUrl: url })} />
+          <button disabled={busy || !f.name} onClick={add} className={`${btn} mt-4`}>{busy ? 'Сохранение…' : 'Добавить отель'}</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Chat (HTTP polling) ──────────────────────────────────
+function Chat({ slug, meId }: { slug: string; meId?: string }) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    let stop = false;
+    let last = '';
+    const tick = async () => {
+      try {
+        const batch = await planning.chat(slug, last || undefined);
+        if (!stop && batch.length) {
+          last = batch[batch.length - 1].createdAt;
+          setMessages((m) => [...m, ...batch]);
+        }
+      } catch { /* ignore (cold start etc.) */ }
+    };
+    tick();
+    const id = setInterval(tick, 4000);
+    return () => { stop = true; clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setSending(true);
+    try {
+      const msg = await planning.postChat(slug, text.trim());
+      setMessages((m) => [...m, msg]);
+      setText('');
+    } finally { setSending(false); }
+  }
+
+  return (
+    <div className="flex h-[60vh] flex-col rounded-2xl border border-ink-line bg-ink-soft/40">
+      <div className="flex-1 space-y-3 overflow-y-auto p-5">
+        {messages.length === 0 && <p className="text-paper-faint">Сообщений пока нет. Напишите первое 👋</p>}
+        {messages.map((m) => {
+          const mine = m.user.id === meId;
+          return (
+            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[75%] rounded-2xl px-4 py-2 ${mine ? 'bg-aurora/15 text-paper' : 'bg-ink border border-ink-line text-paper'}`}>
+                <div className="text-xs text-paper-faint">{m.user.name || m.user.email} · {new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="mt-0.5 whitespace-pre-wrap">{m.text}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <form onSubmit={send} className="flex gap-2 border-t border-ink-line p-3">
+        <input className={`${inp} flex-1`} placeholder="Сообщение…" value={text} onChange={(e) => setText(e.target.value)} />
+        <button disabled={sending || !text.trim()} className={btn}>Отправить</button>
+      </form>
     </div>
   );
 }

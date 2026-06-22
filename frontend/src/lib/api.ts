@@ -55,10 +55,17 @@ export interface Hotel {
   id: string;
   cityLabel?: string | null;
   name: string;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  checkIn?: string | null;
+  checkOut?: string | null;
   url?: string | null;
   area?: string | null;
   priceNote?: string | null;
+  notes?: string | null;
   photoUrl?: string | null;
+  photos?: string[];
   rating?: number | null;
   dataStatus: DataStatus;
 }

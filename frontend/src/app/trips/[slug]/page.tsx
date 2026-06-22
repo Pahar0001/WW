@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { PlanLink } from '@/components/trip/PlanLink';
+import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
 import { Reveal } from '@/components/ui/Reveal';
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
@@ -20,6 +21,23 @@ export default async function TripPage({ params }: { params: { slug: string } })
         { label: 'Нагрузка', value: trip.scores.load },
       ]
     : [];
+
+  // Whole-route map points: attractions across the balanced variant + hotels.
+  const balanced = trip.variants.find((v) => v.pace === 'BALANCED') ?? trip.variants[0];
+  const seen = new Set<string>();
+  const routePlaces: MapPoint[] = [];
+  for (const d of balanced?.days ?? []) {
+    for (const dp of d.places) {
+      const p = dp.place;
+      if (p.lat != null && p.lng != null && !seen.has(p.name)) {
+        seen.add(p.name);
+        routePlaces.push({ name: p.name, lat: p.lat, lng: p.lng });
+      }
+    }
+  }
+  const hotelPoints: MapPoint[] = (trip.hotels ?? [])
+    .filter((h) => h.lat != null && h.lng != null)
+    .map((h) => ({ name: h.name, lat: h.lat as number, lng: h.lng as number }));
 
   return (
     <main className="relative min-h-screen pb-32">
@@ -161,6 +179,19 @@ export default async function TripPage({ params }: { params: { slug: string } })
                 </div>
               ))}
             </div>
+          </Reveal>
+        </section>
+      )}
+
+      {/* Whole-route map */}
+      {routePlaces.length > 0 && (
+        <section className="container-vela pb-16">
+          <Reveal>
+            <h2 className="mb-5 font-serif text-2xl tracking-tightest">Карта маршрута</h2>
+            <TripRouteMap places={routePlaces} hotels={hotelPoints} />
+            <p className="mt-3 text-sm text-paper-faint">
+              Достопримечательности соединены линией маршрута; 🏨 — отели (если заданы координаты).
+            </p>
           </Reveal>
         </section>
       )}

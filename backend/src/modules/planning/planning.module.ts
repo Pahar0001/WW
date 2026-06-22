@@ -7,6 +7,7 @@ import {
   Module,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { z, ZodError } from 'zod';
@@ -43,6 +44,22 @@ const DocIn = z.object({
   fileUrl: z.string().min(1),
   mime: z.string().optional(),
 });
+const HotelIn = z.object({
+  name: z.string().min(1),
+  cityLabel: z.string().optional(),
+  address: z.string().optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  checkIn: z.string().optional(),
+  checkOut: z.string().optional(),
+  url: z.string().optional(),
+  area: z.string().optional(),
+  priceNote: z.string().optional(),
+  notes: z.string().optional(),
+  photoUrl: z.string().optional(),
+  photos: z.array(z.string()).optional(),
+});
+const ChatIn = z.object({ text: z.string().min(1).max(2000) });
 const EventIn = z.object({
   type: z.enum(['FLIGHT', 'HOTEL_CHECKIN', 'HOTEL_CHECKOUT', 'EXCURSION', 'MEETING', 'REMINDER', 'OTHER']).optional(),
   title: z.string().min(1),
@@ -98,6 +115,30 @@ class PlanningController {
   @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
   deleteEvent(@Param('id') id: string) {
     return this.svc.deleteEvent(id);
+  }
+
+  // ── Hotels ──
+  @Post('trips/:slug/hotels')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  createHotel(@Param('slug') slug: string, @Body() body: unknown) {
+    return this.svc.createHotel(slug, parse(HotelIn, body));
+  }
+
+  @Delete('hotels/:id')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  deleteHotel(@Param('id') id: string) {
+    return this.svc.deleteHotel(id);
+  }
+
+  // ── Chat (any authenticated user can read/post) ──
+  @Get('trips/:slug/chat')
+  chat(@Param('slug') slug: string, @Query('since') since?: string) {
+    return this.svc.listChat(slug, since);
+  }
+
+  @Post('trips/:slug/chat')
+  postChat(@Param('slug') slug: string, @Body() body: unknown, @CurrentUser() u: AuthUser) {
+    return this.svc.postChat(slug, parse(ChatIn, body).text, u.id);
   }
 }
 

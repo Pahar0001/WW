@@ -19,7 +19,19 @@ export interface CalendarEvent {
   id: string; type: EventType; title: string; startAt: string; endAt?: string | null;
   location?: string | null; notes?: string | null; reminders: Reminder[];
 }
-export interface PlanningOverview { tickets: Ticket[]; documents: TripDocument[]; events: CalendarEvent[]; }
+export interface Hotel {
+  id: string; name: string; cityLabel?: string | null; address?: string | null;
+  lat?: number | null; lng?: number | null; checkIn?: string | null; checkOut?: string | null;
+  url?: string | null; area?: string | null; priceNote?: string | null; notes?: string | null;
+  photoUrl?: string | null; photos?: string[];
+}
+export interface ChatMessage {
+  id: string; text: string; createdAt: string;
+  user: { id: string; name?: string | null; email: string };
+}
+export interface PlanningOverview {
+  tickets: Ticket[]; documents: TripDocument[]; events: CalendarEvent[]; hotels: Hotel[];
+}
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -46,6 +58,10 @@ export const planning = {
     data: { type?: EventType; title: string; startAt: string; endAt?: string; location?: string; notes?: string; reminders?: number[] },
   ) => req<CalendarEvent>(`/trips/${slug}/events`, { method: 'POST', body: JSON.stringify(data) }),
   deleteEvent: (id: string) => req(`/events/${id}`, { method: 'DELETE' }),
+  createHotel: (slug: string, data: Partial<Hotel>) => req<Hotel>(`/trips/${slug}/hotels`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteHotel: (id: string) => req(`/hotels/${id}`, { method: 'DELETE' }),
+  chat: (slug: string, since?: string) => req<ChatMessage[]>(`/trips/${slug}/chat${since ? `?since=${encodeURIComponent(since)}` : ''}`),
+  postChat: (slug: string, text: string) => req<ChatMessage>(`/trips/${slug}/chat`, { method: 'POST', body: JSON.stringify({ text }) }),
 };
 
 // Upload a file (image or PDF) via the authenticated uploads endpoint.
