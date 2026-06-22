@@ -15,6 +15,18 @@ export const CreateTripSchema = z.object({
   durationDays: z.coerce.number().int().min(1).max(60),
   budgetMinRub: z.coerce.number().int().positive().optional(),
   budgetMaxRub: z.coerce.number().int().positive().optional(),
+  hotels: z
+    .array(
+      z.object({
+        cityLabel: z.string().optional(),
+        name: z.string().min(1),
+        url: z.string().optional(),
+        area: z.string().optional(),
+        priceNote: z.string().optional(),
+        photoUrl: z.string().optional(),
+      }),
+    )
+    .optional(),
   days: z
     .array(
       z.object({
@@ -30,6 +42,10 @@ export const CreateTripSchema = z.object({
               lng: z.coerce.number().min(-180).max(180).optional(),
               description: z.string().optional(),
               photoUrl: z.string().optional(),
+              photos: z.array(z.string()).optional(),
+              howToGet: z.string().optional(),
+              tips: z.string().optional(),
+              nearby: z.string().optional(),
             }),
           )
           .default([]),

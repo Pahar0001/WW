@@ -37,6 +37,81 @@ const WIKI_TITLE: Record<string, string> = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Fetch a small gallery of real image URLs for a landmark (Wikipedia media-list). */
+async function fetchWikiGallery(title: string, max = 5): Promise<string[]> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(title)}`,
+      { signal: ctrl.signal, headers: { 'User-Agent': 'Vela/0.1 (seed)' } },
+    );
+    clearTimeout(timer);
+    if (!res.ok) return [];
+    const data: any = await res.json();
+    const out: string[] = [];
+    for (const item of data?.items ?? []) {
+      if (item?.type !== 'image') continue;
+      const src: string | undefined = item?.srcset?.[0]?.src;
+      if (!src || /\.svg/i.test(src)) continue;
+      out.push(src.startsWith('//') ? `https:${src}` : src);
+      if (out.length >= max) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// Practical, qualitative guide notes (no invented numbers — see Real Data Policy).
+const PLACE_GUIDE: Record<string, { howToGet: string; tips: string; nearby: string }> = {
+  'forbidden-city': {
+    howToGet: 'В центре Пекина, у площади Тяньаньмэнь. Удобнее всего на метро до станции рядом с южным входом; вход строго по предварительному билету с паспортом.',
+    tips: 'Билеты разбирают заранее — бронируйте онлайн. Идите от южных ворот к северным, чтобы не возвращаться. Возьмите воду и удобную обувь.',
+    nearby: 'Площадь Тяньаньмэнь, парк Цзиншань со смотровой на крыши дворца, озёра Бэйхай.',
+  },
+  'great-wall-mutianyu': {
+    howToGet: 'Участок Мутяньюй севернее Пекина; добираются экскурсионным автобусом или трансфером. На стену поднимает канатная дорога или подъёмник.',
+    tips: 'Мутяньюй менее людный, чем Бадалин. Закладывайте время на подъём; вниз можно съехать на тобоггане. Погода в горах переменчива.',
+    nearby: 'Деревни у подножия с кафе, сувенирные ряды у нижней станции канатной дороги.',
+  },
+  'temple-of-heaven': {
+    howToGet: 'Южная часть Пекина, в большом парке. Ближайшие входы — от станций метро по периметру парка.',
+    tips: 'Приходите утром — местные занимаются тайцзи и музыкой в галереях. Главный павильон — Зал моления об урожае.',
+    nearby: 'Жилые кварталы старого Пекина, рынки, парковые аллеи.',
+  },
+  'terracotta-army': {
+    howToGet: 'За городом под Сианем; добираются туристическим автобусом или трансфером от центра/вокзала.',
+    tips: 'Начните с Ямы №1 — самой зрелищной. Берите аудиогид или гида: без контекста фигуры «читаются» хуже.',
+    nearby: 'Комплекс мавзолея Цинь Шихуанди, сувенирные павильоны, кафе у входа.',
+  },
+  'zhangjiajie-national-forest-park': {
+    howToGet: 'Из города Чжанцзяцзе — рейсовым или экскурсионным транспортом до входов в парк Улинъюань. Внутри — бесплатные шаттлы, лифт Байлун и канатные дороги.',
+    tips: 'Парк огромный — планируйте 1–2 дня и выбирайте зоны заранее. Утром часто туман: виды «парящих» столбов особенно атмосферны, но берите дождевик.',
+    nearby: 'Стеклянный мост Гранд-Каньона Чжанцзяцзе, деревня Улинъюань с отелями и кафе.',
+  },
+  'tianzi-mountain': {
+    howToGet: 'Северная часть Улинъюань; подъём по канатной дороге Тяньцзишань, между смотровыми ходят шаттлы.',
+    tips: 'Лучшие панорамы — на рассвете и после дождя, когда поднимается туман. Маршрут по гребню несложный, но протяжённый.',
+    nearby: 'Смотровые «Подвесные сады Юанцзяцзе», мост Первого моста под небом.',
+  },
+  'tianmen-mountain': {
+    howToGet: 'Прямо из города Чжанцзяцзе — одной из самых длинных канатных дорог мира до вершины.',
+    tips: 'Стеклянная тропа вдоль обрыва и 999 ступеней к «Небесным вратам» — арке в скале. На высоте холодно и ветрено даже летом.',
+    nearby: 'Серпантин «Дорога 99 поворотов», нижняя станция канатной дороги в черте города.',
+  },
+  'west-lake': {
+    howToGet: 'В центре Ханчжоу, в пешей доступности; вокруг озера — прокат велосипедов и прогулочные лодки.',
+    tips: 'Закат у дамбы Су особенно хорош. Обойти всё озеро пешком долго — сочетайте прогулку с лодкой.',
+    nearby: 'Чайные холмы Лунцзин, пагода Лэйфэн, исторические улицы Ханчжоу.',
+  },
+  'humble-administrators-garden': {
+    howToGet: 'В старом центре Сучжоу; рядом другие классические сады и каналы. Удобно дойти пешком от исторических улиц.',
+    tips: 'Приходите к открытию — днём многолюдно. Это эталон классического китайского сада: павильоны, пруды, виды-«картины».',
+    nearby: 'Музей Сучжоу, улица Пинцзян вдоль канала, сад Львиная роща.',
+  },
+};
+
 /** Fetch a landmark photo URL from Wikipedia. Returns null on any failure. */
 async function fetchWikiImage(title: string): Promise<string | null> {
   try {
@@ -218,15 +293,30 @@ async function main() {
     });
     for (const p of c.places) {
       let photoUrl: string | null = null;
+      let gallery: string[] = [];
       if (WIKI_TITLE[p.slug]) {
         photoUrl = await fetchWikiImage(WIKI_TITLE[p.slug]);
         if (!photoUrl) photoUrl = await fetchWikiImage(WIKI_TITLE[p.slug]); // retry once
         if (photoUrl) photoBySlug[p.slug] = photoUrl;
+        await sleep(120);
+        gallery = await fetchWikiGallery(WIKI_TITLE[p.slug], 6);
+        if (gallery.length === 0) {
+          await sleep(300);
+          gallery = await fetchWikiGallery(WIKI_TITLE[p.slug], 6); // retry once
+        }
         await sleep(180); // be gentle with Wikipedia's rate limit
       }
+      const guide = PLACE_GUIDE[p.slug];
       const place = await prisma.place.upsert({
         where: { cityId_slug: { cityId: city.id, slug: p.slug } },
-        update: { photoUrl: photoUrl ?? undefined, description: p.description },
+        update: {
+          photoUrl: photoUrl ?? undefined,
+          photos: gallery,
+          description: p.description,
+          howToGet: guide?.howToGet,
+          tips: guide?.tips,
+          nearby: guide?.nearby,
+        },
         create: {
           cityId: city.id,
           slug: p.slug,
@@ -237,6 +327,10 @@ async function main() {
           lng: p.lng,
           description: p.description,
           photoUrl,
+          photos: gallery,
+          howToGet: guide?.howToGet,
+          tips: guide?.tips,
+          nearby: guide?.nearby,
           source: SRC,
           dataStatus: 'ESTIMATED',
           trustLevel: 2,

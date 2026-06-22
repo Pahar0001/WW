@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import type { Trip, Pace } from '@/lib/api';
+import type { Trip, Pace, Place } from '@/lib/api';
 import { imageUrl } from '@/lib/api';
 import { TripMap } from '@/components/map/TripMap';
+import { PlaceModal } from '@/components/trip/PlaceModal';
+import { HotelsSection } from '@/components/trip/HotelsSection';
 
 const PACE_LABEL: Record<Pace, string> = {
   CALM: 'Спокойная',
@@ -36,7 +38,11 @@ export function TripExperience({ trip }: { trip: Trip }) {
     Math.max(0, variants.findIndex((v) => v.pace === 'BALANCED')),
   );
   const variant = variants[paceIdx] ?? variants[0];
-  const [dayNum, setDayNum] = useState(1);
+  // Open on the first day that actually has places, so clickable places show up.
+  const firstWithPlaces =
+    variant?.days.find((d) => d.places.length > 0)?.dayNumber ?? 1;
+  const [dayNum, setDayNum] = useState(firstWithPlaces);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
   const day = useMemo(
     () => variant?.days.find((d) => d.dayNumber === dayNum) ?? variant?.days[0],
     [variant, dayNum],
@@ -137,32 +143,42 @@ export function TripExperience({ trip }: { trip: Trip }) {
                   day.places.map((dp, i) => {
                     const photo = imageUrl(dp.place.photoUrl);
                     return (
-                      <li key={dp.id} className="flex gap-4">
-                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-aurora text-[11px] font-semibold text-ink">
-                          {i + 1}
-                        </span>
-                        {photo && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={photo}
-                            alt={dp.place.name}
-                            className="h-16 w-16 shrink-0 rounded-lg border border-ink-line object-cover"
-                          />
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-paper">{dp.place.name}</span>
-                            {dp.place.nameLocal && (
-                              <span className="text-paper-faint">{dp.place.nameLocal}</span>
-                            )}
-                            <Badge status={dp.place.dataStatus} />
-                          </div>
-                          {dp.place.description && (
-                            <p className="mt-1 text-sm text-paper-dim">
-                              {dp.place.description}
-                            </p>
+                      <li key={dp.id}>
+                        <button
+                          type="button"
+                          data-cursor="hover"
+                          onClick={() => setSelectedPlace(dp.place)}
+                          className="group flex w-full gap-4 rounded-xl p-2 text-left transition-colors hover:bg-ink-line/40"
+                        >
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-aurora text-[11px] font-semibold text-ink">
+                            {i + 1}
+                          </span>
+                          {photo && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={photo}
+                              alt={dp.place.name}
+                              className="h-16 w-16 shrink-0 rounded-lg border border-ink-line object-cover"
+                            />
                           )}
-                        </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-paper">{dp.place.name}</span>
+                              {dp.place.nameLocal && (
+                                <span className="text-paper-faint">{dp.place.nameLocal}</span>
+                              )}
+                              <Badge status={dp.place.dataStatus} />
+                            </div>
+                            {dp.place.description && (
+                              <p className="mt-1 text-sm text-paper-dim">
+                                {dp.place.description}
+                              </p>
+                            )}
+                            <span className="mt-1.5 inline-block text-xs text-aurora opacity-0 transition-opacity group-hover:opacity-100">
+                              Подробнее, фото и как добраться →
+                            </span>
+                          </div>
+                        </button>
                       </li>
                     );
                   })
@@ -179,8 +195,14 @@ export function TripExperience({ trip }: { trip: Trip }) {
         </div>
       </div>
 
+      {/* Где остановиться */}
+      <HotelsSection trip={trip} variant={variant} />
+
       {/* Budget */}
       <BudgetPanel variant={variant} trip={trip} />
+
+      {/* Place detail modal */}
+      <PlaceModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />
     </div>
   );
 }

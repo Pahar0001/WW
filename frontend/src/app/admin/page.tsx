@@ -19,6 +19,10 @@ interface PlaceForm {
   lng: string;
   description: string;
   photoUrl: string;
+  photos: string[];
+  howToGet: string;
+  tips: string;
+  nearby: string;
 }
 interface DayForm {
   title: string;
@@ -26,9 +30,21 @@ interface DayForm {
   notes: string;
   places: PlaceForm[];
 }
+interface HotelForm {
+  cityLabel: string;
+  name: string;
+  url: string;
+  area: string;
+  priceNote: string;
+  photoUrl: string;
+}
 
-const emptyPlace = (): PlaceForm => ({ name: '', nameLocal: '', lat: '', lng: '', description: '', photoUrl: '' });
+const emptyPlace = (): PlaceForm => ({
+  name: '', nameLocal: '', lat: '', lng: '', description: '', photoUrl: '',
+  photos: [], howToGet: '', tips: '', nearby: '',
+});
 const emptyDay = (): DayForm => ({ title: '', baseCity: '', notes: '', places: [emptyPlace()] });
+const emptyHotel = (): HotelForm => ({ cityLabel: '', name: '', url: '', area: '', priceNote: '', photoUrl: '' });
 
 export default function AdminPage() {
   const [countryName, setCountryName] = useState('');
@@ -43,6 +59,10 @@ export default function AdminPage() {
   const [budgetMax, setBudgetMax] = useState('');
   const [heroImage, setHeroImage] = useState('');
   const [days, setDays] = useState<DayForm[]>([emptyDay()]);
+  const [hotels, setHotels] = useState<HotelForm[]>([]);
+
+  const setHotel = (i: number, patch: Partial<HotelForm>) =>
+    setHotels((hs) => hs.map((h, k) => (k === i ? { ...h, ...patch } : h)));
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +112,16 @@ export default function AdminPage() {
       durationDays: Number(durationDays) || 1,
       budgetMinRub: budgetMin ? Number(budgetMin) : undefined,
       budgetMaxRub: budgetMax ? Number(budgetMax) : undefined,
+      hotels: hotels
+        .filter((h) => h.name.trim())
+        .map((h) => ({
+          cityLabel: h.cityLabel || undefined,
+          name: h.name.trim(),
+          url: h.url || undefined,
+          area: h.area || undefined,
+          priceNote: h.priceNote || undefined,
+          photoUrl: h.photoUrl || undefined,
+        })),
       days: days.map((d) => ({
         title: d.title || undefined,
         baseCity: d.baseCity || undefined,
@@ -105,6 +135,10 @@ export default function AdminPage() {
             lng: p.lng ? Number(p.lng) : undefined,
             description: p.description || undefined,
             photoUrl: p.photoUrl || undefined,
+            photos: p.photos.filter(Boolean),
+            howToGet: p.howToGet || undefined,
+            tips: p.tips || undefined,
+            nearby: p.nearby || undefined,
           })),
       })),
     };
@@ -245,9 +279,16 @@ export default function AdminPage() {
                       <input className={inputCls} value={p.lng} onChange={(e) => setPlace(di, pi, { lng: e.target.value })} placeholder="Долгота (lng), напр. 135.7681" />
                     </div>
                     <input className={`${inputCls} mt-3`} value={p.description} onChange={(e) => setPlace(di, pi, { description: e.target.value })} placeholder="Короткое описание" />
+                    <textarea className={`${inputCls} mt-3 min-h-[60px]`} value={p.howToGet} onChange={(e) => setPlace(di, pi, { howToGet: e.target.value })} placeholder="Как добраться" />
+                    <textarea className={`${inputCls} mt-3 min-h-[60px]`} value={p.tips} onChange={(e) => setPlace(di, pi, { tips: e.target.value })} placeholder="На что обратить внимание" />
+                    <textarea className={`${inputCls} mt-3 min-h-[60px]`} value={p.nearby} onChange={(e) => setPlace(di, pi, { nearby: e.target.value })} placeholder="Что рядом" />
                     <div className="mt-3">
-                      <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Фото места</span>
+                      <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Главное фото места</span>
                       <ImageInput value={p.photoUrl} onChange={(v) => setPlace(di, pi, { photoUrl: v })} />
+                    </div>
+                    <div className="mt-3">
+                      <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Фотогалерея (можно несколько)</span>
+                      <Gallery value={p.photos} onChange={(v) => setPlace(di, pi, { photos: v })} />
                     </div>
                     {d.places.length > 1 && (
                       <button type="button" onClick={() => setDay(di, { places: d.places.filter((_, j) => j !== pi) })} className="mt-2 text-xs text-paper-faint hover:text-paper">
@@ -260,6 +301,39 @@ export default function AdminPage() {
                   + Место
                 </button>
               </div>
+            </div>
+          ))}
+        </section>
+
+        {/* Отели */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-2xl tracking-tightest">Отели</h2>
+            <button type="button" data-cursor="hover" onClick={() => setHotels((h) => [...h, emptyHotel()])} className={btnGhost}>
+              + Отель
+            </button>
+          </div>
+          <p className="text-sm text-paper-faint">
+            Добавьте реальные отели по ссылке. Цена показывается, только если вы её
+            укажете — ничего не выдумывается. Если отели не добавлять, на странице
+            всё равно будут ссылки на поиск по городам.
+          </p>
+          {hotels.map((h, hi) => (
+            <div key={hi} className="rounded-xl border border-ink-line p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <input className={inputCls} value={h.name} onChange={(e) => setHotel(hi, { name: e.target.value })} placeholder="Название отеля" />
+                <input className={inputCls} value={h.cityLabel} onChange={(e) => setHotel(hi, { cityLabel: e.target.value })} placeholder="Город" />
+                <input className={inputCls} value={h.url} onChange={(e) => setHotel(hi, { url: e.target.value })} placeholder="Ссылка (Booking / сайт отеля)" />
+                <input className={inputCls} value={h.area} onChange={(e) => setHotel(hi, { area: e.target.value })} placeholder="Район / рядом с чем" />
+                <input className={inputCls} value={h.priceNote} onChange={(e) => setHotel(hi, { priceNote: e.target.value })} placeholder="Цена (опц., напр. от 6 000 ₽/ночь)" />
+              </div>
+              <div className="mt-3">
+                <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Фото отеля</span>
+                <ImageInput value={h.photoUrl} onChange={(v) => setHotel(hi, { photoUrl: v })} />
+              </div>
+              <button type="button" onClick={() => setHotels((hs) => hs.filter((_, k) => k !== hi))} className="mt-2 text-xs text-paper-faint hover:text-paper">
+                Удалить отель
+              </button>
             </div>
           ))}
         </section>
@@ -292,6 +366,43 @@ function Field({ label, children, full }: { label: string; children: React.React
       <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">{label}</span>
       {children}
     </label>
+  );
+}
+
+// A list of images (gallery): each row is an ImageInput; add/remove rows.
+function Gallery({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+  const rows = value.length ? value : [''];
+  const setAt = (i: number, v: string) => {
+    const next = [...rows];
+    next[i] = v;
+    onChange(next);
+  };
+  return (
+    <div className="space-y-3">
+      {rows.map((v, i) => (
+        <div key={i} className="flex items-start gap-2">
+          <div className="flex-1">
+            <ImageInput value={v} onChange={(nv) => setAt(i, nv)} />
+          </div>
+          {rows.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onChange(value.filter((_, k) => k !== i))}
+              className="mt-2 text-xs text-paper-faint hover:text-paper"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...value, ''])}
+        className={btnGhost}
+      >
+        + Фото в галерею
+      </button>
+    </div>
   );
 }
 

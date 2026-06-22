@@ -37,8 +37,24 @@ export interface Place {
   lng?: number | null;
   description?: string | null;
   photoUrl?: string | null;
+  photos?: string[];
+  howToGet?: string | null;
+  tips?: string | null;
+  nearby?: string | null;
   dataStatus: DataStatus;
   source?: string | null;
+}
+
+export interface Hotel {
+  id: string;
+  cityLabel?: string | null;
+  name: string;
+  url?: string | null;
+  area?: string | null;
+  priceNote?: string | null;
+  photoUrl?: string | null;
+  rating?: number | null;
+  dataStatus: DataStatus;
 }
 
 export interface TransportLeg {
@@ -111,6 +127,7 @@ export interface Trip {
   variants: RouteVariant[];
   scores?: TripScore | null;
   opinions: TripOpinion[];
+  hotels?: Hotel[];
 }
 
 async function get<T>(path: string): Promise<T | null> {
@@ -144,6 +161,14 @@ export interface CreateTripPayload {
   durationDays: number;
   budgetMinRub?: number;
   budgetMaxRub?: number;
+  hotels?: Array<{
+    cityLabel?: string;
+    name: string;
+    url?: string;
+    area?: string;
+    priceNote?: string;
+    photoUrl?: string;
+  }>;
   days: Array<{
     title?: string;
     baseCity?: string;
@@ -155,6 +180,10 @@ export interface CreateTripPayload {
       lng?: number;
       description?: string;
       photoUrl?: string;
+      photos?: string[];
+      howToGet?: string;
+      tips?: string;
+      nearby?: string;
     }>;
   }>;
 }

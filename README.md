@@ -130,6 +130,8 @@ Repository/
 - [Adding a new trip](docs/ADDING_ROUTES.md) — no code required
 - [Google Maps setup](docs/GOOGLE_MAPS.md)
 - [External integrations](docs/INTEGRATIONS.md) — adapter pattern, legal/ToS rules
+- **[Деплой на GitHub + Render + Netlify (по-русски, по шагам)](docs/DEPLOY_RU.md)** ⭐
+- [Netlify deploy notes (EN)](docs/DEPLOY_NETLIFY.md)
 
 ---
 

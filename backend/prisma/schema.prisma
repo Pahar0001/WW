@@ -106,7 +106,12 @@ model Place {
   lat         Float?
   lng         Float?
   description String?
-  photoUrl    String?
+  photoUrl    String?         // primary image
+  photos      String[] @default([]) // gallery (additional images)
+  // Practical guide fields (editorial — no fabricated numbers).
+  howToGet    String?         // как добраться
+  tips        String?         // на что обратить внимание
+  nearby      String?         // что есть в округе
   // provenance
   source      String?
   sourceUrl   String?
@@ -115,6 +120,24 @@ model Place {
   fetchedAt   DateTime?
   dayPlaces   DayPlace[]
   @@unique([cityId, slug])
+}
+
+// Curated, real accommodation. Links are admin-provided (no scraping); prices are
+// only shown if explicitly entered, never invented (see Real Data Policy).
+model Hotel {
+  id         String   @id @default(cuid())
+  tripId     String
+  trip       Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  cityLabel  String?  // which city this hotel is in
+  name       String
+  url        String?  // booking / official link
+  area       String?  // district / near what
+  priceNote  String?  // free-form, e.g. "от 6 000 ₽/ночь" — only if user enters it
+  photoUrl   String?
+  rating     Float?
+  source     String?
+  dataStatus DataStatus @default(PENDING)
+  createdAt  DateTime @default(now())
 }
 
 // ─────────────────────────── Trips & routes ───────────────────────────
@@ -146,6 +169,7 @@ model Trip {
   variants    RouteVariant[]
   scores      TripScore?
   opinions    TripOpinion[]
+  hotels      Hotel[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }

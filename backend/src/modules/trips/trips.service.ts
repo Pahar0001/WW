@@ -106,6 +106,10 @@ export class TripsService {
             lng: p.lng ?? null,
             description: p.description,
             photoUrl: p.photoUrl,
+            photos: p.photos ?? [],
+            howToGet: p.howToGet,
+            tips: p.tips,
+            nearby: p.nearby,
             // User-entered geodata: ESTIMATED if coords given, else PENDING.
             dataStatus: p.lat != null && p.lng != null ? 'ESTIMATED' : 'PENDING',
             source: 'cms-user-input',
@@ -117,6 +121,23 @@ export class TripsService {
           data: { dayId: day.id, placeId: place.id, order: j },
         });
       }
+    }
+
+    // Curated hotels (admin-provided links). Price only stored if entered.
+    if (input.hotels?.length) {
+      await this.prisma.hotel.createMany({
+        data: input.hotels.map((h) => ({
+          tripId: trip.id,
+          cityLabel: h.cityLabel,
+          name: h.name,
+          url: h.url,
+          area: h.area,
+          priceNote: h.priceNote,
+          photoUrl: h.photoUrl,
+          source: 'cms-user-input',
+          dataStatus: 'VERIFIED' as const, // a real link the editor provided
+        })),
+      });
     }
 
     // ESTIMATED budget from the stated envelope.
@@ -169,6 +190,7 @@ export class TripsService {
         country: true,
         scores: true,
         opinions: true,
+        hotels: { orderBy: { createdAt: 'asc' } },
         variants: {
           include: {
             budget: { include: { lines: true } },
