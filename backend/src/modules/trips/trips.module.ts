@@ -7,6 +7,7 @@ import {
   Module,
   Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { ZodError } from 'zod';
@@ -15,6 +16,16 @@ import { TripsService } from './trips.service';
 import { CreateTripSchema } from './trips.dto';
 import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
 import { Roles } from '../auth/auth.decorators';
+import { verifyToken } from '../../common/jwt';
+
+// Decode a Bearer token if present (no error if absent) — for optional auth.
+function optionalAccessor(req: any): { id: string; role: string } | null {
+  const h: string = req.headers?.authorization ?? '';
+  const t = h.startsWith('Bearer ') ? h.slice(7) : null;
+  if (!t) return null;
+  const p = verifyToken(t);
+  return p ? { id: p.sub, role: p.role } : null;
+}
 
 @Controller('trips')
 class TripsController {
@@ -26,8 +37,8 @@ class TripsController {
   }
 
   @Get(':slug')
-  get(@Param('slug') slug: string) {
-    return this.trips.getBySlug(slug);
+  get(@Param('slug') slug: string, @Req() req: any) {
+    return this.trips.getBySlug(slug, optionalAccessor(req));
   }
 
   @Post()

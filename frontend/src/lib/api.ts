@@ -143,8 +143,9 @@ export interface Trip {
   hotels?: Hotel[];
 }
 
-async function get<T>(path: string): Promise<T | null> {
+async function get<T>(path: string, token?: string): Promise<T | null> {
   const url = `${baseUrl()}${path}`;
+  const authHeader: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   // Retry to ride out free-tier cold starts: a sleeping backend returns 502/503
   // for ~30–50s while it wakes. We poll instead of rendering an empty 404.
   const delays = [0, 1500, 3000, 5000, 7000, 9000];
@@ -154,6 +155,7 @@ async function get<T>(path: string): Promise<T | null> {
       const res = await fetch(url, {
         cache: 'no-store',
         signal: AbortSignal.timeout(25000),
+        headers: authHeader,
       });
       if (res.ok) return (await res.json()) as T;
       if (res.status >= 400 && res.status < 500) return null; // genuine 4xx
@@ -167,7 +169,7 @@ async function get<T>(path: string): Promise<T | null> {
 
 export const api = {
   listTrips: () => get<Trip[]>('/trips'),
-  getTrip: (slug: string) => get<Trip>(`/trips/${slug}`),
+  getTrip: (slug: string, token?: string) => get<Trip>(`/trips/${slug}`, token),
 };
 
 // CMS create — called from the browser (client component), so it uses the
@@ -182,6 +184,7 @@ export interface CreateTripPayload {
   bestTime?: string;
   visaNote?: string;
   heroImage?: string;
+  visibility?: 'PUBLIC' | 'PRIVATE';
   seasonLabel?: string;
   durationDays: number;
   budgetMinRub?: number;

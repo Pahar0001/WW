@@ -71,6 +71,7 @@ export default function AdminPage() {
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
   const [heroImage, setHeroImage] = useState('');
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [days, setDays] = useState<DayForm[]>([emptyDay()]);
   const [hotels, setHotels] = useState<HotelForm[]>([]);
 
@@ -122,6 +123,7 @@ export default function AdminPage() {
         .filter(Boolean),
       seasonLabel: seasonLabel || undefined,
       heroImage: heroImage || undefined,
+      visibility,
       durationDays: Number(durationDays) || 1,
       budgetMinRub: budgetMin ? Number(budgetMin) : undefined,
       budgetMaxRub: budgetMax ? Number(budgetMax) : undefined,
@@ -253,6 +255,19 @@ export default function AdminPage() {
           </div>
           <Field label="Заглавное изображение" full>
             <ImageInput value={heroImage} onChange={setHeroImage} />
+          </Field>
+          <Field label="Доступ" full>
+            <div className="flex gap-2">
+              {(['PUBLIC', 'PRIVATE'] as const).map((v) => (
+                <button key={v} type="button" onClick={() => setVisibility(v)}
+                  className={`rounded-full border px-5 py-2 text-sm ${visibility === v ? 'border-aurora text-aurora' : 'border-ink-line text-paper-dim hover:text-paper'}`}>
+                  {v === 'PUBLIC' ? 'Публичная' : 'Приватная'}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-paper-faint">
+              Приватная видна только администраторам и приглашённым участникам.
+            </p>
           </Field>
           <Field label="Краткое описание" full>
             <input className={inputCls} value={summary} onChange={(e) => setSummary(e.target.value)} />

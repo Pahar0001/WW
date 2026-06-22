@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+
+export interface Accessor { id: string; role: string }
 import { estimateBudget } from '../../common/budget';
 import { CreateTripInput } from './trips.dto';
 
@@ -53,6 +55,7 @@ export class TripsService {
         bestTime: input.bestTime,
         visaNote: input.visaNote,
         heroImage: input.heroImage,
+        visibility: input.visibility ?? 'PUBLIC',
         seasonLabel: input.seasonLabel,
         durationDays: input.durationDays,
         budgetMinRub: input.budgetMinRub,
@@ -169,10 +172,10 @@ export class TripsService {
     return { ok: true, slug };
   }
 
-  /** List published trips (CMS "HIDDEN"/"DRAFT" excluded). */
+  /** List published, PUBLIC trips (private ones never appear in the public grid). */
   async list() {
     return this.prisma.trip.findMany({
-      where: { status: 'PUBLISHED' },
+      where: { status: 'PUBLISHED', visibility: 'PUBLIC' },
       include: {
         country: true,
         scores: true,
@@ -182,8 +185,27 @@ export class TripsService {
     });
   }
 
-  /** Full trip detail with all variants, days, places, legs, budgets, opinions. */
-  async getBySlug(slug: string) {
+  /** Full trip detail. Private trips require ADMIN/SUPER_ADMIN or membership. */
+  async getBySlug(slug: string, accessor?: Accessor | null) {
+    const meta = await this.prisma.trip.findUnique({
+      where: { slug },
+      select: { id: true, visibility: true },
+    });
+    if (!meta) throw new NotFoundException(`Trip "${slug}" not found`);
+    if (meta.visibility === 'PRIVATE') {
+      const isAdmin = accessor?.role === 'ADMIN' || accessor?.role === 'SUPER_ADMIN';
+      let isMember = false;
+      if (accessor && !isAdmin) {
+        const m = await this.prisma.tripMember.findUnique({
+          where: { tripId_userId: { tripId: meta.id, userId: accessor.id } },
+        });
+        isMember = !!m;
+      }
+      if (!isAdmin && !isMember) {
+        throw new ForbiddenException('Это приватная поездка — нужен доступ');
+      }
+    }
+
     const trip = await this.prisma.trip.findUnique({
       where: { slug },
       include: {

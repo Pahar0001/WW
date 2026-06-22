@@ -19,9 +19,12 @@ export function getToken(): string | null {
 }
 export function setToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token);
+  // Also a cookie so Server Components can read it (e.g. private trips).
+  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${7 * 24 * 3600}; samesite=lax`;
 }
 export function logout() {
   localStorage.removeItem(TOKEN_KEY);
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
   if (typeof window !== 'undefined') window.location.href = '/';
 }
 export function authHeaders(): Record<string, string> {

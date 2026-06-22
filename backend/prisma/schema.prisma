@@ -33,6 +33,11 @@ enum TripStatus {
   HIDDEN
 }
 
+enum TripVisibility {
+  PUBLIC   // visible to everyone
+  PRIVATE  // only ADMIN/SUPER_ADMIN and trip members
+}
+
 enum TransportMode {
   WALK
   HIGH_SPEED_RAIL
@@ -156,6 +161,7 @@ model Trip {
   countryId   String
   country     Country    @relation(fields: [countryId], references: [id])
   status      TripStatus @default(DRAFT)
+  visibility  TripVisibility @default(PUBLIC)
   durationDays Int
   // intended travel window, free-text + optional dates (no fabricated prices here)
   seasonLabel String?    // e.g. "March–April 2027"
@@ -182,6 +188,8 @@ model Trip {
   documents   TripDocument[]
   events      CalendarEvent[]
   chatMessages ChatMessage[]
+  albums      Album[]
+  memories    Memory[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -409,6 +417,45 @@ model Reminder {
   createdAt     DateTime        @default(now())
 }
 
+// ─────────────────────────── Memories (Phase 3) ───────────────────────────
+model Album {
+  id          String   @id @default(cuid())
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  title       String
+  coverUrl    String?
+  createdById String?
+  createdBy   User?    @relation("UserAlbums", fields: [createdById], references: [id], onDelete: SetNull)
+  photos      Photo[]
+  createdAt   DateTime @default(now())
+}
+
+model Photo {
+  id          String   @id @default(cuid())
+  albumId     String
+  album       Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  url         String
+  caption     String?
+  takenAt     DateTime?
+  createdById String?
+  createdAt   DateTime @default(now())
+}
+
+// Travel-diary entry.
+model Memory {
+  id          String   @id @default(cuid())
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  title       String
+  text        String
+  date        DateTime
+  location    String?
+  photos      String[] @default([])
+  createdById String?
+  createdBy   User?    @relation("UserMemories", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
 // Group chat message within a trip (HTTP + polling, stored in Postgres).
 model ChatMessage {
   id        String   @id @default(cuid())
@@ -458,6 +505,8 @@ model User {
   documents           TripDocument[] @relation("UserDocuments")
   events              CalendarEvent[] @relation("UserEvents")
   messages            ChatMessage[]  @relation("UserMessages")
+  albums              Album[]        @relation("UserAlbums")
+  memories            Memory[]       @relation("UserMemories")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

@@ -1,4 +1,5 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 
@@ -148,6 +149,122 @@ export class PlanningService implements OnModuleInit {
   }
   deleteEvent(id: string) {
     return this.prisma.calendarEvent.delete({ where: { id } }).then(() => ({ ok: true }));
+  }
+
+  // ── Members (invite by email) ────────────────────────────
+  async listMembers(slug: string) {
+    const tripId = await this.tripId(slug);
+    return this.prisma.tripMember.findMany({
+      where: { tripId },
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { id: true, email: true, name: true, role: true } } },
+    });
+  }
+
+  /** Add a participant by email. Existing user → added. New email → a pending
+   *  account is created and an invite link (set-password) is emailed. */
+  async inviteMember(slug: string, emailRaw: string) {
+    const tripId = await this.tripId(slug);
+    const email = emailRaw.toLowerCase().trim();
+    let user = await this.prisma.user.findUnique({ where: { email } });
+    let invited = false;
+    if (!user) {
+      const token = randomBytes(24).toString('hex');
+      user = await this.prisma.user.create({
+        data: { email, role: 'MEMBER', passwordResetToken: token, passwordResetExpiry: new Date(Date.now() + 7 * 86400000) },
+      });
+      invited = true;
+      await this.email.send(
+        email,
+        'Приглашение в поездку — Vela',
+        `<p>Вас пригласили участвовать в поездке на Vela. Задайте пароль и войдите:</p>
+         <p><a href="${this.email.link(`/reset-password?token=${token}`)}">Установить пароль и присоединиться</a></p>`,
+      );
+    }
+    const member = await this.prisma.tripMember.upsert({
+      where: { tripId_userId: { tripId, userId: user.id } },
+      update: {},
+      create: { tripId, userId: user.id, role: 'MEMBER' },
+      include: { user: { select: { id: true, email: true, name: true, role: true } } },
+    });
+    return { ...member, invited };
+  }
+
+  async removeMember(slug: string, userId: string) {
+    const tripId = await this.tripId(slug);
+    await this.prisma.tripMember.deleteMany({ where: { tripId, userId } });
+    return { ok: true };
+  }
+
+  // ── Memories: albums, photos, diary, timeline ────────────
+  async memoriesOverview(slug: string) {
+    const tripId = await this.tripId(slug);
+    const [albums, memories] = await Promise.all([
+      this.prisma.album.findMany({
+        where: { tripId },
+        orderBy: { createdAt: 'desc' },
+        include: { photos: { orderBy: { createdAt: 'asc' } } },
+      }),
+      this.prisma.memory.findMany({ where: { tripId }, orderBy: { date: 'desc' } }),
+    ]);
+    return { albums, memories };
+  }
+
+  async createAlbum(slug: string, title: string, userId: string) {
+    const tripId = await this.tripId(slug);
+    if (!title?.trim()) throw new BadRequestException('Нужно название альбома');
+    return this.prisma.album.create({ data: { tripId, title: title.trim(), createdById: userId } });
+  }
+  deleteAlbum(id: string) {
+    return this.prisma.album.delete({ where: { id } }).then(() => ({ ok: true }));
+  }
+
+  async addPhoto(albumId: string, data: { url: string; caption?: string; takenAt?: string }, userId: string) {
+    const album = await this.prisma.album.findUnique({ where: { id: albumId } });
+    if (!album) throw new NotFoundException('Альбом не найден');
+    const photo = await this.prisma.photo.create({
+      data: { albumId, url: data.url, caption: data.caption, takenAt: data.takenAt ? new Date(data.takenAt) : null, createdById: userId },
+    });
+    if (!album.coverUrl) await this.prisma.album.update({ where: { id: albumId }, data: { coverUrl: data.url } });
+    return photo;
+  }
+  deletePhoto(id: string) {
+    return this.prisma.photo.delete({ where: { id } }).then(() => ({ ok: true }));
+  }
+
+  async createMemory(slug: string, data: any, userId: string) {
+    const tripId = await this.tripId(slug);
+    return this.prisma.memory.create({
+      data: {
+        tripId,
+        title: data.title,
+        text: data.text,
+        date: new Date(data.date),
+        location: data.location,
+        photos: data.photos ?? [],
+        createdById: userId,
+      },
+    });
+  }
+  deleteMemory(id: string) {
+    return this.prisma.memory.delete({ where: { id } }).then(() => ({ ok: true }));
+  }
+
+  /** Chronological feed: memories + photos + calendar events. */
+  async timeline(slug: string) {
+    const tripId = await this.tripId(slug);
+    const [memories, photos, events] = await Promise.all([
+      this.prisma.memory.findMany({ where: { tripId } }),
+      this.prisma.photo.findMany({ where: { album: { tripId } }, include: { album: { select: { title: true } } } }),
+      this.prisma.calendarEvent.findMany({ where: { tripId } }),
+    ]);
+    const items = [
+      ...memories.map((m) => ({ kind: 'memory' as const, date: m.date, title: m.title, text: m.text, location: m.location, photos: m.photos })),
+      ...photos.map((p) => ({ kind: 'photo' as const, date: p.takenAt ?? p.createdAt, title: p.caption ?? p.album.title, url: p.url })),
+      ...events.map((e) => ({ kind: 'event' as const, date: e.startAt, title: e.title, type: e.type, location: e.location })),
+    ];
+    items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return items;
   }
 
   // ── Reminder worker ──────────────────────────────────────

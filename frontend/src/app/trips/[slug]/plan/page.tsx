@@ -7,7 +7,7 @@ import { auth, type AuthUser } from '@/lib/auth';
 import {
   planning, uploadFile,
   type PlanningOverview, type Ticket, type TripDocument, type CalendarEvent, type TicketKind, type EventType,
-  type Hotel, type ChatMessage,
+  type Hotel, type ChatMessage, type Member, type Album, type Memory, type TimelineItem,
 } from '@/lib/planning';
 
 const inp = 'w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-paper placeholder:text-paper-faint outline-none focus:border-aurora/60';
@@ -26,7 +26,7 @@ export default function PlanPage() {
   const slug = String(useParams().slug);
   const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
   const [data, setData] = useState<PlanningOverview | null>(null);
-  const [tab, setTab] = useState<'tickets' | 'documents' | 'calendar' | 'hotels' | 'chat'>('tickets');
+  const [tab, setTab] = useState<'tickets' | 'documents' | 'calendar' | 'hotels' | 'members' | 'memories' | 'chat'>('tickets');
   const [err, setErr] = useState<string | null>(null);
 
   const canEdit = !!me && ['ORGANIZER', 'ADMIN', 'SUPER_ADMIN'].includes(me.role);
@@ -54,7 +54,7 @@ export default function PlanPage() {
       <p className="mt-2 text-paper-dim">Билеты, документы и календарь событий с напоминаниями.</p>
 
       <div className="mt-8 flex flex-wrap gap-2">
-        {([['tickets', 'Билеты'], ['hotels', 'Отели'], ['documents', 'Документы'], ['calendar', 'Календарь'], ['chat', 'Чат']] as const).map(([t, label]) => (
+        {([['tickets', 'Билеты'], ['hotels', 'Отели'], ['documents', 'Документы'], ['calendar', 'Календарь'], ['members', 'Участники'], ['memories', 'Воспоминания'], ['chat', 'Чат']] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-5 py-2 text-sm transition-colors ${tab === t ? 'bg-paper text-ink' : 'border border-ink-line text-paper-dim hover:text-paper'}`}>
             {label}
           </button>
@@ -68,6 +68,8 @@ export default function PlanPage() {
         {tab === 'hotels' && <Hotels slug={slug} hotels={data?.hotels ?? []} canEdit={canEdit} onChange={load} />}
         {tab === 'documents' && <Documents slug={slug} docs={data?.documents ?? []} canEdit={canEdit} onChange={load} />}
         {tab === 'calendar' && <Calendar slug={slug} events={data?.events ?? []} canEdit={canEdit} onChange={load} />}
+        {tab === 'members' && <Members slug={slug} canEdit={canEdit} />}
+        {tab === 'memories' && <Memories slug={slug} canEdit={canEdit} />}
         {tab === 'chat' && <Chat slug={slug} meId={me?.id} />}
       </div>
     </main>
@@ -443,6 +445,192 @@ function Chat({ slug, meId }: { slug: string; meId?: string }) {
         <button disabled={sending || !text.trim()} className={btn}>Отправить</button>
       </form>
     </div>
+  );
+}
+
+// ── Members (invite by email) ────────────────────────────
+function Members({ slug, canEdit }: { slug: string; canEdit: boolean }) {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [email, setEmail] = useState('');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => planning.members(slug).then(setMembers).catch(() => {});
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [slug]);
+
+  async function invite() {
+    if (!email) return;
+    setBusy(true); setMsg(null);
+    try {
+      const r = await planning.invite(slug, email);
+      setMsg(r.invited ? `Приглашение отправлено: ${email} (письмо со ссылкой на установку пароля)` : `Добавлен: ${email}`);
+      setEmail(''); load();
+    } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="space-y-6">
+      {canEdit && (
+        <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+          <h3 className="mb-3 font-serif text-xl tracking-tightest">Добавить участника по email</h3>
+          <div className="flex flex-wrap gap-2">
+            <input className={`${inp} flex-1`} type="email" placeholder="email@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button disabled={busy || !email} onClick={invite} className={btn}>{busy ? '…' : 'Пригласить'}</button>
+          </div>
+          {msg && <p className="mt-3 text-sm text-aurora">{msg}</p>}
+        </div>
+      )}
+      <div className="grid gap-2">
+        {members.length === 0 && <p className="text-paper-faint">Участников пока нет.</p>}
+        {members.map((m) => (
+          <div key={m.id} className="flex items-center justify-between rounded-xl border border-ink-line p-4">
+            <div>
+              <div className="text-paper">{m.user.name || m.user.email}</div>
+              <div className="text-xs text-paper-faint">{m.user.email} · роль в поездке: {m.role}</div>
+            </div>
+            {canEdit && <button onClick={() => planning.removeMember(slug, m.user.id).then(load)} className="text-xs text-paper-faint hover:text-red-300">Убрать</button>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Memories: albums, diary, timeline ────────────────────
+function Memories({ slug, canEdit }: { slug: string; canEdit: boolean }) {
+  const [section, setSection] = useState<'albums' | 'diary' | 'timeline'>('albums');
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const load = () => {
+    planning.memories(slug).then((o) => { setAlbums(o.albums); setMemories(o.memories); }).catch(() => {});
+    planning.timeline(slug).then(setTimeline).catch(() => {});
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [slug]);
+
+  const [albumTitle, setAlbumTitle] = useState('');
+  const [mem, setMem] = useState({ title: '', text: '', date: '', location: '' });
+  const [memPhotos, setMemPhotos] = useState<string[]>([]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2">
+        {([['albums', 'Альбомы'], ['diary', 'Дневник'], ['timeline', 'Лента']] as const).map(([s, l]) => (
+          <button key={s} onClick={() => setSection(s)} className={section === s ? btn : ghost}>{l}</button>
+        ))}
+      </div>
+
+      {section === 'albums' && (
+        <div className="space-y-5">
+          {canEdit && (
+            <div className="flex gap-2">
+              <input className={`${inp} flex-1`} placeholder="Название альбома" value={albumTitle} onChange={(e) => setAlbumTitle(e.target.value)} />
+              <button className={btn} disabled={!albumTitle} onClick={() => planning.createAlbum(slug, albumTitle).then(() => { setAlbumTitle(''); load(); })}>Создать альбом</button>
+            </div>
+          )}
+          {albums.length === 0 && <p className="text-paper-faint">Альбомов пока нет.</p>}
+          {albums.map((a) => (
+            <div key={a.id} className="rounded-xl border border-ink-line p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="font-serif text-lg tracking-tightest">{a.title}</span>
+                {canEdit && <button onClick={() => planning.deleteAlbum(a.id).then(load)} className="text-xs text-paper-faint hover:text-red-300">Удалить</button>}
+              </div>
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                {a.photos.map((p) => (
+                  <div key={p.id} className="group relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.url} alt={p.caption ?? ''} className="aspect-square w-full rounded-lg object-cover" />
+                    {canEdit && <button onClick={() => planning.deletePhoto(p.id).then(load)} className="absolute right-1 top-1 hidden rounded bg-ink/70 px-1 text-xs text-red-300 group-hover:block">✕</button>}
+                  </div>
+                ))}
+                <AlbumUpload albumId={a.id} onDone={load} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {section === 'diary' && (
+        <div className="space-y-5">
+          {canEdit && (
+            <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+              <h3 className="mb-3 font-serif text-xl tracking-tightest">Новая запись</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <input className={inp} placeholder="Заголовок" value={mem.title} onChange={(e) => setMem({ ...mem, title: e.target.value })} />
+                <input className={inp} placeholder="Место" value={mem.location} onChange={(e) => setMem({ ...mem, location: e.target.value })} />
+                <label className="text-sm text-paper-faint">Дата<input type="date" className={inp} value={mem.date} onChange={(e) => setMem({ ...mem, date: e.target.value })} /></label>
+              </div>
+              <textarea className={`${inp} mt-3 min-h-[100px]`} placeholder="Текст воспоминания…" value={mem.text} onChange={(e) => setMem({ ...mem, text: e.target.value })} />
+              <div className="mt-2"><FileField label="Добавить фото" value={memPhotos[memPhotos.length - 1] ?? ''} onUploaded={(url) => setMemPhotos((p) => [...p, url])} /></div>
+              {memPhotos.length > 0 && <p className="mt-1 text-xs text-paper-faint">фото: {memPhotos.length}</p>}
+              <button className={`${btn} mt-4`} disabled={!mem.title || !mem.text || !mem.date}
+                onClick={() => planning.createMemory(slug, { ...mem, date: new Date(mem.date).toISOString(), photos: memPhotos }).then(() => { setMem({ title: '', text: '', date: '', location: '' }); setMemPhotos([]); load(); })}>
+                Сохранить
+              </button>
+            </div>
+          )}
+          {memories.length === 0 && <p className="text-paper-faint">Записей пока нет.</p>}
+          {memories.map((m) => (
+            <div key={m.id} className="rounded-xl border border-ink-line p-5">
+              <div className="flex items-center justify-between">
+                <span className="font-serif text-lg tracking-tightest">{m.title}</span>
+                {canEdit && <button onClick={() => planning.deleteMemory(m.id).then(load)} className="text-xs text-paper-faint hover:text-red-300">Удалить</button>}
+              </div>
+              <div className="text-xs text-paper-faint">{new Date(m.date).toLocaleDateString('ru-RU')}{m.location ? ` · ${m.location}` : ''}</div>
+              <p className="mt-2 whitespace-pre-wrap text-paper-dim">{m.text}</p>
+              {m.photos.length > 0 && (
+                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                  {m.photos.map((u, i) => (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img key={i} src={u} alt="" className="aspect-square w-full rounded-lg object-cover" />
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {section === 'timeline' && (
+        <div className="space-y-3">
+          {timeline.length === 0 && <p className="text-paper-faint">Лента пуста.</p>}
+          {timeline.map((it, i) => (
+            <div key={i} className="flex gap-4 rounded-xl border border-ink-line p-4">
+              <div className="w-28 shrink-0 text-sm text-paper-faint">{new Date(it.date).toLocaleDateString('ru-RU')}</div>
+              <div className="flex-1">
+                <span className="rounded-full bg-aurora/10 px-2 py-0.5 text-xs text-aurora">
+                  {it.kind === 'memory' ? 'Воспоминание' : it.kind === 'photo' ? 'Фото' : 'Событие'}
+                </span>
+                <div className="mt-1 text-paper">{it.title}</div>
+                {it.kind === 'memory' && <p className="mt-1 text-sm text-paper-dim">{it.text}</p>}
+                {it.kind === 'photo' && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={it.url} alt="" className="mt-2 h-32 rounded-lg object-cover" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlbumUpload({ albumId, onDone }: { albumId: string; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    const r = await uploadFile(file);
+    if (r.ok) await planning.addPhoto(albumId, { url: r.url });
+    setBusy(false);
+    onDone();
+  }
+  return (
+    <label className="flex aspect-square w-full cursor-pointer items-center justify-center rounded-lg border border-dashed border-ink-line text-2xl text-paper-faint hover:text-paper">
+      {busy ? '…' : '+'}
+      <input type="file" accept="image/*" className="hidden" onChange={onFile} disabled={busy} />
+    </label>
   );
 }
 

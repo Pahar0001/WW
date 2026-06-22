@@ -1,14 +1,19 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { PlanLink } from '@/components/trip/PlanLink';
 import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
+import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { Reveal } from '@/components/ui/Reveal';
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
-  const trip = await api.getTrip(params.slug);
-  if (!trip) notFound();
+  const token = cookies().get('vela_token')?.value;
+  const trip = await api.getTrip(params.slug, token);
+  // null may mean "not found" OR "private, no access". Show a gate that lets a
+  // logged-in member load it client-side; otherwise it offers login.
+  if (!trip) return <PrivateTripGate slug={params.slug} />;
 
   const scoreRows: { label: string; value: number }[] = trip.scores
     ? [

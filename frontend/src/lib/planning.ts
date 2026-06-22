@@ -62,7 +62,33 @@ export const planning = {
   deleteHotel: (id: string) => req(`/hotels/${id}`, { method: 'DELETE' }),
   chat: (slug: string, since?: string) => req<ChatMessage[]>(`/trips/${slug}/chat${since ? `?since=${encodeURIComponent(since)}` : ''}`),
   postChat: (slug: string, text: string) => req<ChatMessage>(`/trips/${slug}/chat`, { method: 'POST', body: JSON.stringify({ text }) }),
+
+  // Members
+  members: (slug: string) => req<Member[]>(`/trips/${slug}/members`),
+  invite: (slug: string, email: string) => req<Member & { invited: boolean }>(`/trips/${slug}/members`, { method: 'POST', body: JSON.stringify({ email }) }),
+  removeMember: (slug: string, userId: string) => req(`/trips/${slug}/members/${userId}`, { method: 'DELETE' }),
+
+  // Memories
+  memories: (slug: string) => req<MemoriesOverview>(`/trips/${slug}/memories`),
+  timeline: (slug: string) => req<TimelineItem[]>(`/trips/${slug}/timeline`),
+  createAlbum: (slug: string, title: string) => req<Album>(`/trips/${slug}/albums`, { method: 'POST', body: JSON.stringify({ title }) }),
+  deleteAlbum: (id: string) => req(`/albums/${id}`, { method: 'DELETE' }),
+  addPhoto: (albumId: string, data: { url: string; caption?: string }) => req<Photo>(`/albums/${albumId}/photos`, { method: 'POST', body: JSON.stringify(data) }),
+  deletePhoto: (id: string) => req(`/photos/${id}`, { method: 'DELETE' }),
+  createMemory: (slug: string, data: { title: string; text: string; date: string; location?: string; photos?: string[] }) =>
+    req<Memory>(`/trips/${slug}/memories`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteMemory: (id: string) => req(`/memories/${id}`, { method: 'DELETE' }),
 };
+
+export interface Member { id: string; role: string; user: { id: string; email: string; name?: string | null; role: string } }
+export interface Photo { id: string; url: string; caption?: string | null; takenAt?: string | null }
+export interface Album { id: string; title: string; coverUrl?: string | null; photos: Photo[] }
+export interface Memory { id: string; title: string; text: string; date: string; location?: string | null; photos: string[] }
+export interface MemoriesOverview { albums: Album[]; memories: Memory[] }
+export type TimelineItem =
+  | { kind: 'memory'; date: string; title: string; text: string; location?: string | null; photos: string[] }
+  | { kind: 'photo'; date: string; title: string; url: string }
+  | { kind: 'event'; date: string; title: string; type: string; location?: string | null };
 
 // Upload a file (image or PDF) via the authenticated uploads endpoint.
 export async function uploadFile(file: File): Promise<{ ok: true; url: string; mime: string } | { ok: false; error: string }> {

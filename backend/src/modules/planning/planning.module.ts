@@ -60,6 +60,16 @@ const HotelIn = z.object({
   photos: z.array(z.string()).optional(),
 });
 const ChatIn = z.object({ text: z.string().min(1).max(2000) });
+const InviteIn = z.object({ email: z.string().email() });
+const AlbumIn = z.object({ title: z.string().min(1) });
+const PhotoIn = z.object({ url: z.string().min(1), caption: z.string().optional(), takenAt: z.string().optional() });
+const MemoryIn = z.object({
+  title: z.string().min(1),
+  text: z.string().min(1),
+  date: z.string().min(1),
+  location: z.string().optional(),
+  photos: z.array(z.string()).optional(),
+});
 const EventIn = z.object({
   type: z.enum(['FLIGHT', 'HOTEL_CHECKIN', 'HOTEL_CHECKOUT', 'EXCURSION', 'MEETING', 'REMINDER', 'OTHER']).optional(),
   title: z.string().min(1),
@@ -139,6 +149,68 @@ class PlanningController {
   @Post('trips/:slug/chat')
   postChat(@Param('slug') slug: string, @Body() body: unknown, @CurrentUser() u: AuthUser) {
     return this.svc.postChat(slug, parse(ChatIn, body).text, u.id);
+  }
+
+  // ── Members (invite by email) — organizer/admin ──
+  @Get('trips/:slug/members')
+  members(@Param('slug') slug: string) {
+    return this.svc.listMembers(slug);
+  }
+
+  @Post('trips/:slug/members')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  invite(@Param('slug') slug: string, @Body() body: unknown) {
+    return this.svc.inviteMember(slug, parse(InviteIn, body).email);
+  }
+
+  @Delete('trips/:slug/members/:userId')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  removeMember(@Param('slug') slug: string, @Param('userId') userId: string) {
+    return this.svc.removeMember(slug, userId);
+  }
+
+  // ── Memories: albums, photos, diary, timeline ──
+  @Get('trips/:slug/memories')
+  memories(@Param('slug') slug: string) {
+    return this.svc.memoriesOverview(slug);
+  }
+
+  @Get('trips/:slug/timeline')
+  timeline(@Param('slug') slug: string) {
+    return this.svc.timeline(slug);
+  }
+
+  @Post('trips/:slug/albums')
+  createAlbum(@Param('slug') slug: string, @Body() body: unknown, @CurrentUser() u: AuthUser) {
+    return this.svc.createAlbum(slug, parse(AlbumIn, body).title, u.id);
+  }
+
+  @Delete('albums/:id')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  deleteAlbum(@Param('id') id: string) {
+    return this.svc.deleteAlbum(id);
+  }
+
+  @Post('albums/:id/photos')
+  addPhoto(@Param('id') id: string, @Body() body: unknown, @CurrentUser() u: AuthUser) {
+    return this.svc.addPhoto(id, parse(PhotoIn, body), u.id);
+  }
+
+  @Delete('photos/:id')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  deletePhoto(@Param('id') id: string) {
+    return this.svc.deletePhoto(id);
+  }
+
+  @Post('trips/:slug/memories')
+  createMemory(@Param('slug') slug: string, @Body() body: unknown, @CurrentUser() u: AuthUser) {
+    return this.svc.createMemory(slug, parse(MemoryIn, body), u.id);
+  }
+
+  @Delete('memories/:id')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  deleteMemory(@Param('id') id: string) {
+    return this.svc.deleteMemory(id);
   }
 }
 
