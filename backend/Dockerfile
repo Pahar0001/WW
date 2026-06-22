@@ -27,4 +27,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/dist-seed ./dist-seed
 COPY prisma ./prisma
 EXPOSE 4000
-CMD ["node", "dist/main.js"]
+# Self-sufficient boot for cloud hosts (Render/Railway) that run the image
+# directly without docker-compose: sync schema, seed (best-effort), then start.
+# docker-compose overrides this with its own `command:` for local dev.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && (npm run seed || echo 'seed skipped') && node dist/main.js"]

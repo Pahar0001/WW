@@ -1,0 +1,14 @@
+# Netlify config for the Vela frontend (Next.js).
+# In the Netlify UI set "Base directory" = frontend, OR keep this file in
+# frontend/ and point the site's base directory here.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Official Next.js runtime — gives SSR, server components, and ISR on Netlify.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
