@@ -3,154 +3,166 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Day } from '@/lib/api';
 
+/**
+ * Day-aware map on OpenStreetMap + Leaflet — NO API KEY REQUIRED.
+ * Leaflet is loaded from a CDN on the client (no extra npm dependency, no SSR
+ * issues). It plots the selected day's places as numbered markers, draws the
+ * path between them, fits the view, and re-renders when the day changes.
+ * Markers are clickable (popups). Coordinates come straight from the backend;
+ * nothing is fabricated. Days with no fixed points show a graceful note.
+ */
 declare global {
   interface Window {
-    google?: any;
-    __velaMapsLoading?: Promise<void>;
+    L?: any;
+    __velaLeaflet?: Promise<void>;
   }
 }
 
-const KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
+const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
 
-function loadGoogleMaps(): Promise<void> {
+function loadLeaflet(): Promise<void> {
   if (typeof window === 'undefined') return Promise.reject();
-  if (window.google?.maps) return Promise.resolve();
-  if (window.__velaMapsLoading) return window.__velaMapsLoading;
-  window.__velaMapsLoading = new Promise((resolve, reject) => {
+  if (window.L) return Promise.resolve();
+  if (window.__velaLeaflet) return window.__velaLeaflet;
+  window.__velaLeaflet = new Promise<void>((resolve, reject) => {
+    if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = LEAFLET_CSS;
+      document.head.appendChild(link);
+    }
     const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${KEY}`;
+    s.src = LEAFLET_JS;
     s.async = true;
-    s.defer = true;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Maps failed to load'));
+    s.onerror = () => reject(new Error('Leaflet failed to load'));
     document.head.appendChild(s);
   });
-  return window.__velaMapsLoading;
+  return window.__velaLeaflet;
 }
 
-/**
- * Day-aware map. When a Google Maps key is configured, it plots the day's places
- * and draws the path between them, re-fitting on day change. Without a key (or on
- * failure) it renders a refined static fallback listing the geocoded points —
- * never a broken map, never fabricated coordinates.
- */
 export function TripMap({ day }: { day: Day }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
-  const overlaysRef = useRef<any[]>([]);
-  const [status, setStatus] = useState<'idle' | 'ready' | 'fallback'>('idle');
+  const layerRef = useRef<any>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
 
   const points = day.places
-    .map((p) => p.place)
+    .map((dp) => dp.place)
     .filter((p) => p.lat != null && p.lng != null) as Array<{
     name: string;
+    nameLocal?: string | null;
     lat: number;
     lng: number;
   }>;
 
+  // Init the map once.
   useEffect(() => {
-    if (!KEY) {
-      setStatus('fallback');
-      return;
-    }
     let cancelled = false;
-    loadGoogleMaps()
+    loadLeaflet()
       .then(() => {
-        if (cancelled || !ref.current) return;
-        const g = window.google;
-        if (!mapRef.current) {
-          mapRef.current = new g.maps.Map(ref.current, {
-            center: points[0] ?? { lat: 34.0, lng: 110.0 },
-            zoom: 5,
-            disableDefaultUI: true,
-            zoomControl: true,
-            styles: DARK_STYLE,
-          });
+        if (cancelled || !elRef.current || mapRef.current) {
+          if (!cancelled) setState('ready');
+          return;
         }
-        setStatus('ready');
+        const L = window.L;
+        mapRef.current = L.map(elRef.current, {
+          zoomControl: true,
+          scrollWheelZoom: true,
+          attributionControl: true,
+        }).setView([34.0, 110.0], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18,
+          attribution: '© OpenStreetMap contributors',
+        }).addTo(mapRef.current);
+        setState('ready');
       })
-      .catch(() => !cancelled && setStatus('fallback'));
+      .catch(() => !cancelled && setState('error'));
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-render markers + path whenever the day changes.
+  // Redraw markers + path on day change.
   useEffect(() => {
-    if (status !== 'ready' || !mapRef.current || !window.google) return;
-    const g = window.google;
-    overlaysRef.current.forEach((o) => o.setMap(null));
-    overlaysRef.current = [];
+    if (state !== 'ready' || !mapRef.current || !window.L) return;
+    const L = window.L;
+
+    if (layerRef.current) layerRef.current.remove();
+    layerRef.current = L.layerGroup().addTo(mapRef.current);
     if (points.length === 0) return;
 
-    const bounds = new g.maps.LatLngBounds();
+    const latlngs: [number, number][] = [];
     points.forEach((p, i) => {
-      const marker = new g.maps.Marker({
-        position: { lat: p.lat, lng: p.lng },
-        map: mapRef.current,
-        label: { text: String(i + 1), color: '#0a0b0d', fontWeight: '600' },
-        title: p.name,
+      latlngs.push([p.lat, p.lng]);
+      const icon = L.divIcon({
+        className: 'vela-pin',
+        html: `<span style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#7fe3d0;color:#0a0b0d;font:600 12px/1 system-ui;box-shadow:0 2px 8px rgba(0,0,0,.5)">${i + 1}</span>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
       });
-      overlaysRef.current.push(marker);
-      bounds.extend(marker.getPosition());
+      L.marker([p.lat, p.lng], { icon })
+        .addTo(layerRef.current)
+        .bindPopup(
+          `<strong>${p.name}</strong>${p.nameLocal ? ` <span style="opacity:.6">${p.nameLocal}</span>` : ''}`,
+        );
     });
-    if (points.length > 1) {
-      const path = new g.maps.Polyline({
-        path: points.map((p) => ({ lat: p.lat, lng: p.lng })),
-        geodesic: true,
-        strokeColor: '#7fe3d0',
-        strokeOpacity: 0.9,
-        strokeWeight: 2,
-        map: mapRef.current,
-      });
-      overlaysRef.current.push(path);
-    }
-    mapRef.current.fitBounds(bounds, 80);
-    if (points.length === 1) mapRef.current.setZoom(10);
-  }, [day.id, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (status === 'fallback') {
+    if (latlngs.length > 1) {
+      L.polyline(latlngs, { color: '#7fe3d0', weight: 2, opacity: 0.9 }).addTo(
+        layerRef.current,
+      );
+    }
+
+    const bounds = L.latLngBounds(latlngs);
+    if (latlngs.length === 1) {
+      mapRef.current.setView(latlngs[0], 10);
+    } else {
+      mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+    }
+    // Leaflet sometimes needs a nudge after layout/animation.
+    setTimeout(() => mapRef.current?.invalidateSize(), 50);
+  }, [day.id, state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (state === 'error') {
     return (
-      <div className="flex h-full min-h-[320px] flex-col justify-between rounded-2xl border border-ink-line bg-ink-soft/60 p-6">
-        <div>
-          <p className="text-xs uppercase tracking-[0.25em] text-paper-faint">
-            Map preview
-          </p>
-          <p className="mt-2 text-sm text-paper-dim">
-            Set <code className="text-aurora">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code>{' '}
-            to enable the interactive map.
-          </p>
-        </div>
-        <ul className="mt-6 space-y-2">
-          {points.length === 0 ? (
-            <li className="text-sm text-paper-faint">Travel / rest day — no fixed points.</li>
-          ) : (
-            points.map((p, i) => (
-              <li key={i} className="flex items-center gap-3 text-sm">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-aurora text-[11px] font-semibold text-ink">
-                  {i + 1}
-                </span>
-                <span className="text-paper">{p.name}</span>
-                <span className="text-paper-faint">
-                  {p.lat.toFixed(3)}, {p.lng.toFixed(3)}
-                </span>
-              </li>
-            ))
-          )}
-        </ul>
-      </div>
+      <FallbackList points={points} note="Map could not load. Showing points instead." />
     );
   }
 
-  return <div ref={ref} className="h-full min-h-[320px] w-full rounded-2xl border border-ink-line" />;
+  return (
+    <div className="relative h-full min-h-[320px] w-full overflow-hidden rounded-2xl border border-ink-line">
+      <div ref={elRef} className="h-full w-full" />
+      {points.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-soft/70 text-sm text-paper-faint">
+          День отдыха / переезд — без фиксированных точек.
+        </div>
+      )}
+    </div>
+  );
 }
 
-const DARK_STYLE = [
-  { elementType: 'geometry', stylers: [{ color: '#101216' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0b0d' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#a7a39a' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a0b0d' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1c1f26' }] },
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-];
+function FallbackList({
+  points,
+  note,
+}: {
+  points: Array<{ name: string; lat: number; lng: number }>;
+  note: string;
+}) {
+  return (
+    <div className="flex h-full min-h-[320px] flex-col rounded-2xl border border-ink-line bg-ink-soft/60 p-6">
+      <p className="text-sm text-paper-dim">{note}</p>
+      <ul className="mt-4 space-y-2">
+        {points.map((p, i) => (
+          <li key={i} className="flex items-center gap-3 text-sm">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-aurora text-[11px] font-semibold text-ink">
+              {i + 1}
+            </span>
+            <span className="text-paper">{p.name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

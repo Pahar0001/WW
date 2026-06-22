@@ -31,9 +31,10 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     ports:
       - "4000:4000"
-    # On boot: sync schema (reference build uses db push), seed, then start.
+    # On boot: sync schema (reference build uses db push), seed (best-effort,
+    # idempotent), then start the API. Seed failure must not block the API.
     # For real environments, replace `db push` with `prisma migrate deploy`.
-    command: sh -c "npx prisma db push --skip-generate && npm run seed && node dist/main.js"
+    command: sh -c "npx prisma db push --skip-generate && (npm run seed || echo 'seed step skipped') && node dist/main.js"
 
   web:
     build:
@@ -46,7 +47,11 @@ services:
     depends_on:
       - backend
     environment:
+      # Browser-facing (inlined at build via build args too).
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
+      # Server-side fetch inside the Docker network must reach the backend
+      # service by name, NOT localhost (localhost = the web container itself).
+      API_INTERNAL_URL: http://backend:4000/api
     ports:
       - "3000:3000"
 

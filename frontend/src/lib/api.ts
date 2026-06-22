@@ -1,5 +1,17 @@
-// Thin typed client for the Vela API. Server components call these directly.
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+// Thin typed client for the Vela API.
+//
+// Important: in Docker, server components run INSIDE the `web` container, where
+// `localhost` is the web container itself — not the backend. So on the server we
+// must call the backend by its service name (API_INTERNAL_URL=http://backend:4000).
+// In the browser we use the host-mapped NEXT_PUBLIC_API_URL (http://localhost:4000).
+const BROWSER_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
+const SERVER_BASE =
+  process.env.API_INTERNAL_URL ?? BROWSER_BASE;
+
+function baseUrl(): string {
+  return typeof window === 'undefined' ? SERVER_BASE : BROWSER_BASE;
+}
 
 export type DataStatus = 'VERIFIED' | 'ESTIMATED' | 'PENDING';
 export type Pace = 'CALM' | 'BALANCED' | 'ACTIVE';
@@ -85,7 +97,7 @@ export interface Trip {
 
 async function get<T>(path: string): Promise<T | null> {
   try {
-    const res = await fetch(`${BASE}${path}`, { next: { revalidate: 60 } });
+    const res = await fetch(`${baseUrl()}${path}`, { next: { revalidate: 30 } });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
