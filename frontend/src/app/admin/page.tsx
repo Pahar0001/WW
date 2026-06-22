@@ -213,13 +213,21 @@ export default function AdminPage() {
                     <div className="text-xs text-paper-faint">{t.country.name} · {t.durationDays} дней</div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onDelete(t.slug, t.title)}
-                  className="rounded-full border border-red-400/30 px-4 py-1.5 text-sm text-red-300 transition-colors hover:border-red-400/60 hover:bg-red-400/10"
-                >
-                  Удалить
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/trips/${t.slug}/edit`}
+                    className="rounded-full border border-ink-line px-4 py-1.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
+                  >
+                    Изменить
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(t.slug, t.title)}
+                    className="rounded-full border border-red-400/30 px-4 py-1.5 text-sm text-red-300 transition-colors hover:border-red-400/60 hover:bg-red-400/10"
+                  >
+                    Удалить
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

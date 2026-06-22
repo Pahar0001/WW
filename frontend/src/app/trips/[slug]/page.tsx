@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { PlanLink } from '@/components/trip/PlanLink';
+import { EditTripLink } from '@/components/trip/EditTripLink';
 import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { Reveal } from '@/components/ui/Reveal';
@@ -51,6 +52,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
           Vela
         </Link>
         <div className="flex items-center gap-4">
+          <EditTripLink slug={params.slug} />
           <PlanLink slug={params.slug} />
           <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
             ← Все маршруты

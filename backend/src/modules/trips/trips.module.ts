@@ -6,6 +6,7 @@ import {
   Get,
   Module,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -13,7 +14,7 @@ import {
 import { ZodError } from 'zod';
 import { UserRole } from '@prisma/client';
 import { TripsService } from './trips.service';
-import { CreateTripSchema } from './trips.dto';
+import { CreateTripSchema, UpdateTripSchema } from './trips.dto';
 import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
 import { Roles } from '../auth/auth.decorators';
 import { verifyToken } from '../../common/jwt';
@@ -55,6 +56,20 @@ class TripsController {
       throw e;
     }
     return this.trips.create(input);
+  }
+
+  @Patch(':slug')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZER, UserRole.ADMIN) // everyone except MEMBER
+  update(@Param('slug') slug: string, @Body() body: unknown) {
+    let input;
+    try {
+      input = UpdateTripSchema.parse(body);
+    } catch (e) {
+      if (e instanceof ZodError) throw new BadRequestException(e.flatten());
+      throw e;
+    }
+    return this.trips.update(slug, input);
   }
 
   @Delete(':slug')

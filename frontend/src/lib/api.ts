@@ -236,6 +236,41 @@ export async function createTrip(
   }
 }
 
+export interface UpdateTripPayload {
+  title?: string;
+  subtitle?: string;
+  summary?: string;
+  longDescription?: string;
+  highlights?: string[];
+  bestTime?: string;
+  visaNote?: string;
+  heroImage?: string;
+  visibility?: 'PUBLIC' | 'PRIVATE';
+  status?: 'DRAFT' | 'PUBLISHED' | 'HIDDEN';
+  seasonLabel?: string;
+  durationDays?: number;
+  budgetMinRub?: number | null;
+  budgetMaxRub?: number | null;
+}
+
+/** Update trip-level fields (ORGANIZER+). */
+export async function updateTrip(
+  slug: string,
+  payload: UpdateTripPayload,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/trips/${slug}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
 /** Delete a trip by slug (admin). */
 export async function deleteTrip(
   slug: string,

@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface Accessor { id: string; role: string }
 import { estimateBudget } from '../../common/budget';
-import { CreateTripInput } from './trips.dto';
+import { CreateTripInput, UpdateTripInput } from './trips.dto';
 
 function slugify(input: string): string {
   const base = input
@@ -162,6 +162,32 @@ export class TripsService {
     }
 
     return { slug: trip.slug, id: trip.id };
+  }
+
+  /** Update trip-level fields (ORGANIZER+). Nested days/places are not touched. */
+  async update(slug: string, data: UpdateTripInput) {
+    const trip = await this.prisma.trip.findUnique({ where: { slug }, select: { id: true } });
+    if (!trip) throw new NotFoundException(`Путешествие "${slug}" не найдено`);
+    await this.prisma.trip.update({
+      where: { slug },
+      data: {
+        ...(data.title !== undefined && { title: data.title }),
+        ...(data.subtitle !== undefined && { subtitle: data.subtitle }),
+        ...(data.summary !== undefined && { summary: data.summary }),
+        ...(data.longDescription !== undefined && { longDescription: data.longDescription }),
+        ...(data.highlights !== undefined && { highlights: data.highlights }),
+        ...(data.bestTime !== undefined && { bestTime: data.bestTime }),
+        ...(data.visaNote !== undefined && { visaNote: data.visaNote }),
+        ...(data.heroImage !== undefined && { heroImage: data.heroImage }),
+        ...(data.visibility !== undefined && { visibility: data.visibility }),
+        ...(data.status !== undefined && { status: data.status }),
+        ...(data.seasonLabel !== undefined && { seasonLabel: data.seasonLabel }),
+        ...(data.durationDays !== undefined && { durationDays: data.durationDays }),
+        ...(data.budgetMinRub !== undefined && { budgetMinRub: data.budgetMinRub }),
+        ...(data.budgetMaxRub !== undefined && { budgetMaxRub: data.budgetMaxRub }),
+      },
+    });
+    return { ok: true, slug };
   }
 
   /** Delete a trip by slug (cascades variants/days/budget/scores/opinions). */

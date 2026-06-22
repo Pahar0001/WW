@@ -56,3 +56,22 @@ export const CreateTripSchema = z.object({
 });
 
 export type CreateTripInput = z.infer<typeof CreateTripSchema>;
+
+// Editable trip-level fields (everyone except MEMBER may edit).
+export const UpdateTripSchema = z.object({
+  title: z.string().min(1).optional(),
+  subtitle: z.string().optional(),
+  summary: z.string().optional(),
+  longDescription: z.string().optional(),
+  highlights: z.array(z.string()).optional(),
+  bestTime: z.string().optional(),
+  visaNote: z.string().optional(),
+  heroImage: z.string().optional(),
+  visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+  status: z.enum(['DRAFT', 'PUBLISHED', 'HIDDEN']).optional(),
+  seasonLabel: z.string().optional(),
+  durationDays: z.coerce.number().int().min(1).max(60).optional(),
+  budgetMinRub: z.coerce.number().int().positive().nullable().optional(),
+  budgetMaxRub: z.coerce.number().int().positive().nullable().optional(),
+});
+export type UpdateTripInput = z.infer<typeof UpdateTripSchema>;
