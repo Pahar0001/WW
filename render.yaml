@@ -1,14 +1,21 @@
-# Render Blueprint — deploys the Vela backend (NestJS, Docker) + PostgreSQL.
-# The frontend goes to Netlify separately (see docs/DEPLOY_RU.md).
+# ─────────────────────────────────────────────────────────────────────────────
+# Vela — full deployment architecture as a single Render Blueprint.
 #
-# Usage: in Render → "New +" → "Blueprint" → pick your GitHub repo.
-# Render reads this file and creates the database + API service automatically.
+#   PostgreSQL (vela-db)  ←  NestJS API (vela-api)  ←  Next.js web (vela-web)
+#
+# Deploy: Render dashboard → "New +" → "Blueprint" → pick this repo → Apply.
+# Render reads this file and provisions all three. Then set the two `sync:false`
+# variables (see steps in docs/DEPLOY_RU.md) and redeploy the web service once.
+#
+# Frontend can alternatively live on Netlify (frontend/netlify.toml) — see docs.
+# ─────────────────────────────────────────────────────────────────────────────
 
 databases:
   - name: vela-db
     plan: free
 
 services:
+  # ── Backend API (Docker) ──────────────────────────────────────────────
   - type: web
     name: vela-api
     runtime: docker
@@ -16,6 +23,7 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /api/health
+    autoDeploy: true
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -23,6 +31,26 @@ services:
           property: connectionString
       - key: NODE_ENV
         value: production
-      # Set this to your Netlify URL after the frontend is deployed, then redeploy.
+      # After the web service exists, set this to its URL (https://vela-web.onrender.com)
+      # so the browser is allowed to call the API. Then redeploy this service.
       - key: CORS_ORIGIN
+        sync: false
+
+  # ── Frontend web (Docker, Next.js standalone) ─────────────────────────
+  - type: web
+    name: vela-web
+    runtime: docker
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    autoDeploy: true
+    envVars:
+      # Browser-facing API base. Set to the API URL + /api, e.g.
+      #   https://vela-api.onrender.com/api
+      # NOTE: this is baked at BUILD time — after setting it, trigger a
+      # "Clear build cache & deploy" on the web service.
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      # Server-side fetch base (runtime). Use the SAME value as above.
+      - key: API_INTERNAL_URL
         sync: false
