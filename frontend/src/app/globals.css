@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Fraunces', Georgia, serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-ink text-paper antialiased;
+    font-feature-settings: 'ss01', 'cv01';
+  }
+  /* Hide the native cursor on pointer-capable devices; our custom one replaces it.
+     Touch devices keep default behavior (media query below). */
+  @media (hover: hover) and (pointer: fine) {
+    * {
+      cursor: none;
+    }
+  }
+  ::selection {
+    @apply bg-aurora text-ink;
+  }
+}
+
+@layer utilities {
+  .container-vela {
+    @apply mx-auto w-full max-w-6xl px-6 md:px-10;
+  }
+  .hairline {
+    @apply border-ink-line;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Respect reduced-motion: the generative canvas and cursor self-disable in JS,
+   and we remove transitions here as a defensive layer. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

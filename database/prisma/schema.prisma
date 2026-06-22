@@ -1,0 +1,296 @@
+// Vela — domain model.
+// Design principle: every externally-sourced value carries provenance
+// (source, sourceUrl, dataStatus, trustLevel, fetchedAt). Nothing is invented.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────── Provenance ───────────────────────────
+// Embedded as scalar fields on records that hold external data.
+enum DataStatus {
+  VERIFIED  // confirmed against an official / primary source
+  ESTIMATED // derived/approximate, explicitly flagged in UI
+  PENDING   // unknown — surfaced as "data pending", never guessed
+}
+
+enum Pace {
+  CALM        // "Спокойная"
+  BALANCED    // "Сбалансированная"
+  ACTIVE      // "Активная"
+}
+
+enum TripStatus {
+  DRAFT
+  PUBLISHED
+  HIDDEN
+}
+
+enum TransportMode {
+  WALK
+  HIGH_SPEED_RAIL
+  TRAIN
+  FLIGHT
+  CAR
+  BUS
+  CABLE_CAR
+  FERRY
+}
+
+enum BudgetCategory {
+  FLIGHTS
+  HOTELS
+  TRANSPORT
+  FOOD
+  ACTIVITIES
+  RESERVE
+}
+
+// ─────────────────────────── Geography ───────────────────────────
+model Country {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  nameLocal   String?
+  isoCode     String?  @unique
+  summary     String?
+  heroImage   String?
+  // Seasonality heatmap is stored per-month, see SeasonInsight.
+  trips       Trip[]
+  regions     Region[]
+  seasons     SeasonInsight[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Region {
+  id        String   @id @default(cuid())
+  countryId String
+  country   Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  slug      String
+  name      String
+  summary   String?
+  cities    City[]
+  @@unique([countryId, slug])
+}
+
+model City {
+  id        String   @id @default(cuid())
+  regionId  String
+  region    Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  slug      String
+  name      String
+  nameLocal String?
+  lat       Float?
+  lng       Float?
+  summary   String?
+  places    Place[]
+  @@unique([regionId, slug])
+}
+
+model Place {
+  id          String   @id @default(cuid())
+  cityId      String
+  city        City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  slug        String
+  name        String
+  nameLocal   String?
+  kind        String?  // e.g. "national-park", "old-town", "viewpoint"
+  lat         Float?
+  lng         Float?
+  description String?
+  photoUrl    String?
+  // provenance
+  source      String?
+  sourceUrl   String?
+  dataStatus  DataStatus @default(PENDING)
+  trustLevel  Int        @default(3)
+  fetchedAt   DateTime?
+  dayPlaces   DayPlace[]
+  @@unique([cityId, slug])
+}
+
+// ─────────────────────────── Trips & routes ───────────────────────────
+model Trip {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  subtitle    String?
+  countryId   String
+  country     Country    @relation(fields: [countryId], references: [id])
+  status      TripStatus @default(DRAFT)
+  durationDays Int
+  // intended travel window, free-text + optional dates (no fabricated prices here)
+  seasonLabel String?    // e.g. "March–April 2027"
+  startWindow DateTime?
+  endWindow   DateTime?
+  heroImage   String?
+  summary     String?
+  // Editor-facing budget envelope (a stated target, not a computed price)
+  budgetMinRub Int?
+  budgetMaxRub Int?
+  variants    RouteVariant[]
+  scores      TripScore?
+  opinions    TripOpinion[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+// A Trip has up to three variants: CALM / BALANCED / ACTIVE.
+model RouteVariant {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  pace      Pace
+  title     String?
+  summary   String?
+  days      Day[]
+  budget    BudgetBreakdown?
+  @@unique([tripId, pace])
+}
+
+model Day {
+  id          String   @id @default(cuid())
+  variantId   String
+  variant     RouteVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  dayNumber   Int
+  title       String?
+  baseCity    String?  // human-readable city the day is based in
+  notes       String?
+  // load index 0..100, computed by the scoring engine (ESTIMATED by definition)
+  loadIndex   Int?
+  places      DayPlace[]
+  legs        TransportLeg[]
+  @@unique([variantId, dayNumber])
+}
+
+// Join of a Day and a Place, with ordering + dwell time.
+model DayPlace {
+  id          String   @id @default(cuid())
+  dayId       String
+  day         Day      @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  placeId     String
+  place       Place    @relation(fields: [placeId], references: [id])
+  order       Int
+  dwellMin    Int?     // minutes spent; provenance via place
+  note        String?
+  @@unique([dayId, order])
+}
+
+// A movement between two points on a given day.
+model TransportLeg {
+  id          String   @id @default(cuid())
+  dayId       String
+  day         Day      @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  order       Int
+  mode        TransportMode
+  fromLabel   String
+  toLabel     String
+  distanceKm  Float?
+  durationMin Int?
+  // provenance — distances/times must be sourced, never invented
+  source      String?
+  sourceUrl   String?
+  dataStatus  DataStatus @default(PENDING)
+  trustLevel  Int        @default(3)
+  fetchedAt   DateTime?
+  @@unique([dayId, order])
+}
+
+// ─────────────────────────── Budget ───────────────────────────
+model BudgetBreakdown {
+  id        String   @id @default(cuid())
+  variantId String   @unique
+  variant   RouteVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  currency  String   @default("RUB")
+  lines     BudgetLine[]
+  updatedAt DateTime @updatedAt
+}
+
+model BudgetLine {
+  id          String   @id @default(cuid())
+  breakdownId String
+  breakdown   BudgetBreakdown @relation(fields: [breakdownId], references: [id], onDelete: Cascade)
+  category    BudgetCategory
+  amount      Int?     // null => data pending
+  label       String?
+  // provenance
+  source      String?
+  sourceUrl   String?
+  dataStatus  DataStatus @default(PENDING)
+  trustLevel  Int        @default(3)
+  fetchedAt   DateTime?
+  @@unique([breakdownId, category])
+}
+
+// ─────────────────────────── Scoring & opinions ───────────────────────────
+model TripScore {
+  id          String   @id @default(cuid())
+  tripId      String   @unique
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  comfort     Int      // 0..100
+  beauty      Int
+  history     Int
+  load        Int      // higher = more tiring
+  valueRatio  Int      // price/quality
+  uniqueness  Int
+  nature      Int
+  overall     Int      // computed weighted average
+  updatedAt   DateTime @updatedAt
+}
+
+// Multi-persona honest review (traveler, blogger, investor, competitor, skeptic, guide).
+model TripOpinion {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  persona   String   // "skeptic", "guide", ...
+  verdict   String   // honest, may be negative
+  rating    Int?     // 0..100 optional
+  createdAt DateTime @default(now())
+}
+
+// ─────────────────────────── Seasonality ───────────────────────────
+model SeasonInsight {
+  id          String   @id @default(cuid())
+  countryId   String
+  country     Country  @relation(fields: [countryId], references: [id], onDelete: Cascade)
+  month       Int      // 1..12
+  weatherNote String?
+  priceIndex  Int?     // 0..100 relative, ESTIMATED/PENDING only
+  crowdIndex  Int?     // 0..100 relative
+  recommended Boolean  @default(false)
+  // provenance
+  source      String?
+  sourceUrl   String?
+  dataStatus  DataStatus @default(PENDING)
+  trustLevel  Int        @default(3)
+  fetchedAt   DateTime?
+  @@unique([countryId, month])
+}
+
+// ─────────────────────────── Users & saved trips ───────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  saved     SavedTrip[]
+  createdAt DateTime @default(now())
+}
+
+model SavedTrip {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tripId    String
+  // Snapshot of a user-customized variant (JSON) — the modular builder output.
+  snapshot  Json?
+  createdAt DateTime @default(now())
+  @@unique([userId, tripId])
+}
