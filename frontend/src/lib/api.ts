@@ -1,28 +1,27 @@
 // Thin typed client for the Vela API.
 //
-// Important: in Docker, server components run INSIDE the `web` container, where
-// `localhost` is the web container itself — not the backend. So on the server we
-// must call the backend by its service name (API_INTERNAL_URL=http://backend:4000).
-// In the browser we use the host-mapped NEXT_PUBLIC_API_URL (http://localhost:4000).
-const BROWSER_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api';
-const SERVER_BASE =
-  process.env.API_INTERNAL_URL ?? BROWSER_BASE;
+// The browser always calls the app's OWN origin ("/api") — Next.js proxies those
+// to the backend at runtime (see src/app/api/[...path]/route.ts). This removes
+// build-time API URLs and cross-origin CORS entirely.
+// Server Components call the backend directly via BACKEND_URL (faster, no hop).
+const BROWSER_BASE = '/api';
 
-// API origin without the /api suffix — used to build absolute URLs for uploaded
-// images (which are served from /uploads, outside the /api prefix).
-export const API_ORIGIN = BROWSER_BASE.replace(/\/api\/?$/, '');
+function serverBase(): string {
+  const origin = process.env.BACKEND_URL?.replace(/\/$/, '') ?? 'http://localhost:4000';
+  return `${origin}/api`;
+}
 
 /** Turn a stored image value into a displayable URL.
- *  Absolute URLs (Wikipedia, etc.) pass through; /uploads paths get the origin. */
+ *  Absolute URLs (Wikipedia, etc.) pass through; "/uploads/…" stay relative and
+ *  are proxied to the backend by the Next.js server. */
 export function imageUrl(value?: string | null): string | null {
   if (!value) return null;
   if (/^https?:\/\//.test(value)) return value;
-  return `${API_ORIGIN}${value.startsWith('/') ? '' : '/'}${value}`;
+  return value.startsWith('/') ? value : `/${value}`;
 }
 
 function baseUrl(): string {
-  return typeof window === 'undefined' ? SERVER_BASE : BROWSER_BASE;
+  return typeof window === 'undefined' ? serverBase() : BROWSER_BASE;
 }
 
 export type DataStatus = 'VERIFIED' | 'ESTIMATED' | 'PENDING';

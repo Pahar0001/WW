@@ -32,10 +32,8 @@ services:
           property: connectionString
       - key: NODE_ENV
         value: production
-      # After the web service exists, set this to its URL (https://vela-web.onrender.com)
-      # so the browser is allowed to call the API. Then redeploy this service.
-      - key: CORS_ORIGIN
-        sync: false
+      # CORS not needed: the browser never calls the API cross-origin (the web
+      # app proxies it). Left permissive by default.
 
   # ── Frontend web (Docker, Next.js standalone) ─────────────────────────
   - type: web
@@ -46,12 +44,8 @@ services:
     plan: free
     autoDeploy: true
     envVars:
-      # Browser-facing API base. Set to the API URL + /api, e.g.
-      #   https://vela-api.onrender.com/api
-      # NOTE: baked at BUILD time — after setting it, run
-      # "Clear build cache & deploy" on the web service.
-      - key: NEXT_PUBLIC_API_URL
-        sync: false
-      # Server-side fetch base (runtime). Use the SAME value as above.
-      - key: API_INTERNAL_URL
+      # The ONLY thing to set: the backend's base URL (no /api, no trailing slash),
+      # e.g. https://vela-api.onrender.com . This is read at RUNTIME — just set it
+      # and the service redeploys; no "clear build cache" needed.
+      - key: BACKEND_URL
         sync: false

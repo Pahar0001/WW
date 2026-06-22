@@ -29,17 +29,16 @@
    и `vela-web`. Нажмите **Apply**.
 4. Дождитесь сборки (Docker, ~5–10 минут на первый раз).
 
-### Шаг 3. Прописать адреса (2 переменные) и передеплоить
-После первой сборки у сервисов появятся адреса, например:
-`https://vela-api.onrender.com` и `https://vela-web.onrender.com`.
+### Шаг 3. Прописать ОДНУ переменную
+После первой сборки у `vela-api` появится адрес, например
+`https://vela-api.onrender.com`.
 
-1. Сервис **vela-api** → вкладка **Environment** → переменная `CORS_ORIGIN`:
-   впишите адрес фронтенда `https://vela-web.onrender.com` → **Save** (передеплоится).
-2. Сервис **vela-web** → **Environment** → впишите **обе** переменные одинаково:
-   - `NEXT_PUBLIC_API_URL` = `https://vela-api.onrender.com/api`
-   - `API_INTERNAL_URL` = `https://vela-api.onrender.com/api`
-3. У сервиса **vela-web** → **Manual Deploy** → **Clear build cache & deploy**
-   (это важно: адрес API «зашивается» при сборке).
+1. Сервис **vela-web** → вкладка **Environment** → переменная `BACKEND_URL`:
+   впишите адрес бэкенда **без** `/api` и без слэша на конце:
+   `https://vela-api.onrender.com` → **Save**.
+2. Render сам передеплоит `vela-web`. Это **runtime**-переменная — никакого
+   «clear build cache» не нужно. Больше ничего настраивать не надо: фронтенд сам
+   проксирует запросы к бэкенду, CORS и `NEXT_PUBLIC_*` не требуются.
 
 ### Шаг 4. Готово
 Откройте `https://vela-web.onrender.com` — это ваш сайт. Делитесь ссылкой.
@@ -66,8 +65,10 @@
 3. **Environment variables** → `NEXT_PUBLIC_API_URL` = `https://vela-api.onrender.com/api`.
 4. **Deploy** → получите `https://ваш-сайт.netlify.app`.
 
-### 3. Связать (CORS)
-В Render у `vela-api` задайте `CORS_ORIGIN` = адрес Netlify-сайта → пересохраните.
+### 3. Связать
+В Netlify задайте переменную окружения `BACKEND_URL` = `https://vela-api.onrender.com`
+(адрес бэкенда без `/api`) и передеплойте сайт. CORS настраивать не нужно —
+фронтенд проксирует запросы сам.
 
 ---
 

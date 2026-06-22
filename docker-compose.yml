@@ -50,11 +50,10 @@ services:
     depends_on:
       - backend
     environment:
-      # Browser-facing (inlined at build via build args too).
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api}
-      # Server-side fetch inside the Docker network must reach the backend
-      # service by name, NOT localhost (localhost = the web container itself).
-      API_INTERNAL_URL: http://backend:4000/api
+      # Single runtime variable: where the backend lives. The Next.js server
+      # proxies the browser's /api and /uploads calls here, and Server Components
+      # fetch it directly. No build-time API URL, no CORS config needed.
+      BACKEND_URL: http://backend:4000
     ports:
       - "3000:3000"
 
