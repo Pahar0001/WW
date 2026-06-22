@@ -3,7 +3,9 @@
 // (source, sourceUrl, dataStatus, trustLevel, fetchedAt). Nothing is invented.
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Debian (node:20-slim) ships OpenSSL 3 — pin the engine so it isn't guessed.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
