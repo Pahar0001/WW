@@ -16,6 +16,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
+# Bind to all interfaces. Docker auto-sets HOSTNAME to the container ID, and
+# Next.js standalone binds to it — which platforms like Render can't reach (502).
+# Forcing 0.0.0.0 fixes external reachability.
+ENV HOSTNAME=0.0.0.0
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
