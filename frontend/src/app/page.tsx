@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
+import { AccountNav } from '@/components/ui/AccountNav';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
@@ -19,13 +20,7 @@ export default async function HomePage() {
           <a href="#data" data-cursor="hover" className="transition-colors hover:text-paper">
             Честные данные
           </a>
-          <Link
-            href="/admin"
-            data-magnetic
-            className="rounded-full border border-ink-line px-4 py-1.5 text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
-          >
-            + Добавить
-          </Link>
+          <AccountNav />
         </nav>
       </header>
 

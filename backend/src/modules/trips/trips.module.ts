@@ -7,10 +7,14 @@ import {
   Module,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ZodError } from 'zod';
+import { UserRole } from '@prisma/client';
 import { TripsService } from './trips.service';
 import { CreateTripSchema } from './trips.dto';
+import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
+import { Roles } from '../auth/auth.decorators';
 
 @Controller('trips')
 class TripsController {
@@ -27,6 +31,8 @@ class TripsController {
   }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
   create(@Body() body: unknown) {
     let input;
     try {
@@ -41,6 +47,8 @@ class TripsController {
   }
 
   @Delete(':slug')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   remove(@Param('slug') slug: string) {
     return this.trips.remove(slug);
   }

@@ -170,6 +170,7 @@ model Trip {
   scores      TripScore?
   opinions    TripOpinion[]
   hotels      Hotel[]
+  members     TripMember[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -308,13 +309,66 @@ model SeasonInsight {
 }
 
 // ─────────────────────────── Users & saved trips ───────────────────────────
+// ─────────────────────────── Auth & RBAC ───────────────────────────
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ORGANIZER
+  MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum TripMemberRole {
+  ORGANIZER
+  MEMBER
+}
+
 model User {
+  id                  String   @id @default(cuid())
+  email               String   @unique
+  name                String?
+  image               String?
+  passwordHash        String?
+  role                UserRole   @default(MEMBER)
+  status              UserStatus @default(ACTIVE)
+  emailVerified       Boolean    @default(false)
+  emailVerifyToken    String?
+  passwordResetToken  String?
+  passwordResetExpiry DateTime?
+  saved               SavedTrip[]
+  memberships         TripMember[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+// Membership of a user in a trip, with a per-trip role.
+model TripMember {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  image     String?
-  saved     SavedTrip[]
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      TripMemberRole @default(MEMBER)
   createdAt DateTime @default(now())
+  @@unique([tripId, userId])
+}
+
+// Append-only audit trail of security-relevant actions.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g. "login", "register", "role.change", "trip.delete"
+  objectType String?
+  objectId   String?
+  ip         String?
+  meta       Json?
+  createdAt  DateTime @default(now())
 }
 
 model SavedTrip {

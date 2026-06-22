@@ -7,11 +7,15 @@ import { RecommendationsModule } from './modules/recommendations/recommendations
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
     PrismaModule,
     HealthModule,
+    AuthModule,
+    AdminModule,
     TripsModule,
     RoutesModule,
     RecommendationsModule,

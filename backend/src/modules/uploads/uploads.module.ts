@@ -4,9 +4,11 @@ import {
   Module,
   Post,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { JwtAuthGuard } from '../auth/auth.guards';
 import { diskStorage } from 'multer';
 import { existsSync, mkdirSync } from 'fs';
 import { extname, join } from 'path';
@@ -21,6 +23,7 @@ const IMAGE_MIME = /^image\/(png|jpe?g|webp|gif|avif)$/;
 @Controller('uploads')
 class UploadsController {
   @Post()
+  @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({

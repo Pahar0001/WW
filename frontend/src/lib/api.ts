@@ -24,6 +24,13 @@ function baseUrl(): string {
   return typeof window === 'undefined' ? serverBase() : BROWSER_BASE;
 }
 
+// Bearer header for authenticated write calls (client-side only).
+function authHeader(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const t = localStorage.getItem('vela_token');
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
 export type DataStatus = 'VERIFIED' | 'ESTIMATED' | 'PENDING';
 export type Pace = 'CALM' | 'BALANCED' | 'ACTIVE';
 
@@ -205,7 +212,7 @@ export async function createTrip(
   try {
     const res = await fetch(`${BROWSER_BASE}/trips`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -224,7 +231,7 @@ export async function deleteTrip(
   slug: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(`${BROWSER_BASE}/trips/${slug}`, { method: 'DELETE' });
+    const res = await fetch(`${BROWSER_BASE}/trips/${slug}`, { method: 'DELETE', headers: authHeader() });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     return { ok: true };
   } catch (e) {
@@ -239,7 +246,7 @@ export async function uploadImage(
   try {
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch(`${BROWSER_BASE}/uploads`, { method: 'POST', body: fd });
+    const res = await fetch(`${BROWSER_BASE}/uploads`, { method: 'POST', body: fd, headers: authHeader() });
     if (!res.ok) {
       const t = await res.text();
       return { ok: false, error: `HTTP ${res.status}: ${t.slice(0, 200)}` };

@@ -11,6 +11,7 @@ import {
   type CreateTripPayload,
   type Trip,
 } from '@/lib/api';
+import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 
 interface PlaceForm {
   name: string;
@@ -47,6 +48,18 @@ const emptyDay = (): DayForm => ({ title: '', baseCity: '', notes: '', places: [
 const emptyHotel = (): HotelForm => ({ cityLabel: '', name: '', url: '', area: '', priceNote: '', photoUrl: '' });
 
 export default function AdminPage() {
+  // RBAC guard: only ADMIN / SUPER_ADMIN may use the panel.
+  const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
+  useEffect(() => {
+    auth.me().then((u) => {
+      if (!u || !isAdminRole(u.role)) {
+        window.location.href = '/login';
+      } else {
+        setMe(u);
+      }
+    });
+  }, []);
+
   const [countryName, setCountryName] = useState('');
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
@@ -153,15 +166,22 @@ export default function AdminPage() {
     }
   }
 
+  if (me === undefined) {
+    return <main className="container-vela flex min-h-screen items-center justify-center text-paper-dim">Проверка доступа…</main>;
+  }
+
   return (
     <main className="container-vela min-h-screen py-10">
       <header className="mb-12 flex items-center justify-between">
         <Link href="/" data-magnetic className="font-serif text-xl tracking-tightest">
           Vela
         </Link>
-        <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
-          ← На главную
-        </Link>
+        <div className="flex items-center gap-5 text-sm">
+          <Link href="/admin/users" data-cursor="hover" className="text-paper-dim hover:text-paper">Пользователи</Link>
+          <Link href="/" data-cursor="hover" className="text-paper-dim hover:text-paper">← На главную</Link>
+          <span className="text-paper-faint">{me?.email}</span>
+          <button onClick={() => logout()} className="rounded-full border border-ink-line px-3 py-1 text-paper-dim hover:text-paper">Выйти</button>
+        </div>
       </header>
 
       <h1 className="font-serif text-4xl tracking-tightest">Панель управления</h1>

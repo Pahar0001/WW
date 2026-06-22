@@ -32,6 +32,23 @@ services:
           property: connectionString
       - key: NODE_ENV
         value: production
+      # Auth: JWT secret is auto-generated; the rest are set by you.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES
+        value: 7d
+      # Public frontend URL — used in verification/reset email links.
+      # Set to the vela-web URL, e.g. https://vela-web-zr2u.onrender.com
+      - key: APP_URL
+        sync: false
+      # First Super Admin (created automatically on boot). Set both.
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      # Optional email provider; if unset, links are logged to the API console.
+      - key: RESEND_API_KEY
+        sync: false
       # CORS not needed: the browser never calls the API cross-origin (the web
       # app proxies it). Left permissive by default.
 
