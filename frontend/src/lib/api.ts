@@ -130,13 +130,25 @@ export interface Trip {
 }
 
 async function get<T>(path: string): Promise<T | null> {
-  try {
-    const res = await fetch(`${baseUrl()}${path}`, { next: { revalidate: 30 } });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null; // API down -> caller renders a graceful empty state
+  const url = `${baseUrl()}${path}`;
+  // Retry to ride out free-tier cold starts: a sleeping backend returns 502/503
+  // for ~30–50s while it wakes. We poll instead of rendering an empty 404.
+  const delays = [0, 1500, 3000, 5000, 7000, 9000];
+  for (let i = 0; i < delays.length; i++) {
+    if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]));
+    try {
+      const res = await fetch(url, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(25000),
+      });
+      if (res.ok) return (await res.json()) as T;
+      if (res.status >= 400 && res.status < 500) return null; // genuine 4xx
+      // 5xx (cold-start) -> retry
+    } catch {
+      // network error / timeout -> retry
+    }
   }
+  return null; // still down after retries -> graceful empty state
 }
 
 export const api = {
