@@ -1,5 +1,5 @@
 import { BaseAdapter } from './base.adapter';
-import { OfferKind, ProviderId } from './types';
+import { OfferKind, ProviderId, TravelAdapter } from './types';
 
 // One small class per provider. The TODO marks exactly where the official API
 // call goes once a key + commercial agreement exist. No body fabricates offers.
@@ -64,7 +64,9 @@ class ExpediaAdapter extends BaseAdapter {
   protected readonly envKey = 'EXPEDIA_API_KEY';
 }
 
-export const ALL_ADAPTERS = [
+// Typed as the interface so callers see searchHotels/searchFlights as optional
+// (some providers implement only one). This is what keeps the build strict-safe.
+export const ALL_ADAPTERS: TravelAdapter[] = [
   new BookingAdapter(),
   new AgodaAdapter(),
   new TripComAdapter(),
