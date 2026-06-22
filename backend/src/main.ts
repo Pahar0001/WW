@@ -1,5 +1,4 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -9,7 +8,8 @@ async function bootstrap() {
     origin: process.env.CORS_ORIGIN?.split(',') ?? '*',
     credentials: true,
   });
-  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
+  // Request validation is handled per-controller with zod (see modules); no
+  // class-validator dependency required.
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
