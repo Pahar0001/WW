@@ -51,10 +51,76 @@ export default async function TripPage({ params }: { params: { slug: string } })
           </Reveal>
         )}
 
-        {/* Scores */}
-        {trip.scores && (
-          <Reveal delay={0.24}>
-            <div className="mt-12 grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
+        {/* Quick facts */}
+        <Reveal delay={0.2}>
+          <div className="mt-10 flex flex-wrap gap-x-10 gap-y-4 border-y border-ink-line py-5 text-sm">
+            <Fact label="Длительность" value={`${trip.durationDays} дней`} />
+            <Fact label="Сезон" value={trip.seasonLabel ?? '—'} />
+            <Fact
+              label="Бюджет (цель)"
+              value={
+                trip.budgetMinRub && trip.budgetMaxRub
+                  ? `${fmt(trip.budgetMinRub)}–${fmt(trip.budgetMaxRub)} ₽`
+                  : '—'
+              }
+            />
+            <Fact label="Вариантов темпа" value={String(trip.variants.length)} />
+          </div>
+        </Reveal>
+      </section>
+
+      {/* Description + highlights */}
+      {(trip.longDescription || (trip.highlights && trip.highlights.length > 0)) && (
+        <section className="container-vela grid gap-12 pb-16 lg:grid-cols-[1.5fr_1fr]">
+          {trip.longDescription && (
+            <Reveal>
+              <h2 className="mb-5 font-serif text-2xl tracking-tightest">
+                О путешествии
+              </h2>
+              <p className="whitespace-pre-line text-lg leading-relaxed text-paper-dim">
+                {trip.longDescription}
+              </p>
+              {trip.bestTime && (
+                <div className="mt-8 rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+                  <div className="text-xs uppercase tracking-[0.25em] text-paper-faint">
+                    Когда ехать
+                  </div>
+                  <p className="mt-2 text-paper-dim">{trip.bestTime}</p>
+                </div>
+              )}
+              {trip.visaNote && (
+                <div className="mt-4 rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+                  <div className="text-xs uppercase tracking-[0.25em] text-paper-faint">
+                    Виза
+                  </div>
+                  <p className="mt-2 text-paper-dim">{trip.visaNote}</p>
+                </div>
+              )}
+            </Reveal>
+          )}
+          {trip.highlights && trip.highlights.length > 0 && (
+            <Reveal delay={0.08}>
+              <h2 className="mb-5 font-serif text-2xl tracking-tightest">
+                Главное
+              </h2>
+              <ul className="space-y-3">
+                {trip.highlights.map((h, i) => (
+                  <li key={i} className="flex items-start gap-3 text-paper-dim">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-aurora" />
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          )}
+        </section>
+      )}
+
+      {/* Scores */}
+      {trip.scores && (
+        <section className="container-vela pb-16">
+          <Reveal>
+            <div className="grid grid-cols-2 gap-x-10 gap-y-4 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-1">
                 <div className="font-serif text-5xl text-aurora">
                   {trip.scores.overall}
@@ -77,8 +143,8 @@ export default async function TripPage({ params }: { params: { slug: string } })
               ))}
             </div>
           </Reveal>
-        )}
-      </section>
+        </section>
+      )}
 
       {/* Interactive experience */}
       <section className="container-vela">
@@ -116,4 +182,19 @@ export default async function TripPage({ params }: { params: { slug: string } })
       )}
     </main>
   );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs uppercase tracking-[0.25em] text-paper-faint">
+        {label}
+      </div>
+      <div className="mt-1 text-paper">{value}</div>
+    </div>
+  );
+}
+
+function fmt(n: number): string {
+  return new Intl.NumberFormat('ru-RU').format(n);
 }

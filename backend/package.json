@@ -8,7 +8,7 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "build:seed": "tsc -p tsconfig.seed.json",
-    "seed": "node dist-seed/seed.js",
+    "seed": "node dist-seed/prisma/seed.js",
     "seed:dev": "ts-node prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",

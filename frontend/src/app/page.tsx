@@ -22,6 +22,13 @@ export default async function HomePage() {
           <a href="#data" data-cursor="hover" className="transition-colors hover:text-paper">
             Honest data
           </a>
+          <Link
+            href="/admin"
+            data-magnetic
+            className="rounded-full border border-ink-line px-4 py-1.5 text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
+          >
+            + Добавить
+          </Link>
         </nav>
       </header>
 

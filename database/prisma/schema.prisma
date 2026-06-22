@@ -133,6 +133,13 @@ model Trip {
   endWindow   DateTime?
   heroImage   String?
   summary     String?
+  // Long-form editorial description shown on the trip page.
+  longDescription String?
+  // Headline bullet points (e.g. "Горы Аватара", "Древние города").
+  highlights  String[] @default([])
+  // Best time to go, visa note, etc. — free-form editorial fields.
+  bestTime    String?
+  visaNote    String?
   // Editor-facing budget envelope (a stated target, not a computed price)
   budgetMinRub Int?
   budgetMaxRub Int?

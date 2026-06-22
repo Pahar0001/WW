@@ -9,7 +9,8 @@
  *    Stored as PENDING (null) and surfaced in the UI as "data pending".
  *  - The 300k–350k RUB envelope is the user's stated target, not a quoted price.
  */
-import { PrismaClient, Pace } from '@prisma/client';
+import { PrismaClient, Pace, Prisma } from '@prisma/client';
+import { estimateBudget } from '../src/common/budget';
 
 const prisma = new PrismaClient();
 const SRC = 'wikidata/openstreetmap (approx; verify before VERIFIED)';
@@ -198,10 +199,7 @@ async function main() {
   }
 
   // Trip
-  const trip = await prisma.trip.upsert({
-    where: { slug: 'china-floating-mountains' },
-    update: {},
-    create: {
+  const tripData: Prisma.TripUncheckedCreateInput = {
       slug: 'china-floating-mountains',
       title: 'China — The Floating Mountains',
       subtitle: 'Zhangjiajie, ancient capitals and canal towns',
@@ -212,9 +210,38 @@ async function main() {
       summary:
         'A 14-day journey balancing the surreal peaks of Zhangjiajie with imperial ' +
         'history and water towns — designed not to exhaust.',
+      longDescription:
+        'Этот маршрут соединяет три лица Китая. Сначала — императорская история: ' +
+        'Запретный город, Великая стена и терракотовая армия в Сиане. Затем — ' +
+        'сюрреалистическая природа Чжанцзяцзе, песчаниковые столбы, вдохновившие ' +
+        '«Аватар», со смотровыми площадками, канатными дорогами и стеклянными ' +
+        'тропами. И финал — лиричные водные города: Западное озеро Ханчжоу, сады ' +
+        'Сучжоу и набережная Шанхая. Темп подобран так, чтобы между насыщенными ' +
+        'днями оставалось время выдохнуть: переезды на скоростных поездах, ' +
+        'буферные дни в горах на случай погоды, вечера без жёсткого плана. ' +
+        'Это не марафон по галочкам, а продуманное путешествие с воздухом между точками.',
+      highlights: [
+        'Горы «Аватара» — Чжанцзяцзе',
+        'Великая стена (Мутяньюй) без толп',
+        'Терракотовая армия в Сиане',
+        'Водные города: Ханчжоу и Сучжоу',
+        'Скоростные поезда между городами',
+        'Буферный день в горах на случай погоды',
+      ],
+      bestTime:
+        'Март–апрель: цветение и мягкая погода, но это пик сезона в Чжанцзяцзе — ' +
+        'возможны очереди на канатные дороги. (Сезонные данные помечены как требующие проверки.)',
+      visaNote:
+        'Для большинства маршрутов в Китай нужна виза. Уточняйте актуальные правила ' +
+        'на официальном консульском сайте — данные здесь не заменяют официальный источник.',
       budgetMinRub: 300000,
       budgetMaxRub: 350000,
-    },
+  };
+
+  const trip = await prisma.trip.upsert({
+    where: { slug: 'china-floating-mountains' },
+    update: tripData,
+    create: tripData,
   });
 
   // Variants
@@ -231,17 +258,28 @@ async function main() {
       create: { tripId: trip.id, pace, title },
     });
 
-    // Budget skeleton — all amounts PENDING (null). Never invented.
+    // Budget: ESTIMATED breakdown derived transparently from the stated envelope
+    // (not a market quote). Flagged ESTIMATED so the UI never implies a real price.
     const budget = await prisma.budgetBreakdown.upsert({
       where: { variantId: variant.id },
       update: {},
       create: { variantId: variant.id, currency: 'RUB' },
     });
+    const estimated = estimateBudget(300000, 350000, pace);
+    const byCat = new Map(estimated?.map((e) => [e.category, e]));
     for (const category of ['FLIGHTS', 'HOTELS', 'TRANSPORT', 'FOOD', 'ACTIVITIES', 'RESERVE'] as const) {
+      const e = byCat.get(category);
       await prisma.budgetLine.upsert({
         where: { breakdownId_category: { breakdownId: budget.id, category } },
-        update: {},
-        create: { breakdownId: budget.id, category, amount: null, dataStatus: 'PENDING', source: 'pending', trustLevel: 3 },
+        update: { amount: e?.amount ?? null, dataStatus: e ? 'ESTIMATED' : 'PENDING', source: e?.source ?? 'pending' },
+        create: {
+          breakdownId: budget.id,
+          category,
+          amount: e?.amount ?? null,
+          dataStatus: e ? 'ESTIMATED' : 'PENDING',
+          source: e?.source ?? 'pending',
+          trustLevel: 3,
+        },
       });
     }
 

@@ -11,6 +11,15 @@ const PACE_LABEL: Record<Pace, string> = {
   ACTIVE: 'Активная',
 };
 
+const CATEGORY_RU: Record<string, string> = {
+  FLIGHTS: 'Перелёты',
+  HOTELS: 'Отели',
+  TRANSPORT: 'Транспорт',
+  FOOD: 'Питание',
+  ACTIVITIES: 'Развлечения',
+  RESERVE: 'Резерв',
+};
+
 const STATUS_BADGE: Record<string, string> = {
   PENDING: 'text-amber-300/80 border-amber-300/30',
   ESTIMATED: 'text-aurora border-aurora/30',
@@ -192,9 +201,12 @@ function BudgetPanel({ variant, trip }: { variant: Trip['variants'][number]; tri
       <div className="mt-6 divide-y divide-ink-line">
         {lines.map((l) => (
           <div key={l.category} className="flex items-center justify-between py-3">
-            <span className="text-paper-dim">{l.category}</span>
+            <span className="text-paper-dim">{CATEGORY_RU[l.category] ?? l.category}</span>
             {l.amount != null ? (
-              <span className="text-paper">{fmt(l.amount)} ₽</span>
+              <span className="flex items-center gap-2">
+                <span className="text-paper">≈ {fmt(l.amount)} ₽</span>
+                {l.dataStatus === 'ESTIMATED' && <Badge status="ESTIMATED" />}
+              </span>
             ) : (
               <Badge status="PENDING" />
             )}
@@ -202,13 +214,17 @@ function BudgetPanel({ variant, trip }: { variant: Trip['variants'][number]; tri
         ))}
       </div>
       <div className="mt-4 flex items-center justify-between border-t border-ink-line pt-4">
-        <span className="text-paper-faint">
-          Sum of known lines (recomputed automatically)
-        </span>
+        <span className="text-paper-faint">Итого (пересчитывается автоматически)</span>
         <span className="font-medium text-paper">
-          {known.length ? `${fmt(total)} ₽` : 'data pending'}
+          {known.length ? `≈ ${fmt(total)} ₽` : 'data pending'}
         </span>
       </div>
+      <p className="mt-4 text-xs leading-relaxed text-paper-faint">
+        Это <span className="text-aurora">оценка</span>, рассчитанная из заявленного
+        бюджета поездки по типовым долям категорий, а не котировка от поставщиков.
+        Реальные цены появятся после подключения провайдеров (Trip.com, Skyscanner и
+        др.) — до тех пор цифры помечены как оценочные.
+      </p>
     </div>
   );
 }

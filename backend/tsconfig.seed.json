@@ -6,9 +6,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "outDir": "./dist-seed",
-    "rootDir": "./prisma",
+    "rootDir": "./",
     "strict": true,
     "strictNullChecks": true
   },
-  "include": ["prisma/seed.ts"]
+  "include": ["prisma/seed.ts", "src/common/budget.ts"]
 }
