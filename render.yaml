@@ -7,7 +7,8 @@
 # Render reads this file and provisions all three. Then set the two `sync:false`
 # variables (see steps in docs/DEPLOY_RU.md) and redeploy the web service once.
 #
-# Frontend can alternatively live on Netlify (frontend/netlify.toml) — see docs.
+# Monorepo note: dockerfilePath and dockerContext are relative to the REPOSITORY
+# ROOT (not a rootDir). This is what makes Render find each Dockerfile.
 # ─────────────────────────────────────────────────────────────────────────────
 
 databases:
@@ -19,8 +20,8 @@ services:
   - type: web
     name: vela-api
     runtime: docker
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     plan: free
     healthCheckPath: /api/health
     autoDeploy: true
@@ -40,14 +41,14 @@ services:
   - type: web
     name: vela-web
     runtime: docker
-    rootDir: frontend
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
     plan: free
     autoDeploy: true
     envVars:
       # Browser-facing API base. Set to the API URL + /api, e.g.
       #   https://vela-api.onrender.com/api
-      # NOTE: this is baked at BUILD time — after setting it, trigger a
+      # NOTE: baked at BUILD time — after setting it, run
       # "Clear build cache & deploy" on the web service.
       - key: NEXT_PUBLIC_API_URL
         sync: false
