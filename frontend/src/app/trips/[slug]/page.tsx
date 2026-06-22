@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
+import { PlanLink } from '@/components/trip/PlanLink';
 import { Reveal } from '@/components/ui/Reveal';
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
@@ -26,9 +27,12 @@ export default async function TripPage({ params }: { params: { slug: string } })
         <Link href="/" data-magnetic className="font-serif text-xl tracking-tightest">
           Vela
         </Link>
-        <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
-          ← Все маршруты
-        </Link>
+        <div className="flex items-center gap-4">
+          <PlanLink slug={params.slug} />
+          <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
+            ← Все маршруты
+          </Link>
+        </div>
       </header>
 
       {/* Заглавное изображение */}

@@ -171,6 +171,9 @@ model Trip {
   opinions    TripOpinion[]
   hotels      Hotel[]
   members     TripMember[]
+  tickets     Ticket[]
+  documents   TripDocument[]
+  events      CalendarEvent[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -309,6 +312,95 @@ model SeasonInsight {
 }
 
 // ─────────────────────────── Users & saved trips ───────────────────────────
+// ─────────────────────────── Trip planning (Phase 1) ───────────────────────────
+enum TicketKind {
+  FLIGHT
+  TRAIN
+  BUS
+  FERRY
+  OTHER
+}
+
+enum CalendarEventType {
+  FLIGHT
+  HOTEL_CHECKIN
+  HOTEL_CHECKOUT
+  EXCURSION
+  MEETING
+  REMINDER
+  OTHER
+}
+
+enum ReminderChannel {
+  EMAIL
+  PUSH
+  NONE
+}
+
+// Transport ticket (flight / rail / bus / ferry) with optional PDF.
+model Ticket {
+  id           String     @id @default(cuid())
+  tripId       String
+  trip         Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  kind         TicketKind @default(FLIGHT)
+  carrier      String?    // перевозчик
+  code         String?    // номер рейса / поезда
+  fromLocation String?
+  toLocation   String?
+  departAt     DateTime?
+  arriveAt     DateTime?
+  seat         String?
+  notes        String?
+  fileUrl      String?    // uploaded PDF
+  createdById  String?
+  createdBy    User?      @relation("UserTickets", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt    DateTime   @default(now())
+}
+
+// Trip document (PDF / image) — visa, insurance, booking, etc.
+model TripDocument {
+  id          String   @id @default(cuid())
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  title       String
+  category    String?
+  fileUrl     String
+  mime        String?
+  createdById String?
+  createdBy   User?    @relation("UserDocuments", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+}
+
+// Calendar event with optional reminders.
+model CalendarEvent {
+  id          String            @id @default(cuid())
+  tripId      String
+  trip        Trip              @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  type        CalendarEventType @default(OTHER)
+  title       String
+  startAt     DateTime
+  endAt       DateTime?
+  location    String?
+  notes       String?
+  createdById String?
+  createdBy   User?             @relation("UserEvents", fields: [createdById], references: [id], onDelete: SetNull)
+  reminders   Reminder[]
+  createdAt   DateTime          @default(now())
+}
+
+// A reminder fires `offsetMinutes` before the event. Architecture is channel-aware
+// for future email/push; the worker currently sends EMAIL (or logs it).
+model Reminder {
+  id            String          @id @default(cuid())
+  eventId       String
+  event         CalendarEvent   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  offsetMinutes Int             // 60=1h, 1440=1d, 10080=1w, or custom
+  channel       ReminderChannel @default(EMAIL)
+  sent          Boolean         @default(false)
+  sentAt        DateTime?
+  createdAt     DateTime        @default(now())
+}
+
 // ─────────────────────────── Auth & RBAC ───────────────────────────
 enum UserRole {
   SUPER_ADMIN
@@ -342,6 +434,9 @@ model User {
   saved               SavedTrip[]
   memberships         TripMember[]
   auditLogs           AuditLog[]
+  tickets             Ticket[]       @relation("UserTickets")
+  documents           TripDocument[] @relation("UserDocuments")
+  events              CalendarEvent[] @relation("UserEvents")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

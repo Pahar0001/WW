@@ -9,6 +9,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { PlanningModule } from './modules/planning/planning.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AdminModule } from './modules/admin/admin.module';
     HealthModule,
     AuthModule,
     AdminModule,
+    PlanningModule,
     TripsModule,
     RoutesModule,
     RecommendationsModule,
