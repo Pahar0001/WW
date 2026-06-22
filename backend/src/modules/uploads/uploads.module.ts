@@ -8,46 +8,42 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/auth.guards';
-import { diskStorage } from 'multer';
-import { existsSync, mkdirSync } from 'fs';
-import { extname, join } from 'path';
+import { StorageService, UPLOAD_DIR } from './storage.service';
 
-// Where uploaded images are stored. Served statically at /uploads (see main.ts).
-// In Docker this path is backed by a named volume so images persist.
-export const UPLOAD_DIR = join(process.cwd(), 'uploads');
-if (!existsSync(UPLOAD_DIR)) mkdirSync(UPLOAD_DIR, { recursive: true });
+export { UPLOAD_DIR };
 
-const IMAGE_MIME = /^image\/(png|jpe?g|webp|gif|avif)$/;
+// Images (gallery/hero) + PDFs (tickets/documents for Phase 1).
+const ALLOWED = /^(image\/(png|jpe?g|webp|gif|avif)|application\/pdf)$/;
+
+interface UploadedBuffer {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+}
 
 @Controller('uploads')
 class UploadsController {
+  constructor(private readonly storage: StorageService) {}
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: UPLOAD_DIR,
-        filename: (_req, file, cb) => {
-          const safe = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-          cb(null, safe + extname(file.originalname).toLowerCase());
-        },
-      }),
-      limits: { fileSize: 6 * 1024 * 1024 }, // 6 MB
-      fileFilter: (_req, file, cb) => {
-        cb(null, IMAGE_MIME.test(file.mimetype));
-      },
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 }, // 15 MB (covers PDFs)
+      fileFilter: (_req, file, cb) => cb(null, ALLOWED.test(file.mimetype)),
     }),
   )
-  // `file` typed loosely to avoid pulling @types/multer.
-  upload(@UploadedFile() file: { filename?: string } | undefined) {
-    if (!file?.filename) {
-      throw new BadRequestException('Файл не получен или это не изображение.');
+  async upload(@UploadedFile() file: UploadedBuffer | undefined) {
+    if (!file?.buffer) {
+      throw new BadRequestException('Файл не получен или тип не поддерживается (изображение или PDF).');
     }
-    // Return a path; the frontend prefixes it with the API origin.
-    return { path: `/uploads/${file.filename}` };
+    const path = await this.storage.save(file.buffer, file.originalname, file.mimetype);
+    return { path };
   }
 }
 
-@Module({ controllers: [UploadsController] })
+@Module({ controllers: [UploadsController], providers: [StorageService], exports: [StorageService] })
 export class UploadsModule {}

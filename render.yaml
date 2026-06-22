@@ -49,6 +49,20 @@ services:
       # Optional email provider; if unset, links are logged to the API console.
       - key: RESEND_API_KEY
         sync: false
+      # Optional S3-compatible file storage (Cloudflare R2 recommended).
+      # If unset, uploads use local disk (ephemeral on free tier).
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_PUBLIC_URL
+        sync: false
       # CORS not needed: the browser never calls the API cross-origin (the web
       # app proxies it). Left permissive by default.
 
