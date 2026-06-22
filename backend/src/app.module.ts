@@ -6,6 +6,7 @@ import { RoutesModule } from './modules/routes/routes.module';
 import { RecommendationsModule } from './modules/recommendations/recommendations.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     RecommendationsModule,
     AnalyticsModule,
     IntegrationsModule,
+    UploadsModule,
   ],
 })
 export class AppModule {}

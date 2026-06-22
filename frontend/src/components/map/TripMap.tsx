@@ -127,7 +127,7 @@ export function TripMap({ day }: { day: Day }) {
 
   if (state === 'error') {
     return (
-      <FallbackList points={points} note="Map could not load. Showing points instead." />
+      <FallbackList points={points} note="Карта не загрузилась. Показываем точки списком." />
     );
   }
 

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { Reveal } from '@/components/ui/Reveal';
 
@@ -27,15 +27,30 @@ export default async function TripPage({ params }: { params: { slug: string } })
           Vela
         </Link>
         <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
-          ← All trips
+          ← Все маршруты
         </Link>
       </header>
+
+      {/* Заглавное изображение */}
+      {imageUrl(trip.heroImage) && (
+        <div className="container-vela">
+          <div className="relative h-64 w-full overflow-hidden rounded-2xl border border-ink-line md:h-96">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageUrl(trip.heroImage)!}
+              alt={trip.title}
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/30 to-transparent" />
+          </div>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="container-vela pb-16 pt-10">
         <Reveal>
           <p className="text-sm uppercase tracking-[0.3em] text-paper-faint">
-            {trip.country.name} · {trip.durationDays} days · {trip.seasonLabel}
+            {trip.country.name} · {trip.durationDays} дней · {trip.seasonLabel}
           </p>
         </Reveal>
         <Reveal delay={0.08}>

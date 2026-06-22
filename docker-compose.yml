@@ -31,6 +31,9 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     ports:
       - "4000:4000"
+    volumes:
+      # Persist user-uploaded images across restarts.
+      - vela_uploads:/app/uploads
     # On boot: sync schema (reference build uses db push), seed (best-effort,
     # idempotent), then start the API. Seed failure must not block the API.
     # For real environments, replace `db push` with `prisma migrate deploy`.
@@ -57,3 +60,4 @@ services:
 
 volumes:
   vela_pgdata:
+  vela_uploads:

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Trip, Pace } from '@/lib/api';
+import { imageUrl } from '@/lib/api';
 import { TripMap } from '@/components/map/TripMap';
 
 const PACE_LABEL: Record<Pace, string> = {
@@ -133,27 +134,38 @@ export function TripExperience({ trip }: { trip: Trip }) {
                     День отдыха / переезд — без фиксированных точек.
                   </li>
                 ) : (
-                  day.places.map((dp, i) => (
-                    <li key={dp.id} className="flex gap-4">
-                      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-aurora text-[11px] font-semibold text-ink">
-                        {i + 1}
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-paper">{dp.place.name}</span>
-                          {dp.place.nameLocal && (
-                            <span className="text-paper-faint">{dp.place.nameLocal}</span>
-                          )}
-                          <Badge status={dp.place.dataStatus} />
-                        </div>
-                        {dp.place.description && (
-                          <p className="mt-1 text-sm text-paper-dim">
-                            {dp.place.description}
-                          </p>
+                  day.places.map((dp, i) => {
+                    const photo = imageUrl(dp.place.photoUrl);
+                    return (
+                      <li key={dp.id} className="flex gap-4">
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-aurora text-[11px] font-semibold text-ink">
+                          {i + 1}
+                        </span>
+                        {photo && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photo}
+                            alt={dp.place.name}
+                            className="h-16 w-16 shrink-0 rounded-lg border border-ink-line object-cover"
+                          />
                         )}
-                      </div>
-                    </li>
-                  ))
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-paper">{dp.place.name}</span>
+                            {dp.place.nameLocal && (
+                              <span className="text-paper-faint">{dp.place.nameLocal}</span>
+                            )}
+                            <Badge status={dp.place.dataStatus} />
+                          </div>
+                          {dp.place.description && (
+                            <p className="mt-1 text-sm text-paper-dim">
+                              {dp.place.description}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })
                 )}
               </ul>
             </motion.div>
@@ -173,9 +185,15 @@ export function TripExperience({ trip }: { trip: Trip }) {
   );
 }
 
+const STATUS_RU: Record<string, string> = {
+  PENDING: 'данные уточняются',
+  ESTIMATED: 'оценка',
+  VERIFIED: 'проверено',
+};
+
 function Badge({ status }: { status: string }) {
   const cls = STATUS_BADGE[status] ?? STATUS_BADGE.PENDING;
-  const label = status === 'PENDING' ? 'data pending' : status.toLowerCase();
+  const label = STATUS_RU[status] ?? status.toLowerCase();
   return (
     <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider ${cls}`}>
       {label}

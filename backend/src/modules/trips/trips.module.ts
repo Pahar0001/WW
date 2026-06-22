@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Module,
   Param,
@@ -37,6 +38,11 @@ class TripsController {
       throw e;
     }
     return this.trips.create(input);
+  }
+
+  @Delete(':slug')
+  remove(@Param('slug') slug: string) {
+    return this.trips.remove(slug);
   }
 }
 

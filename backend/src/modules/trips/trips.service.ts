@@ -52,6 +52,7 @@ export class TripsService {
         highlights: input.highlights ?? [],
         bestTime: input.bestTime,
         visaNote: input.visaNote,
+        heroImage: input.heroImage,
         seasonLabel: input.seasonLabel,
         durationDays: input.durationDays,
         budgetMinRub: input.budgetMinRub,
@@ -104,6 +105,7 @@ export class TripsService {
             lat: p.lat ?? null,
             lng: p.lng ?? null,
             description: p.description,
+            photoUrl: p.photoUrl,
             // User-entered geodata: ESTIMATED if coords given, else PENDING.
             dataStatus: p.lat != null && p.lng != null ? 'ESTIMATED' : 'PENDING',
             source: 'cms-user-input',
@@ -136,6 +138,14 @@ export class TripsService {
     }
 
     return { slug: trip.slug, id: trip.id };
+  }
+
+  /** Delete a trip by slug (cascades variants/days/budget/scores/opinions). */
+  async remove(slug: string) {
+    const trip = await this.prisma.trip.findUnique({ where: { slug } });
+    if (!trip) throw new NotFoundException(`Путешествие "${slug}" не найдено`);
+    await this.prisma.trip.delete({ where: { slug } });
+    return { ok: true, slug };
   }
 
   /** List published trips (CMS "HIDDEN"/"DRAFT" excluded). */

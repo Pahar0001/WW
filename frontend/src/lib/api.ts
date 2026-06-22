@@ -9,6 +9,18 @@ const BROWSER_BASE =
 const SERVER_BASE =
   process.env.API_INTERNAL_URL ?? BROWSER_BASE;
 
+// API origin without the /api suffix — used to build absolute URLs for uploaded
+// images (which are served from /uploads, outside the /api prefix).
+export const API_ORIGIN = BROWSER_BASE.replace(/\/api\/?$/, '');
+
+/** Turn a stored image value into a displayable URL.
+ *  Absolute URLs (Wikipedia, etc.) pass through; /uploads paths get the origin. */
+export function imageUrl(value?: string | null): string | null {
+  if (!value) return null;
+  if (/^https?:\/\//.test(value)) return value;
+  return `${API_ORIGIN}${value.startsWith('/') ? '' : '/'}${value}`;
+}
+
 function baseUrl(): string {
   return typeof window === 'undefined' ? SERVER_BASE : BROWSER_BASE;
 }
@@ -24,6 +36,7 @@ export interface Place {
   lat?: number | null;
   lng?: number | null;
   description?: string | null;
+  photoUrl?: string | null;
   dataStatus: DataStatus;
   source?: string | null;
 }
@@ -84,6 +97,7 @@ export interface Trip {
   slug: string;
   title: string;
   subtitle?: string | null;
+  heroImage?: string | null;
   summary?: string | null;
   longDescription?: string | null;
   highlights?: string[];
@@ -125,6 +139,7 @@ export interface CreateTripPayload {
   highlights?: string[];
   bestTime?: string;
   visaNote?: string;
+  heroImage?: string;
   seasonLabel?: string;
   durationDays: number;
   budgetMinRub?: number;
@@ -139,6 +154,7 @@ export interface CreateTripPayload {
       lat?: number;
       lng?: number;
       description?: string;
+      photoUrl?: string;
     }>;
   }>;
 }
@@ -158,6 +174,38 @@ export async function createTrip(
     }
     const data = (await res.json()) as { slug: string };
     return { ok: true, slug: data.slug };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/** Delete a trip by slug (admin). */
+export async function deleteTrip(
+  slug: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/trips/${slug}`, { method: 'DELETE' });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/** Upload an image file; returns an absolute URL on success. */
+export async function uploadImage(
+  file: File,
+): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${BROWSER_BASE}/uploads`, { method: 'POST', body: fd });
+    if (!res.ok) {
+      const t = await res.text();
+      return { ok: false, error: `HTTP ${res.status}: ${t.slice(0, 200)}` };
+    }
+    const data = (await res.json()) as { path: string };
+    return { ok: true, url: imageUrl(data.path)! };
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }

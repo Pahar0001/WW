@@ -15,6 +15,46 @@ import { estimateBudget } from '../src/common/budget';
 const prisma = new PrismaClient();
 const SRC = 'wikidata/openstreetmap (approx; verify before VERIFIED)';
 
+// Real landmark photos come from Wikipedia (a real, attributable source — never
+// invented). Map each place slug to an English Wikipedia article title.
+const WIKI_TITLE: Record<string, string> = {
+  'zhangjiajie-national-forest-park': 'Zhangjiajie National Forest Park',
+  'tianzi-mountain': 'Tianzi Mountain',
+  'tianmen-mountain': 'Tianmen Mountain',
+  'forbidden-city': 'Forbidden City',
+  'great-wall-mutianyu': 'Mutianyu',
+  'temple-of-heaven': 'Temple of Heaven',
+  'terracotta-army': 'Terracotta Army',
+  'xian-city-wall': "Fortifications of Xi'an",
+  'muslim-quarter': "Great Mosque of Xi'an",
+  'west-lake': 'West Lake',
+  'lingyin-temple': 'Lingyin Temple',
+  'humble-administrators-garden': "Humble Administrator's Garden",
+  'pingjiang-road': 'Suzhou',
+  'the-bund': 'The Bund',
+  'yu-garden': 'Yu Garden',
+};
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Fetch a landmark photo URL from Wikipedia. Returns null on any failure. */
+async function fetchWikiImage(title: string): Promise<string | null> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const res = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+      { signal: ctrl.signal, headers: { 'User-Agent': 'Vela/0.1 (seed)' } },
+    );
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data: any = await res.json();
+    return data?.originalimage?.source ?? data?.thumbnail?.source ?? null;
+  } catch {
+    return null; // offline / not found -> UI shows a branded placeholder
+  }
+}
+
 interface PlaceSeed {
   slug: string;
   name: string;
@@ -162,6 +202,7 @@ async function main() {
   });
 
   const placeIdBySlug: Record<string, string> = {};
+  const photoBySlug: Record<string, string> = {};
   for (const [citySlug, c] of Object.entries(CITIES)) {
     const city = await prisma.city.upsert({
       where: { regionId_slug: { regionId: region.id, slug: citySlug } },
@@ -176,9 +217,16 @@ async function main() {
       },
     });
     for (const p of c.places) {
+      let photoUrl: string | null = null;
+      if (WIKI_TITLE[p.slug]) {
+        photoUrl = await fetchWikiImage(WIKI_TITLE[p.slug]);
+        if (!photoUrl) photoUrl = await fetchWikiImage(WIKI_TITLE[p.slug]); // retry once
+        if (photoUrl) photoBySlug[p.slug] = photoUrl;
+        await sleep(180); // be gentle with Wikipedia's rate limit
+      }
       const place = await prisma.place.upsert({
         where: { cityId_slug: { cityId: city.id, slug: p.slug } },
-        update: {},
+        update: { photoUrl: photoUrl ?? undefined, description: p.description },
         create: {
           cityId: city.id,
           slug: p.slug,
@@ -188,6 +236,7 @@ async function main() {
           lat: p.lat,
           lng: p.lng,
           description: p.description,
+          photoUrl,
           source: SRC,
           dataStatus: 'ESTIMATED',
           trustLevel: 2,
@@ -198,9 +247,14 @@ async function main() {
     }
   }
 
-  // Trip
+  // Trip — hero reuses the Zhangjiajie photo we already fetched (no extra call).
+  const heroImage =
+    photoBySlug['zhangjiajie-national-forest-park'] ??
+    photoBySlug['tianzi-mountain'] ??
+    (await fetchWikiImage('Zhangjiajie National Forest Park'));
   const tripData: Prisma.TripUncheckedCreateInput = {
       slug: 'china-floating-mountains',
+      heroImage: heroImage ?? undefined,
       title: 'China — The Floating Mountains',
       subtitle: 'Zhangjiajie, ancient capitals and canal towns',
       countryId: china.id,

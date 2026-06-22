@@ -10,6 +10,7 @@ export const CreateTripSchema = z.object({
   highlights: z.array(z.string()).optional(),
   bestTime: z.string().optional(),
   visaNote: z.string().optional(),
+  heroImage: z.string().optional(),
   seasonLabel: z.string().optional(),
   durationDays: z.coerce.number().int().min(1).max(60),
   budgetMinRub: z.coerce.number().int().positive().optional(),
@@ -28,6 +29,7 @@ export const CreateTripSchema = z.object({
               lat: z.coerce.number().min(-90).max(90).optional(),
               lng: z.coerce.number().min(-180).max(180).optional(),
               description: z.string().optional(),
+              photoUrl: z.string().optional(),
             }),
           )
           .default([]),

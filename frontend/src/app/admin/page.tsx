@@ -1,8 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { createTrip, type CreateTripPayload } from '@/lib/api';
+import {
+  api,
+  createTrip,
+  deleteTrip,
+  uploadImage,
+  imageUrl,
+  type CreateTripPayload,
+  type Trip,
+} from '@/lib/api';
 
 interface PlaceForm {
   name: string;
@@ -10,6 +18,7 @@ interface PlaceForm {
   lat: string;
   lng: string;
   description: string;
+  photoUrl: string;
 }
 interface DayForm {
   title: string;
@@ -18,7 +27,7 @@ interface DayForm {
   places: PlaceForm[];
 }
 
-const emptyPlace = (): PlaceForm => ({ name: '', nameLocal: '', lat: '', lng: '', description: '' });
+const emptyPlace = (): PlaceForm => ({ name: '', nameLocal: '', lat: '', lng: '', description: '', photoUrl: '' });
 const emptyDay = (): DayForm => ({ title: '', baseCity: '', notes: '', places: [emptyPlace()] });
 
 export default function AdminPage() {
@@ -32,10 +41,25 @@ export default function AdminPage() {
   const [durationDays, setDurationDays] = useState('7');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
+  const [heroImage, setHeroImage] = useState('');
   const [days, setDays] = useState<DayForm[]>([emptyDay()]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Existing trips (for deletion).
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const refreshTrips = () => api.listTrips().then((t) => setTrips(t ?? []));
+  useEffect(() => {
+    refreshTrips();
+  }, []);
+
+  async function onDelete(slug: string, name: string) {
+    if (!confirm(`Удалить путешествие «${name}»? Это действие необратимо.`)) return;
+    const res = await deleteTrip(slug);
+    if (res.ok) refreshTrips();
+    else setError(res.error ?? 'Не удалось удалить');
+  }
 
   const setDay = (i: number, patch: Partial<DayForm>) =>
     setDays((ds) => ds.map((d, k) => (k === i ? { ...d, ...patch } : d)));
@@ -64,6 +88,7 @@ export default function AdminPage() {
         .map((h) => h.trim())
         .filter(Boolean),
       seasonLabel: seasonLabel || undefined,
+      heroImage: heroImage || undefined,
       durationDays: Number(durationDays) || 1,
       budgetMinRub: budgetMin ? Number(budgetMin) : undefined,
       budgetMaxRub: budgetMax ? Number(budgetMax) : undefined,
@@ -79,6 +104,7 @@ export default function AdminPage() {
             lat: p.lat ? Number(p.lat) : undefined,
             lng: p.lng ? Number(p.lng) : undefined,
             description: p.description || undefined,
+            photoUrl: p.photoUrl || undefined,
           })),
       })),
     };
@@ -104,14 +130,48 @@ export default function AdminPage() {
         </Link>
       </header>
 
-      <h1 className="font-serif text-4xl tracking-tightest">Новое путешествие</h1>
+      <h1 className="font-serif text-4xl tracking-tightest">Панель управления</h1>
       <p className="mt-3 max-w-2xl text-paper-dim">
-        Добавьте поездку прямо здесь — без редактирования файлов. Координаты мест
+        Добавляйте и удаляйте путешествия прямо здесь — без редактирования файлов.
+        Координаты мест
         вводятся из проверенного источника (Google Maps / OSM) и сохраняются как
         оценочные. Бюджет рассчитается автоматически из указанного диапазона.
       </p>
 
-      <form onSubmit={submit} className="mt-10 space-y-10">
+      {/* Управление существующими путешествиями */}
+      <section className="mt-10 rounded-2xl border border-ink-line bg-ink-soft/40 p-6">
+        <h2 className="font-serif text-2xl tracking-tightest">Существующие путешествия</h2>
+        {trips.length === 0 ? (
+          <p className="mt-3 text-sm text-paper-faint">Пока ничего нет.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-ink-line">
+            {trips.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-4 py-3">
+                <div className="flex items-center gap-3">
+                  {imageUrl(t.heroImage) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imageUrl(t.heroImage)!} alt="" className="h-10 w-14 rounded-md object-cover" />
+                  )}
+                  <div>
+                    <a href={`/trips/${t.slug}`} className="text-paper hover:text-aurora">{t.title}</a>
+                    <div className="text-xs text-paper-faint">{t.country.name} · {t.durationDays} дней</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDelete(t.slug, t.title)}
+                  className="rounded-full border border-red-400/30 px-4 py-1.5 text-sm text-red-300 transition-colors hover:border-red-400/60 hover:bg-red-400/10"
+                >
+                  Удалить
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <h2 className="mt-16 font-serif text-3xl tracking-tightest">Новое путешествие</h2>
+      <form onSubmit={submit} className="mt-8 space-y-10">
         {/* Basics */}
         <section className="grid gap-5 md:grid-cols-2">
           <Field label="Страна *">
@@ -137,6 +197,9 @@ export default function AdminPage() {
               <input type="number" className={inputCls} value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} />
             </Field>
           </div>
+          <Field label="Заглавное изображение" full>
+            <ImageInput value={heroImage} onChange={setHeroImage} />
+          </Field>
           <Field label="Краткое описание" full>
             <input className={inputCls} value={summary} onChange={(e) => setSummary(e.target.value)} />
           </Field>
@@ -182,6 +245,10 @@ export default function AdminPage() {
                       <input className={inputCls} value={p.lng} onChange={(e) => setPlace(di, pi, { lng: e.target.value })} placeholder="Долгота (lng), напр. 135.7681" />
                     </div>
                     <input className={`${inputCls} mt-3`} value={p.description} onChange={(e) => setPlace(di, pi, { description: e.target.value })} placeholder="Короткое описание" />
+                    <div className="mt-3">
+                      <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Фото места</span>
+                      <ImageInput value={p.photoUrl} onChange={(v) => setPlace(di, pi, { photoUrl: v })} />
+                    </div>
                     {d.places.length > 1 && (
                       <button type="button" onClick={() => setDay(di, { places: d.places.filter((_, j) => j !== pi) })} className="mt-2 text-xs text-paper-faint hover:text-paper">
                         Удалить место
@@ -225,5 +292,44 @@ function Field({ label, children, full }: { label: string; children: React.React
       <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">{label}</span>
       {children}
     </label>
+  );
+}
+
+// Image picker: paste a URL OR upload a file (uploads to the API, fills the URL).
+function ImageInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr(null);
+    setUploading(true);
+    const res = await uploadImage(file);
+    setUploading(false);
+    if (res.ok) onChange(res.url);
+    else setErr(res.error);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          className={`${inputCls} flex-1`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ссылка на изображение или загрузите файл →"
+        />
+        <label className={`${btnGhost} cursor-pointer`}>
+          {uploading ? 'Загрузка…' : 'Загрузить файл'}
+          <input type="file" accept="image/*" className="hidden" onChange={onFile} disabled={uploading} />
+        </label>
+      </div>
+      {err && <p className="text-xs text-red-300">{err}</p>}
+      {value && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={value} alt="" className="h-24 w-full max-w-xs rounded-lg border border-ink-line object-cover" />
+      )}
+    </div>
   );
 }

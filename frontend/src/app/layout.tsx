@@ -8,13 +8,13 @@ const inter = Inter({ subsets: ['latin', 'cyrillic'], variable: '--font-sans' })
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-serif' });
 
 export const metadata: Metadata = {
-  title: 'Vela — Plan journeys worth remembering',
+  title: 'Vela — Путешествия, которые запоминаются',
   description:
-    'A premium travel-planning platform. Curated Dream Trips, a modular itinerary builder, day-by-day maps, and honest, sourced data.',
+    'Премиальная платформа для планирования путешествий. Готовые маршруты, конструктор по дням, карты и честные данные из реальных источников.',
   metadataBase: new URL('http://localhost:3000'),
   openGraph: {
-    title: 'Vela — Plan journeys worth remembering',
-    description: 'Curated journeys and a modular itinerary builder.',
+    title: 'Vela — Путешествия, которые запоминаются',
+    description: 'Готовые маршруты и модульный конструктор путешествий.',
     type: 'website',
   },
 };
