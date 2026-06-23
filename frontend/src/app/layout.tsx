@@ -3,6 +3,10 @@ import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import { MagneticCursor } from '@/components/cursor/MagneticCursor';
 import { GenerativeBackground } from '@/components/canvas/GenerativeBackground';
+import { Toaster } from '@/components/ui/Toaster';
+
+// Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
+const themeInit = `(function(){try{var t=localStorage.getItem('vela_theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
 const inter = Inter({ subsets: ['latin', 'cyrillic'], variable: '--font-sans' });
 const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-serif' });
@@ -21,11 +25,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${fraunces.variable}`}>
+    <html lang="ru" suppressHydrationWarning className={`${inter.variable} ${fraunces.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+      </head>
       <body>
         <GenerativeBackground />
         <MagneticCursor />
         {children}
+        <Toaster />
       </body>
     </html>
   );

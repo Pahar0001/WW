@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
 import { AccountNav } from '@/components/ui/AccountNav';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
@@ -73,11 +74,10 @@ export default async function HomePage() {
         </Reveal>
 
         {trips.length === 0 ? (
-          <p className="text-paper-dim">
-            Пока нет маршрутов или API недоступен. Запустите backend и сидирование,
-            чтобы увидеть{' '}
-            <span className="text-paper">«Китай — Парящие горы»</span>.
-          </p>
+          <EmptyState
+            title="Маршрутов пока нет"
+            hint="Скоро здесь появятся готовые путешествия. Загляните чуть позже или соберите свой маршрут."
+          />
         ) : (
           <div className="grid gap-6 md:grid-cols-2">
             {trips.map((t, i) => {

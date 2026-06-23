@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { auth, isAdminRole, logout, type AuthUser, type Role } from '@/lib/auth';
 import { admin, type AdminUser, type AdminStats, type AuditRow } from '@/lib/admin';
+import { toast } from '@/components/ui/Toaster';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const ROLES: Role[] = ['SUPER_ADMIN', 'ADMIN', 'ORGANIZER', 'MEMBER'];
 
@@ -36,13 +39,12 @@ export default function AdminUsersPage() {
   }, []);
 
   async function act(fn: () => Promise<unknown>, note?: string) {
-    setMsg(null);
     try {
       await fn();
-      if (note) setMsg(note);
+      if (note) toast.success(note);
       load();
     } catch (e) {
-      setMsg((e as Error).message);
+      toast.error((e as Error).message);
     }
   }
 
@@ -64,14 +66,18 @@ export default function AdminUsersPage() {
       <h1 className="font-serif text-4xl tracking-tightest">Администрирование</h1>
 
       {/* Dashboard */}
-      {stats && (
-        <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <Stat label="Пользователи" value={stats.users} />
-          <Stat label="Поездки" value={stats.trips} />
-          <Stat label="Опубликовано" value={stats.publishedTrips} />
-          <Stat label="Участий в поездках" value={stats.memberships} />
-        </div>
-      )}
+      <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
+        {stats
+          ? (
+            <>
+              <Stat label="Пользователи" value={stats.users} />
+              <Stat label="Поездки" value={stats.trips} />
+              <Stat label="Опубликовано" value={stats.publishedTrips} />
+              <Stat label="Участий в поездках" value={stats.memberships} />
+            </>
+          )
+          : Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+      </div>
 
       {/* Users */}
       <section className="mt-12">

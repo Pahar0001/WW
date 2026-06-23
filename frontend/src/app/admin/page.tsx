@@ -12,6 +12,7 @@ import {
   type Trip,
 } from '@/lib/api';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
+import { toast } from '@/components/ui/Toaster';
 
 interface PlaceForm {
   name: string;
@@ -91,8 +92,8 @@ export default function AdminPage() {
   async function onDelete(slug: string, name: string) {
     if (!confirm(`Удалить путешествие «${name}»? Это действие необратимо.`)) return;
     const res = await deleteTrip(slug);
-    if (res.ok) refreshTrips();
-    else setError(res.error ?? 'Не удалось удалить');
+    if (res.ok) { toast.success(`«${name}» удалено`); refreshTrips(); }
+    else toast.error(res.error ?? 'Не удалось удалить');
   }
 
   const setDay = (i: number, patch: Partial<DayForm>) =>
@@ -162,8 +163,10 @@ export default function AdminPage() {
     const res = await createTrip(payload);
     setBusy(false);
     if (res.ok) {
+      toast.success('Путешествие создано');
       window.location.href = `/trips/${res.slug}`;
     } else {
+      toast.error(res.error);
       setError(res.error);
     }
   }

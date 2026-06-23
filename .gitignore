@@ -9,3 +9,6 @@ coverage/
 .DS_Store
 .turbo/
 prisma/*.db
+
+# local dev helpers
+.claude/

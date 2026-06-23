@@ -78,7 +78,7 @@ export function MagneticCursor() {
       <div
         ref={ringRef}
         aria-hidden
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-aurora/70 mix-blend-difference"
+        className="pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-aurora/50"
         style={{ transition: 'opacity .3s' }}
       />
       <div

@@ -5,6 +5,29 @@
 :root {
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-serif: 'Fraunces', Georgia, serif;
+  --radius: 1rem;
+
+  /* ── Light (default): warm paper + graphite + sage ── */
+  --bg: 40 30% 97%;        /* warm paper */
+  --bg-2: 38 26% 94%;      /* card / soft surface */
+  --line: 38 16% 86%;      /* hairline */
+  --fg: 30 12% 18%;        /* warm graphite */
+  --fg-2: 32 8% 38%;       /* secondary text */
+  --fg-3: 33 7% 52%;       /* faint text */
+  --primary: 168 26% 38%;  /* calm eucalyptus */
+  --primary-fg: 40 30% 98%;
+}
+
+.dark {
+  /* ── Dark: warm charcoal (not black) + warm off-white + lighter sage ── */
+  --bg: 30 9% 12%;
+  --bg-2: 30 8% 15%;
+  --line: 32 7% 23%;
+  --fg: 40 22% 91%;
+  --fg-2: 36 11% 70%;
+  --fg-3: 36 9% 54%;
+  --primary: 168 30% 58%;
+  --primary-fg: 30 12% 12%;
 }
 
 @layer base {
@@ -14,16 +37,15 @@
   body {
     @apply bg-ink text-paper antialiased;
     font-feature-settings: 'ss01', 'cv01';
+    transition: background-color 0.4s ease, color 0.4s ease;
   }
-  /* Hide the native cursor on pointer-capable devices; our custom one replaces it.
-     Touch devices keep default behavior (media query below). */
+  /* Custom cursor replaces the native one on fine-pointer devices. */
   @media (hover: hover) and (pointer: fine) {
-    * {
-      cursor: none;
-    }
+    * { cursor: none; }
   }
   ::selection {
-    @apply bg-aurora text-ink;
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-fg));
   }
 }
 
@@ -39,12 +61,9 @@
   }
 }
 
-/* Respect reduced-motion: the generative canvas and cursor self-disable in JS,
-   and we remove transitions here as a defensive layer. */
+/* Respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
