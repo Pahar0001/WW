@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: 'Vela — Путешествия, которые запоминаются',
   description:
     'Премиальная платформа для планирования путешествий. Готовые маршруты, конструктор по дням, карты и честные данные из реальных источников.',
-  metadataBase: new URL('http://localhost:3000'),
+  metadataBase: new URL('https://velatrips.ru'),
   openGraph: {
     title: 'Vela — Путешествия, которые запоминаются',
     description: 'Готовые маршруты и модульный конструктор путешествий.',
