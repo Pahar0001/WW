@@ -3,6 +3,7 @@ import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import { MagneticCursor } from '@/components/cursor/MagneticCursor';
 import { GenerativeBackground } from '@/components/canvas/GenerativeBackground';
+import { SiteScenery } from '@/components/decor/SiteScenery';
 import { Toaster } from '@/components/ui/Toaster';
 
 // Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <GenerativeBackground />
+        <SiteScenery />
         <MagneticCursor />
         {children}
         <Toaster />

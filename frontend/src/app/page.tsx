@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
-import { AccountNav } from '@/components/ui/AccountNav';
+import { SiteHeader } from '@/components/ui/SiteHeader';
 import { MyTrips } from '@/components/ui/MyTrips';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -15,20 +15,7 @@ export default async function HomePage() {
       {/* Напоминание подтвердить email (видно только вошедшим без верификации) */}
       <VerifyBanner />
       {/* Навигация */}
-      <header className="container-vela flex items-center justify-between py-7">
-        <span className="font-serif text-xl tracking-tightest" data-magnetic>
-          Vela
-        </span>
-        <nav className="flex items-center gap-8 text-sm text-paper-dim">
-          <a href="#dream-trips" data-cursor="hover" className="transition-colors hover:text-paper">
-            Путешествия
-          </a>
-          <a href="#data" data-cursor="hover" className="transition-colors hover:text-paper">
-            Честные данные
-          </a>
-          <AccountNav />
-        </nav>
-      </header>
+      <SiteHeader />
 
       {/* Заглавный экран */}
       <section className="container-vela relative flex min-h-[78vh] flex-col justify-center">
