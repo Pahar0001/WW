@@ -136,11 +136,14 @@ export interface Trip {
   seasonLabel?: string | null;
   budgetMinRub?: number | null;
   budgetMaxRub?: number | null;
+  visibility?: 'PUBLIC' | 'PRIVATE';
+  status?: 'DRAFT' | 'PUBLISHED' | 'HIDDEN';
   country: { name: string; nameLocal?: string | null };
   variants: RouteVariant[];
   scores?: TripScore | null;
   opinions: TripOpinion[];
   hotels?: Hotel[];
+  _count?: { members: number };
 }
 
 async function get<T>(path: string, token?: string): Promise<T | null> {
@@ -171,6 +174,37 @@ export const api = {
   listTrips: () => get<Trip[]>('/trips'),
   getTrip: (slug: string, token?: string) => get<Trip>(`/trips/${slug}`, token),
 };
+
+/** Trips the logged-in user belongs to (incl. private). Browser-only (uses token). */
+export async function listMyTrips(): Promise<Trip[]> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/trips/mine`, { headers: authHeader(), cache: 'no-store' });
+    if (!res.ok) return [];
+    return (await res.json()) as Trip[];
+  } catch {
+    return [];
+  }
+}
+
+/** All trips for the admin panel (incl. private / archived). Browser-only. */
+export async function adminListTrips(params?: {
+  search?: string;
+  status?: string;
+  visibility?: string;
+}): Promise<Trip[]> {
+  const qs = new URLSearchParams();
+  if (params?.search) qs.set('search', params.search);
+  if (params?.status) qs.set('status', params.status);
+  if (params?.visibility) qs.set('visibility', params.visibility);
+  const suffix = qs.toString() ? `?${qs}` : '';
+  try {
+    const res = await fetch(`${BROWSER_BASE}/admin/trips${suffix}`, { headers: authHeader(), cache: 'no-store' });
+    if (!res.ok) return [];
+    return (await res.json()) as Trip[];
+  } catch {
+    return [];
+  }
+}
 
 // CMS create — called from the browser (client component), so it uses the
 // browser base URL directly.
@@ -251,6 +285,9 @@ export interface UpdateTripPayload {
   durationDays?: number;
   budgetMinRub?: number | null;
   budgetMaxRub?: number | null;
+  // When provided, replaces the whole itinerary / hotel list.
+  days?: CreateTripPayload['days'];
+  hotels?: CreateTripPayload['hotels'];
 }
 
 /** Update trip-level fields (ORGANIZER+). */

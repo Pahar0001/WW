@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  api,
+  adminListTrips,
   createTrip,
   deleteTrip,
   uploadImage,
@@ -84,7 +84,7 @@ export default function AdminPage() {
 
   // Existing trips (for deletion).
   const [trips, setTrips] = useState<Trip[]>([]);
-  const refreshTrips = () => api.listTrips().then((t) => setTrips(t ?? []));
+  const refreshTrips = () => adminListTrips().then((t) => setTrips(t ?? []));
   useEffect(() => {
     refreshTrips();
   }, []);
@@ -212,8 +212,22 @@ export default function AdminPage() {
                     <img src={imageUrl(t.heroImage)!} alt="" className="h-10 w-14 rounded-md object-cover" />
                   )}
                   <div>
-                    <a href={`/trips/${t.slug}`} className="text-paper hover:text-aurora">{t.title}</a>
-                    <div className="text-xs text-paper-faint">{t.country.name} · {t.durationDays} дней</div>
+                    <div className="flex items-center gap-2">
+                      <a href={`/trips/${t.slug}`} className="text-paper hover:text-aurora">{t.title}</a>
+                      {t.visibility === 'PRIVATE' && (
+                        <span className="rounded-full border border-aurora/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-aurora">Приватная</span>
+                      )}
+                      {t.status === 'HIDDEN' && (
+                        <span className="rounded-full border border-ink-line px-2 py-0.5 text-[10px] uppercase tracking-wider text-paper-faint">Архив</span>
+                      )}
+                      {t.status === 'DRAFT' && (
+                        <span className="rounded-full border border-ink-line px-2 py-0.5 text-[10px] uppercase tracking-wider text-paper-faint">Черновик</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-paper-faint">
+                      {t.country.name} · {t.durationDays} дней
+                      {t._count?.members ? ` · ${t._count.members} участн.` : ''}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">

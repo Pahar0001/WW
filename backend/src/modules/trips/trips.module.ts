@@ -16,7 +16,7 @@ import { UserRole } from '@prisma/client';
 import { TripsService } from './trips.service';
 import { CreateTripSchema, UpdateTripSchema } from './trips.dto';
 import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
-import { Roles } from '../auth/auth.decorators';
+import { Roles, CurrentUser, AuthUser } from '../auth/auth.decorators';
 import { verifyToken } from '../../common/jwt';
 
 // Decode a Bearer token if present (no error if absent) — for optional auth.
@@ -37,6 +37,13 @@ class TripsController {
     return this.trips.list();
   }
 
+  // Declared before ":slug" so it is not captured as a slug param.
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  mine(@CurrentUser() user: AuthUser) {
+    return this.trips.listMine(user.id);
+  }
+
   @Get(':slug')
   get(@Param('slug') slug: string, @Req() req: any) {
     return this.trips.getBySlug(slug, optionalAccessor(req));
@@ -45,7 +52,7 @@ class TripsController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
-  create(@Body() body: unknown) {
+  create(@Body() body: unknown, @CurrentUser() user: AuthUser) {
     let input;
     try {
       input = CreateTripSchema.parse(body);
@@ -55,7 +62,7 @@ class TripsController {
       }
       throw e;
     }
-    return this.trips.create(input);
+    return this.trips.create(input, user.id);
   }
 
   @Patch(':slug')

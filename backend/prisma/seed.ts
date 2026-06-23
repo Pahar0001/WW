@@ -11,6 +11,7 @@
  */
 import { PrismaClient, Pace, Prisma } from '@prisma/client';
 import { estimateBudget } from '../src/common/budget';
+import { seedSpb } from './seed-spb';
 
 const prisma = new PrismaClient();
 const SRC = 'wikidata/openstreetmap (approx; verify before VERIFIED)';
@@ -510,6 +511,9 @@ async function main() {
 
   // eslint-disable-next-line no-console
   console.log('Seed complete: China — The Floating Mountains (3 variants, data-provenance enforced).');
+
+  // Additional trip: Санкт-Петербург (PRIVATE, owned by the Super Admin).
+  await seedSpb(prisma);
 }
 
 main()

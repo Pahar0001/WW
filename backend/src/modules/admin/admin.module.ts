@@ -46,6 +46,29 @@ class AdminController {
     return { users, trips, publishedTrips: published, memberships: members, recentUsers: recent };
   }
 
+  // All trips (incl. PRIVATE / archived) for the admin panel, with filters.
+  @Get('trips')
+  trips_(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('visibility') visibility?: string,
+  ) {
+    const where: Prisma.TripWhereInput = {};
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (status) where.status = status as any;
+    if (visibility) where.visibility = visibility as any;
+    return this.prisma.trip.findMany({
+      where,
+      include: { country: true, _count: { select: { members: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   @Get('users')
   users(@Query('search') search?: string, @Query('role') role?: string) {
     const where: Prisma.UserWhereInput = {};

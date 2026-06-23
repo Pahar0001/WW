@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
 import { AccountNav } from '@/components/ui/AccountNav';
+import { MyTrips } from '@/components/ui/MyTrips';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Constellation, RoutePath, Contours } from '@/components/decor/TravelDecor';
 
@@ -67,6 +68,9 @@ export default async function HomePage() {
         </Reveal>
         </div>
       </section>
+
+      {/* Мои поездки (видно только вошедшим, у кого есть поездки) */}
+      <MyTrips />
 
       {/* Путешествия */}
       <section id="dream-trips" className="container-vela py-24">

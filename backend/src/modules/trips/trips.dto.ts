@@ -57,6 +57,34 @@ export const CreateTripSchema = z.object({
 
 export type CreateTripInput = z.infer<typeof CreateTripSchema>;
 
+// Reusable shapes so the editor can update days/places/hotels too.
+export const HotelSchema = z.object({
+  cityLabel: z.string().optional(),
+  name: z.string().min(1),
+  url: z.string().optional(),
+  area: z.string().optional(),
+  priceNote: z.string().optional(),
+  photoUrl: z.string().optional(),
+});
+export const PlaceSchema = z.object({
+  name: z.string().min(1),
+  nameLocal: z.string().optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  description: z.string().optional(),
+  photoUrl: z.string().optional(),
+  photos: z.array(z.string()).optional(),
+  howToGet: z.string().optional(),
+  tips: z.string().optional(),
+  nearby: z.string().optional(),
+});
+export const DaySchema = z.object({
+  title: z.string().optional(),
+  baseCity: z.string().optional(),
+  notes: z.string().optional(),
+  places: z.array(PlaceSchema).default([]),
+});
+
 // Editable trip-level fields (everyone except MEMBER may edit).
 export const UpdateTripSchema = z.object({
   title: z.string().min(1).optional(),
@@ -73,5 +101,8 @@ export const UpdateTripSchema = z.object({
   durationDays: z.coerce.number().int().min(1).max(60).optional(),
   budgetMinRub: z.coerce.number().int().positive().nullable().optional(),
   budgetMaxRub: z.coerce.number().int().positive().nullable().optional(),
+  // When provided, the editor replaces the whole itinerary / hotel list.
+  days: z.array(DaySchema).optional(),
+  hotels: z.array(HotelSchema).optional(),
 });
 export type UpdateTripInput = z.infer<typeof UpdateTripSchema>;

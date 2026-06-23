@@ -24,7 +24,7 @@ export class TripsService {
    * the site and the map. Honors the Real Data Policy: user-entered coordinates
    * are stored as ESTIMATED; budget is an estimate from the stated envelope.
    */
-  async create(input: CreateTripInput) {
+  async create(input: CreateTripInput, creatorId?: string) {
     const countrySlug = slugify(input.countryName);
     const country = await this.prisma.country.upsert({
       where: { slug: countrySlug },
@@ -64,6 +64,16 @@ export class TripsService {
         countryId: country.id,
       },
     });
+
+    // The creator owns the trip: record them as an ORGANIZER member so it shows
+    // up in their "Мои поездки" list (and they keep access to private trips).
+    if (creatorId) {
+      await this.prisma.tripMember.upsert({
+        where: { tripId_userId: { tripId: trip.id, userId: creatorId } },
+        update: { role: 'ORGANIZER' },
+        create: { tripId: trip.id, userId: creatorId, role: 'ORGANIZER' },
+      });
+    }
 
     const variant = await this.prisma.routeVariant.create({
       data: { tripId: trip.id, pace: 'BALANCED', title: 'Сбалансированная' },
@@ -164,9 +174,16 @@ export class TripsService {
     return { slug: trip.slug, id: trip.id };
   }
 
-  /** Update trip-level fields (ORGANIZER+). Nested days/places are not touched. */
+  /**
+   * Update a trip (ORGANIZER+). Trip-level fields are patched. When `days` or
+   * `hotels` are provided, the editor replaces the whole itinerary / hotel list
+   * (replace-all keeps the editor simple and predictable).
+   */
   async update(slug: string, data: UpdateTripInput) {
-    const trip = await this.prisma.trip.findUnique({ where: { slug }, select: { id: true } });
+    const trip = await this.prisma.trip.findUnique({
+      where: { slug },
+      select: { id: true, countryId: true, variants: { select: { id: true }, take: 1 } },
+    });
     if (!trip) throw new NotFoundException(`Путешествие "${slug}" не найдено`);
     await this.prisma.trip.update({
       where: { slug },
@@ -187,7 +204,105 @@ export class TripsService {
         ...(data.budgetMaxRub !== undefined && { budgetMaxRub: data.budgetMaxRub }),
       },
     });
+
+    if (data.hotels) await this.replaceHotels(trip.id, data.hotels);
+    if (data.days) await this.replaceDays(trip.id, trip.countryId, slug, data.days);
+
     return { ok: true, slug };
+  }
+
+  /** Replace all curated hotels for a trip. */
+  private async replaceHotels(tripId: string, hotels: UpdateTripInput['hotels']) {
+    await this.prisma.hotel.deleteMany({ where: { tripId } });
+    if (hotels?.length) {
+      await this.prisma.hotel.createMany({
+        data: hotels.map((h) => ({
+          tripId,
+          cityLabel: h.cityLabel,
+          name: h.name,
+          url: h.url,
+          area: h.area,
+          priceNote: h.priceNote,
+          photoUrl: h.photoUrl,
+          source: 'cms-user-input',
+          dataStatus: 'VERIFIED' as const,
+        })),
+      });
+    }
+  }
+
+  /** Replace the whole itinerary (days + places) on the trip's first variant. */
+  private async replaceDays(
+    tripId: string,
+    countryId: string,
+    slug: string,
+    days: NonNullable<UpdateTripInput['days']>,
+  ) {
+    // Reuse the trip's first variant (create one if somehow missing).
+    const existing = await this.prisma.routeVariant.findFirst({
+      where: { tripId },
+      select: { id: true },
+    });
+    const variantId =
+      existing?.id ??
+      (
+        await this.prisma.routeVariant.create({
+          data: { tripId, pace: 'BALANCED', title: 'Сбалансированная' },
+        })
+      ).id;
+    // Wipe existing days (cascades dayPlaces/legs) before rebuilding.
+    await this.prisma.day.deleteMany({ where: { variantId } });
+
+    const region = await this.prisma.region.upsert({
+      where: { countryId_slug: { countryId, slug: 'main' } },
+      update: {},
+      create: { countryId, slug: 'main', name: 'routes' },
+    });
+    const cityCache = new Map<string, string>();
+    const cityIdFor = async (label: string) => {
+      const citySlug = slugify(label);
+      if (cityCache.has(citySlug)) return cityCache.get(citySlug)!;
+      const city = await this.prisma.city.upsert({
+        where: { regionId_slug: { regionId: region.id, slug: citySlug } },
+        update: {},
+        create: { regionId: region.id, slug: citySlug, name: label },
+      });
+      cityCache.set(citySlug, city.id);
+      return city.id;
+    };
+
+    for (let i = 0; i < days.length; i++) {
+      const d = days[i];
+      const baseCity = d.baseCity?.trim() || slug;
+      const cityId = await cityIdFor(baseCity);
+      const day = await this.prisma.day.create({
+        data: { variantId, dayNumber: i + 1, title: d.title, baseCity, notes: d.notes },
+      });
+      for (let j = 0; j < d.places.length; j++) {
+        const p = d.places[j];
+        const place = await this.prisma.place.create({
+          data: {
+            cityId,
+            slug: `${slugify(p.name)}-${i}-${j}-${Date.now().toString(36)}`,
+            name: p.name,
+            nameLocal: p.nameLocal,
+            lat: p.lat ?? null,
+            lng: p.lng ?? null,
+            description: p.description,
+            photoUrl: p.photoUrl,
+            photos: p.photos ?? [],
+            howToGet: p.howToGet,
+            tips: p.tips,
+            nearby: p.nearby,
+            dataStatus: p.lat != null && p.lng != null ? 'ESTIMATED' : 'PENDING',
+            source: 'cms-user-input',
+            trustLevel: 3,
+            fetchedAt: new Date(),
+          },
+        });
+        await this.prisma.dayPlace.create({ data: { dayId: day.id, placeId: place.id, order: j } });
+      }
+    }
   }
 
   /** Delete a trip by slug (cascades variants/days/budget/scores/opinions). */
@@ -205,6 +320,42 @@ export class TripsService {
       include: {
         country: true,
         scores: true,
+        variants: { select: { id: true, pace: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Trips the user belongs to (membership), incl. private — for "Мои поездки". */
+  async listMine(userId: string) {
+    return this.prisma.trip.findMany({
+      where: { members: { some: { userId } } },
+      include: {
+        country: true,
+        scores: true,
+        variants: { select: { id: true, pace: true, title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** All trips for the admin panel, with optional filters (ADMIN+). */
+  async listAll(filters?: { search?: string; status?: string; visibility?: string }) {
+    const where: any = {};
+    if (filters?.search) {
+      where.OR = [
+        { title: { contains: filters.search, mode: 'insensitive' } },
+        { slug: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+    if (filters?.status) where.status = filters.status;
+    if (filters?.visibility) where.visibility = filters.visibility;
+    return this.prisma.trip.findMany({
+      where,
+      include: {
+        country: true,
+        scores: true,
+        _count: { select: { members: true } },
         variants: { select: { id: true, pace: true, title: true } },
       },
       orderBy: { createdAt: 'desc' },
