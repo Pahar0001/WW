@@ -3,6 +3,7 @@ import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
 import { AccountNav } from '@/components/ui/AccountNav';
 import { MyTrips } from '@/components/ui/MyTrips';
+import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Constellation, RoutePath, Contours } from '@/components/decor/TravelDecor';
 
@@ -11,6 +12,8 @@ export default async function HomePage() {
 
   return (
     <main className="relative min-h-screen">
+      {/* Напоминание подтвердить email (видно только вошедшим без верификации) */}
+      <VerifyBanner />
       {/* Навигация */}
       <header className="container-vela flex items-center justify-between py-7">
         <span className="font-serif text-xl tracking-tightest" data-magnetic>

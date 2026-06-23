@@ -5,13 +5,17 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
 import { signToken } from '../../common/jwt';
 
 const token = () => randomBytes(24).toString('hex');
+// 6-digit numeric email-verification code (100000–999999).
+const verifyCode = () => String(randomInt(100000, 1000000));
+// How long a verification code stays valid.
+const CODE_TTL_MS = 15 * 60 * 1000;
 
 function publicUser(u: any) {
   return {
@@ -39,17 +43,18 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Пользователь с таким email уже есть');
 
-    const verifyToken = token();
+    const code = verifyCode();
     const user = await this.prisma.user.create({
       data: {
         email,
         name,
         passwordHash: await bcrypt.hash(password, 10),
         role: 'MEMBER',
-        emailVerifyToken: verifyToken,
+        emailVerifyToken: code,
+        emailVerifyExpiry: new Date(Date.now() + CODE_TTL_MS),
       },
     });
-    await this.sendVerifyEmail(email, verifyToken);
+    await this.sendVerifyEmail(email, code);
     await this.audit.log({ userId: user.id, action: 'register', objectType: 'user', objectId: user.id, ip });
     return { token: signToken({ sub: user.id, email: user.email, role: user.role }), user: publicUser(user) };
   }
@@ -71,13 +76,39 @@ export class AuthService {
     return publicUser(user);
   }
 
-  async verifyEmail(t: string) {
-    const user = await this.prisma.user.findFirst({ where: { emailVerifyToken: t } });
-    if (!user) throw new BadRequestException('Недействительная ссылка подтверждения');
+  /** Re-send a fresh verification code to the current user (if not yet verified). */
+  async resendVerification(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    if (user.emailVerified) return { ok: true, alreadyVerified: true };
+    const code = verifyCode();
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { emailVerified: true, emailVerifyToken: null },
+      data: { emailVerifyToken: code, emailVerifyExpiry: new Date(Date.now() + CODE_TTL_MS) },
     });
+    await this.sendVerifyEmail(user.email, code);
+    return { ok: true };
+  }
+
+  /** Confirm an email with the 6-digit code that was emailed to it. */
+  async verifyEmailCode(emailRaw: string, codeRaw: string) {
+    const email = emailRaw.toLowerCase().trim();
+    const code = codeRaw.trim();
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    // Don't reveal whether the email exists; treat both as a bad code.
+    if (!user) throw new BadRequestException('Неверный код подтверждения');
+    if (user.emailVerified) return { ok: true, alreadyVerified: true };
+    if (!user.emailVerifyToken || user.emailVerifyToken !== code) {
+      throw new BadRequestException('Неверный код подтверждения');
+    }
+    if (!user.emailVerifyExpiry || user.emailVerifyExpiry < new Date()) {
+      throw new BadRequestException('Код истёк — запросите новый');
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true, emailVerifyToken: null, emailVerifyExpiry: null },
+    });
+    await this.audit.log({ userId: user.id, action: 'email.verify', objectType: 'user', objectId: user.id });
     return { ok: true };
   }
 
@@ -119,12 +150,13 @@ export class AuthService {
     return { ok: true };
   }
 
-  private async sendVerifyEmail(email: string, t: string) {
+  private async sendVerifyEmail(email: string, code: string) {
     await this.email.send(
       email,
-      'Подтвердите email — Vela',
-      `<p>Добро пожаловать в Vela! Подтвердите ваш email:</p>
-       <p><a href="${this.email.link(`/verify-email?token=${t}`)}">Подтвердить email</a></p>`,
+      `Код подтверждения Vela: ${code}`,
+      `<p>Добро пожаловать в Vela! Ваш код подтверждения email:</p>
+       <p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:16px 0">${code}</p>
+       <p>Введите его на странице подтверждения. Код действует 15 минут.</p>`,
     );
   }
 }

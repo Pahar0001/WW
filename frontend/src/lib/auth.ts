@@ -66,7 +66,9 @@ export const auth = {
   },
   forgot: (email: string) => post('/auth/forgot-password', { email }),
   reset: (token: string, password: string) => post('/auth/reset-password', { token, password }),
-  verifyEmail: (token: string) => post('/auth/verify-email', { token }),
+  verifyEmail: (email: string, code: string) =>
+    post<{ ok: boolean; alreadyVerified?: boolean }>('/auth/verify-email', { email, code }),
+  resendVerification: () => post<{ ok: boolean; alreadyVerified?: boolean }>('/auth/resend-verification', {}),
   async me(): Promise<AuthUser | null> {
     if (!getToken()) return null;
     const res = await fetch('/api/auth/me', { headers: authHeaders(), cache: 'no-store' });

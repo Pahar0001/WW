@@ -34,6 +34,7 @@ const Register = z.object({ email: z.string().email(), password: z.string().min(
 const Login = z.object({ email: z.string().email(), password: z.string() });
 const Forgot = z.object({ email: z.string().email() });
 const Reset = z.object({ token: z.string(), password: z.string().min(8) });
+const VerifyEmail = z.object({ email: z.string().email(), code: z.string().min(4).max(8) });
 
 @Controller('auth')
 class AuthController {
@@ -53,9 +54,14 @@ class AuthController {
 
   @Post('verify-email')
   verify(@Body() body: unknown) {
-    const t = (body as any)?.token;
-    if (!t) throw new BadRequestException('token required');
-    return this.auth.verifyEmail(t);
+    const d = parse(VerifyEmail, body);
+    return this.auth.verifyEmailCode(d.email, d.code);
+  }
+
+  @Post('resend-verification')
+  @UseGuards(JwtAuthGuard)
+  resend(@CurrentUser() user: AuthUser) {
+    return this.auth.resendVerification(user.id);
   }
 
   @Post('forgot-password')

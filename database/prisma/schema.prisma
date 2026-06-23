@@ -496,6 +496,7 @@ model User {
   status              UserStatus @default(ACTIVE)
   emailVerified       Boolean    @default(false)
   emailVerifyToken    String?
+  emailVerifyExpiry   DateTime?
   passwordResetToken  String?
   passwordResetExpiry DateTime?
   saved               SavedTrip[]

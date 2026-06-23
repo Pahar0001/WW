@@ -18,7 +18,7 @@ export default function RegisterPage() {
     setBusy(true);
     try {
       await auth.register(email, password, name || undefined);
-      window.location.href = '/?welcome=1';
+      window.location.href = `/verify-email?email=${encodeURIComponent(email)}`;
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -39,7 +39,7 @@ export default function RegisterPage() {
         Уже есть аккаунт? <Link href="/login" className="text-paper hover:text-aurora">Войти</Link>
       </p>
       <p className="mt-3 text-center text-xs text-paper-faint">
-        После регистрации придёт письмо для подтверждения email.
+        После регистрации придёт письмо с кодом подтверждения email.
       </p>
     </AuthShell>
   );
