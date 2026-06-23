@@ -57,7 +57,7 @@ export default function PlanPage() {
 
       <div className="mt-8 flex flex-wrap gap-2">
         {([['tickets', 'Билеты'], ['hotels', 'Отели'], ['documents', 'Документы'], ['calendar', 'Календарь'], ['members', 'Участники'], ['memories', 'Воспоминания'], ['chat', 'Чат']] as const).map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)} className={`rounded-full px-5 py-2 text-sm transition-colors ${tab === t ? 'bg-paper text-ink' : 'border border-ink-line text-paper-dim hover:text-paper'}`}>
+          <button key={t} onClick={() => setTab(t)} className={`rounded-full px-5 py-2 text-sm transition-colors ${tab === t ? 'bg-aurora text-aurora-fg' : 'border border-ink-line text-paper-dim hover:text-paper'}`}>
             {label}
           </button>
         ))}
