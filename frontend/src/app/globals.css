@@ -61,6 +61,11 @@
   }
 }
 
+@keyframes twinkle {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.9; }
+}
+
 /* Respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

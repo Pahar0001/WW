@@ -3,6 +3,7 @@ import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
 import { AccountNav } from '@/components/ui/AccountNav';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Constellation, RoutePath, Contours } from '@/components/decor/TravelDecor';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
@@ -26,7 +27,11 @@ export default async function HomePage() {
       </header>
 
       {/* Заглавный экран */}
-      <section className="container-vela flex min-h-[78vh] flex-col justify-center">
+      <section className="container-vela relative flex min-h-[78vh] flex-col justify-center">
+        {/* Ambient travel art — decorative, kept in empty top/right space, never over buttons. */}
+        <Constellation className="absolute right-2 top-2 hidden w-32 text-aurora/60 md:block" />
+        <RoutePath className="absolute -right-4 top-28 hidden w-[440px] text-aurora/35 lg:block" />
+        <div className="relative z-10">
         <Reveal>
           <p className="mb-6 text-sm uppercase tracking-[0.3em] text-paper-faint">
             Премиальное планирование путешествий
@@ -60,6 +65,7 @@ export default async function HomePage() {
             </a>
           </div>
         </Reveal>
+        </div>
       </section>
 
       {/* Путешествия */}
@@ -129,8 +135,9 @@ export default async function HomePage() {
       {/* Честные данные */}
       <section id="data" className="container-vela py-24">
         <Reveal>
-          <div className="rounded-2xl border border-ink-line bg-ink-soft/40 p-10">
-            <h2 className="font-serif text-2xl tracking-tightest md:text-3xl">
+          <div className="relative overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/40 p-10">
+            <Contours className="pointer-events-none absolute -right-6 -top-8 w-64 text-aurora/30" />
+            <h2 className="relative font-serif text-2xl tracking-tightest md:text-3xl">
               Мы не выдумываем ваше путешествие.
             </h2>
             <p className="mt-4 max-w-2xl text-paper-dim">
