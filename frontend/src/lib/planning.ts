@@ -67,6 +67,8 @@ export const planning = {
   members: (slug: string) => req<Member[]>(`/trips/${slug}/members`),
   invite: (slug: string, email: string) => req<Member & { invited: boolean }>(`/trips/${slug}/members`, { method: 'POST', body: JSON.stringify({ email }) }),
   removeMember: (slug: string, userId: string) => req(`/trips/${slug}/members/${userId}`, { method: 'DELETE' }),
+  setMemberRole: (slug: string, userId: string, role: 'ORGANIZER' | 'MEMBER') =>
+    req(`/trips/${slug}/members/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
   // Memories
   memories: (slug: string) => req<MemoriesOverview>(`/trips/${slug}/memories`),

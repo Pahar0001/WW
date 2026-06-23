@@ -43,6 +43,10 @@
   @media (hover: hover) and (pointer: fine) {
     * { cursor: none; }
   }
+  /* …but never on touch / coarse-pointer devices — hide it entirely there. */
+  @media (hover: none), (pointer: coarse) {
+    .vela-cursor { display: none !important; }
+  }
   ::selection {
     background: hsl(var(--primary));
     color: hsl(var(--primary-fg));
@@ -64,6 +68,23 @@
 @keyframes twinkle {
   0%, 100% { opacity: 0.25; }
   50% { opacity: 0.9; }
+}
+
+/* Ambient sakura petals (site-wide background) — faint and slow, never loud. */
+.site-petal {
+  position: absolute;
+  top: -4vh;
+  border-radius: 100% 0 100% 0;
+  background: radial-gradient(circle at 30% 30%, rgba(222,176,170,0.55), rgba(205,150,150,0.32));
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: site-petal-fall linear infinite;
+}
+@keyframes site-petal-fall {
+  0% { transform: translate3d(0, -4vh, 0) rotate(0deg); opacity: 0; }
+  12% { opacity: 0.4; }
+  88% { opacity: 0.35; }
+  100% { transform: translate3d(28px, 108vh, 0) rotate(300deg); opacity: 0; }
 }
 
 /* Respect reduced-motion. */

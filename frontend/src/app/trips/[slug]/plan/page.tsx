@@ -484,12 +484,24 @@ function Members({ slug, canEdit }: { slug: string; canEdit: boolean }) {
       <div className="grid gap-2">
         {members.length === 0 && <p className="text-paper-faint">Участников пока нет.</p>}
         {members.map((m) => (
-          <div key={m.id} className="flex items-center justify-between rounded-xl border border-ink-line p-4">
+          <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-line p-4">
             <div>
               <div className="text-paper">{m.user.name || m.user.email}</div>
-              <div className="text-xs text-paper-faint">{m.user.email} · роль в поездке: {m.role}</div>
+              <div className="text-xs text-paper-faint">{m.user.email}{!canEdit && ` · роль: ${m.role === 'ORGANIZER' ? 'Организатор' : 'Участник'}`}</div>
             </div>
-            {canEdit && <button onClick={() => planning.removeMember(slug, m.user.id).then(load)} className="text-xs text-paper-faint hover:text-red-300">Убрать</button>}
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <select
+                  value={m.role}
+                  onChange={(e) => planning.setMemberRole(slug, m.user.id, e.target.value as 'ORGANIZER' | 'MEMBER').then(load)}
+                  className="rounded-lg border border-ink-line bg-ink px-3 py-1.5 text-sm text-paper outline-none focus:border-aurora/60"
+                >
+                  <option value="MEMBER">Участник</option>
+                  <option value="ORGANIZER">Организатор</option>
+                </select>
+                <button onClick={() => planning.removeMember(slug, m.user.id).then(load)} className="text-xs text-paper-faint hover:text-red-300">Убрать</button>
+              </div>
+            )}
           </div>
         ))}
       </div>

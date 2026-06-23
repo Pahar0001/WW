@@ -196,6 +196,13 @@ export class PlanningService implements OnModuleInit {
     return { ok: true };
   }
 
+  /** Change a member's role within the trip (ORGANIZER ↔ MEMBER). */
+  async setMemberRole(slug: string, userId: string, role: 'ORGANIZER' | 'MEMBER') {
+    const tripId = await this.tripId(slug);
+    await this.prisma.tripMember.updateMany({ where: { tripId, userId }, data: { role } });
+    return { ok: true, role };
+  }
+
   // ── Memories: albums, photos, diary, timeline ────────────
   async memoriesOverview(slug: string) {
     const tripId = await this.tripId(slug);

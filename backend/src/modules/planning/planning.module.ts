@@ -6,6 +6,7 @@ import {
   Get,
   Module,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -61,6 +62,7 @@ const HotelIn = z.object({
 });
 const ChatIn = z.object({ text: z.string().min(1).max(2000) });
 const InviteIn = z.object({ email: z.string().email() });
+const RoleIn = z.object({ role: z.enum(['ORGANIZER', 'MEMBER']) });
 const AlbumIn = z.object({ title: z.string().min(1) });
 const PhotoIn = z.object({ url: z.string().min(1), caption: z.string().optional(), takenAt: z.string().optional() });
 const MemoryIn = z.object({
@@ -167,6 +169,12 @@ class PlanningController {
   @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
   removeMember(@Param('slug') slug: string, @Param('userId') userId: string) {
     return this.svc.removeMember(slug, userId);
+  }
+
+  @Patch('trips/:slug/members/:userId/role')
+  @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  setMemberRole(@Param('slug') slug: string, @Param('userId') userId: string, @Body() body: unknown) {
+    return this.svc.setMemberRole(slug, userId, parse(RoleIn, body).role);
   }
 
   // ── Memories: albums, photos, diary, timeline ──

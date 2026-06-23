@@ -78,13 +78,13 @@ export function MagneticCursor() {
       <div
         ref={ringRef}
         aria-hidden
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-aurora/50"
+        className="vela-cursor pointer-events-none fixed left-0 top-0 z-[9999] h-9 w-9 rounded-full border border-aurora/50"
         style={{ transition: 'opacity .3s' }}
       />
       <div
         ref={dotRef}
         aria-hidden
-        className="pointer-events-none fixed left-0 top-0 z-[9999] h-1.5 w-1.5 rounded-full bg-aurora"
+        className="vela-cursor pointer-events-none fixed left-0 top-0 z-[9999] h-1.5 w-1.5 rounded-full bg-aurora"
       />
     </>
   );
