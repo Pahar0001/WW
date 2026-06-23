@@ -7,6 +7,7 @@ import { PlanLink } from '@/components/trip/PlanLink';
 import { EditTripLink } from '@/components/trip/EditTripLink';
 import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
+import { Constellation } from '@/components/decor/TravelDecor';
 import { Reveal } from '@/components/ui/Reveal';
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
@@ -76,7 +77,8 @@ export default async function TripPage({ params }: { params: { slug: string } })
       )}
 
       {/* Hero */}
-      <section className="container-vela pb-16 pt-10">
+      <section className="container-vela relative pb-16 pt-10">
+        <Constellation className="pointer-events-none absolute right-0 top-6 hidden w-32 text-aurora/40 lg:block" />
         <Reveal>
           <p className="text-sm uppercase tracking-[0.3em] text-paper-faint">
             {trip.country.name} · {trip.durationDays} дней · {trip.seasonLabel}

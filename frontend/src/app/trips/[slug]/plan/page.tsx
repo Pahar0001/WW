@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { auth, type AuthUser } from '@/lib/auth';
+import { RoutePath } from '@/components/decor/TravelDecor';
 import {
   planning, uploadFile,
   type PlanningOverview, type Ticket, type TripDocument, type CalendarEvent, type TicketKind, type EventType,
@@ -44,13 +45,14 @@ export default function PlanPage() {
   if (me === undefined) return <main className="container-vela flex min-h-screen items-center justify-center text-paper-dim">Загрузка…</main>;
 
   return (
-    <main className="container-vela min-h-screen py-10">
-      <header className="mb-8 flex items-center justify-between">
+    <main className="container-vela relative min-h-screen py-10">
+      <RoutePath className="pointer-events-none absolute right-0 top-16 hidden w-80 text-aurora/25 lg:block" />
+      <header className="relative mb-8 flex items-center justify-between">
         <Link href={`/trips/${slug}`} className="text-sm text-paper-dim hover:text-paper">← К поездке</Link>
         <span className="text-sm text-paper-faint">{me?.email}{!canEdit && ' · только просмотр'}</span>
       </header>
 
-      <h1 className="font-serif text-4xl tracking-tightest">Планирование поездки</h1>
+      <h1 className="relative font-serif text-4xl tracking-tightest">Планирование поездки</h1>
       <p className="mt-2 text-paper-dim">Билеты, документы и календарь событий с напоминаниями.</p>
 
       <div className="mt-8 flex flex-wrap gap-2">

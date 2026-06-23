@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Constellation, RoutePath } from '@/components/decor/TravelDecor';
 
 export const inp =
   'w-full rounded-lg border border-ink-line bg-ink px-4 py-3 text-paper placeholder:text-paper-faint outline-none transition-colors focus:border-aurora/60';
@@ -18,7 +19,10 @@ export function AuthShell({
 }) {
   return (
     <main className="relative flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-sm">
+      {/* Ambient art — decorative, in the corners, behind the form. */}
+      <Constellation className="pointer-events-none absolute right-8 top-10 hidden w-36 text-aurora/40 sm:block" />
+      <RoutePath className="pointer-events-none absolute -left-10 bottom-10 hidden w-[420px] text-aurora/25 md:block" />
+      <div className="relative z-10 w-full max-w-sm">
         <Link href="/" className="mb-10 block text-center font-serif text-2xl tracking-tightest">Vela</Link>
         <h1 className="font-serif text-3xl tracking-tightest">{title}</h1>
         {subtitle && <p className="mt-2 text-paper-dim">{subtitle}</p>}
