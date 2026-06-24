@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import { MagneticCursor } from '@/components/cursor/MagneticCursor';
-import { GenerativeBackground } from '@/components/canvas/GenerativeBackground';
 import { SiteScenery } from '@/components/decor/SiteScenery';
 import { Toaster } from '@/components/ui/Toaster';
 
@@ -31,7 +30,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
       <body>
-        <GenerativeBackground />
         <SiteScenery />
         <MagneticCursor />
         {children}
