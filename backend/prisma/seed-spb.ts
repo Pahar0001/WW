@@ -329,22 +329,29 @@ export async function seedSpb(prisma: PrismaClient) {
     });
     for (let j = 0; j < d.places.length; j++) {
       const p = d.places[j];
-      const place = await prisma.place.create({
-        data: {
-          cityId: city.id,
-          slug: `${slugify(p.name)}-${i}-${j}`,
-          name: p.name,
-          lat: p.lat ?? null,
-          lng: p.lng ?? null,
-          description: p.description,
-          howToGet: p.howToGet,
-          tips: p.tips,
-          nearby: p.nearby,
-          dataStatus: p.lat != null && p.lng != null ? 'ESTIMATED' : 'PENDING',
-          source: SRC,
-          trustLevel: 3,
-          fetchedAt: new Date(),
-        },
+      const slug = `${slugify(p.name)}-${i}-${j}`;
+      const data = {
+        cityId: city.id,
+        slug,
+        name: p.name,
+        lat: p.lat ?? null,
+        lng: p.lng ?? null,
+        description: p.description,
+        howToGet: p.howToGet,
+        tips: p.tips,
+        nearby: p.nearby,
+        dataStatus: (p.lat != null && p.lng != null ? 'ESTIMATED' : 'PENDING') as 'ESTIMATED' | 'PENDING',
+        source: SRC,
+        trustLevel: 3,
+        fetchedAt: new Date(),
+      };
+      // Upsert keeps the seed idempotent: a previously interrupted rebuild may
+      // leave orphaned Places (Day deleteMany doesn't cascade to Place), and a
+      // plain create would then collide on the unique (cityId, slug).
+      const place = await prisma.place.upsert({
+        where: { cityId_slug: { cityId: city.id, slug } },
+        update: data,
+        create: data,
       });
       await prisma.dayPlace.create({ data: { dayId: day.id, placeId: place.id, order: j } });
     }
