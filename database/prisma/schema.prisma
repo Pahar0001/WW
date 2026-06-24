@@ -190,8 +190,28 @@ model Trip {
   chatMessages ChatMessage[]
   albums      Album[]
   memories    Memory[]
+  expenses    Expense[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+}
+
+// A shared expense in a trip: someone paid for a group of participants who
+// split it equally. Used by the in-trip "who owes whom" calculator. Amount is
+// stored in minor currency units (kopecks) to keep settlement math exact.
+model Expense {
+  id           String   @id @default(cuid())
+  tripId       String
+  trip         Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  paidById     String                  // userId who actually paid
+  paidBy       User     @relation("ExpensePayer", fields: [paidById], references: [id], onDelete: Cascade)
+  description  String
+  amount       Int                     // minor units (kopecks)
+  currency     String   @default("RUB")
+  date         DateTime                 // calendar day the expense belongs to
+  participants String[] @default([])   // userIds who share this expense equally
+  createdById  String?                 // who logged it (audit)
+  createdAt    DateTime @default(now())
+  @@index([tripId])
 }
 
 // A Trip has up to three variants: CALM / BALANCED / ACTIVE.
@@ -508,6 +528,7 @@ model User {
   messages            ChatMessage[]  @relation("UserMessages")
   albums              Album[]        @relation("UserAlbums")
   memories            Memory[]       @relation("UserMemories")
+  expensesPaid        Expense[]      @relation("ExpensePayer")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

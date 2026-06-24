@@ -87,6 +87,17 @@
   100% { transform: translate3d(28px, 108vh, 0) rotate(300deg); opacity: 0; }
 }
 
+/* Soft cartoon clouds drifting slowly across the sky band. */
+.site-cloud {
+  position: absolute;
+  will-change: transform;
+  animation: site-cloud-drift linear infinite;
+}
+@keyframes site-cloud-drift {
+  0% { transform: translate3d(-12vw, 0, 0); }
+  100% { transform: translate3d(112vw, 0, 0); }
+}
+
 /* Respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

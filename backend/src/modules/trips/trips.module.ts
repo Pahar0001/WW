@@ -49,9 +49,10 @@ class TripsController {
     return this.trips.getBySlug(slug, optionalAccessor(req));
   }
 
+  // Any authenticated user may create a trip. Non-admins are restricted to
+  // PRIVATE trips (enforced in the service); only ADMIN+ can publish PUBLIC ones.
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
+  @UseGuards(JwtAuthGuard)
   create(@Body() body: unknown, @CurrentUser() user: AuthUser) {
     let input;
     try {
@@ -62,7 +63,7 @@ class TripsController {
       }
       throw e;
     }
-    return this.trips.create(input, user.id);
+    return this.trips.create(input, { id: user.id, role: user.role });
   }
 
   @Patch(':slug')

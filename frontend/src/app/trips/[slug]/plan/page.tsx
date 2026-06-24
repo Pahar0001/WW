@@ -9,6 +9,7 @@ import {
   planning, uploadFile,
   type PlanningOverview, type Ticket, type TripDocument, type CalendarEvent, type TicketKind, type EventType,
   type Hotel, type ChatMessage, type Member, type Album, type Memory, type TimelineItem,
+  type ExpensesOverview, type Settlement,
 } from '@/lib/planning';
 
 const inp = 'w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-paper placeholder:text-paper-faint outline-none focus:border-aurora/60';
@@ -27,7 +28,7 @@ export default function PlanPage() {
   const slug = String(useParams().slug);
   const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
   const [data, setData] = useState<PlanningOverview | null>(null);
-  const [tab, setTab] = useState<'tickets' | 'documents' | 'calendar' | 'hotels' | 'members' | 'memories' | 'chat'>('tickets');
+  const [tab, setTab] = useState<'tickets' | 'documents' | 'calendar' | 'hotels' | 'expenses' | 'members' | 'memories' | 'chat'>('tickets');
   const [err, setErr] = useState<string | null>(null);
 
   const canEdit = !!me && ['ORGANIZER', 'ADMIN', 'SUPER_ADMIN'].includes(me.role);
@@ -56,7 +57,7 @@ export default function PlanPage() {
       <p className="mt-2 text-paper-dim">Билеты, документы и календарь событий с напоминаниями.</p>
 
       <div className="mt-8 flex flex-wrap gap-2">
-        {([['tickets', 'Билеты'], ['hotels', 'Отели'], ['documents', 'Документы'], ['calendar', 'Календарь'], ['members', 'Участники'], ['memories', 'Воспоминания'], ['chat', 'Чат']] as const).map(([t, label]) => (
+        {([['tickets', 'Билеты'], ['hotels', 'Отели'], ['documents', 'Документы'], ['calendar', 'Календарь'], ['expenses', 'Калькулятор'], ['members', 'Участники'], ['memories', 'Воспоминания'], ['chat', 'Чат']] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-full px-5 py-2 text-sm transition-colors ${tab === t ? 'bg-aurora text-aurora-fg' : 'border border-ink-line text-paper-dim hover:text-paper'}`}>
             {label}
           </button>
@@ -70,6 +71,7 @@ export default function PlanPage() {
         {tab === 'hotels' && <Hotels slug={slug} hotels={data?.hotels ?? []} canEdit={canEdit} onChange={load} />}
         {tab === 'documents' && <Documents slug={slug} docs={data?.documents ?? []} canEdit={canEdit} onChange={load} />}
         {tab === 'calendar' && <Calendar slug={slug} events={data?.events ?? []} canEdit={canEdit} onChange={load} />}
+        {tab === 'expenses' && <Expenses slug={slug} meId={me?.id} />}
         {tab === 'members' && <Members slug={slug} canEdit={canEdit} />}
         {tab === 'memories' && <Memories slug={slug} canEdit={canEdit} />}
         {tab === 'chat' && <Chat slug={slug} meId={me?.id} />}
@@ -446,6 +448,185 @@ function Chat({ slug, meId }: { slug: string; meId?: string }) {
         <input className={`${inp} flex-1`} placeholder="Сообщение…" value={text} onChange={(e) => setText(e.target.value)} />
         <button disabled={sending || !text.trim()} className={btn}>Отправить</button>
       </form>
+    </div>
+  );
+}
+
+// ── Expenses: shared-cost calculator (who owes whom) ─────
+const fmtMoney = (kopecks: number) =>
+  (kopecks / 100).toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' ₽';
+const todayLocal = () => new Date().toISOString().slice(0, 10);
+
+function Expenses({ slug, meId }: { slug: string; meId?: string }) {
+  const [data, setData] = useState<ExpensesOverview | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const load = () => planning.expenses(slug).then(setData).catch((e) => setErr(e.message));
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [slug]);
+
+  const members = data?.members ?? [];
+  const nameOf = (id: string) => {
+    const m = members.find((x) => x.id === id);
+    return m ? (m.name || m.email) : '—';
+  };
+
+  const [desc, setDesc] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(todayLocal());
+  const [paidById, setPaidById] = useState('');
+  const [parts, setParts] = useState<string[] | null>(null); // null = all members
+  const [busy, setBusy] = useState(false);
+
+  // Default payer = me (if a member), else first member.
+  const effectivePayer = paidById || (members.some((m) => m.id === meId) ? meId : members[0]?.id) || '';
+  const selectedParts = parts ?? members.map((m) => m.id);
+  const togglePart = (id: string) =>
+    setParts((p) => {
+      const base = p ?? members.map((m) => m.id);
+      return base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+    });
+
+  async function add() {
+    const rub = parseFloat(amount.replace(',', '.'));
+    if (!desc.trim() || !(rub > 0) || selectedParts.length === 0) return;
+    setBusy(true);
+    try {
+      await planning.createExpense(slug, {
+        description: desc.trim(),
+        amount: Math.round(rub * 100),
+        date: new Date(date).toISOString(),
+        paidById: effectivePayer || undefined,
+        participants: selectedParts,
+      });
+      setDesc(''); setAmount(''); setParts(null);
+      load();
+    } finally { setBusy(false); }
+  }
+
+  if (err) return <p className="text-sm text-red-300">{err}</p>;
+  if (!data) return <p className="text-paper-faint">Загрузка…</p>;
+
+  if (members.length === 0) {
+    return <p className="text-paper-faint">Сначала добавьте участников поездки (вкладка «Участники») — тогда заработает калькулятор расходов.</p>;
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Add form */}
+      <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+        <h3 className="mb-3 font-serif text-xl tracking-tightest">Добавить расход</h3>
+        <div className="grid gap-3 md:grid-cols-2">
+          <input className={inp} placeholder="За что (ужин, такси, билеты…)" value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <input className={inp} inputMode="decimal" placeholder="Сумма, ₽" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <label className="text-sm text-paper-faint">Дата<input type="date" className={inp} value={date} onChange={(e) => setDate(e.target.value)} /></label>
+          <label className="text-sm text-paper-faint">Кто платил
+            <select className={inp} value={effectivePayer} onChange={(e) => setPaidById(e.target.value)}>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.name || m.email}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="mt-4">
+          <div className="mb-2 text-sm text-paper-faint">Делим между (по умолчанию — все):</div>
+          <div className="flex flex-wrap gap-2">
+            {members.map((m) => {
+              const on = selectedParts.includes(m.id);
+              return (
+                <button key={m.id} type="button" onClick={() => togglePart(m.id)}
+                  className={`rounded-full border px-3 py-1 text-sm ${on ? 'border-aurora text-aurora' : 'border-ink-line text-paper-dim hover:text-paper'}`}>
+                  {m.name || m.email}
+                </button>
+              );
+            })}
+          </div>
+          {selectedParts.length > 0 && amount && parseFloat(amount.replace(',', '.')) > 0 && (
+            <p className="mt-2 text-xs text-paper-faint">
+              по {fmtMoney(Math.round((parseFloat(amount.replace(',', '.')) * 100) / selectedParts.length))} с человека
+            </p>
+          )}
+        </div>
+        <button disabled={busy || !desc.trim() || !(parseFloat(amount.replace(',', '.')) > 0)} onClick={add} className={`${btn} mt-4`}>
+          {busy ? 'Сохранение…' : 'Добавить расход'}
+        </button>
+      </div>
+
+      {/* Overall settlement */}
+      <SettlementBlock title="Итог: кто кому должен" settlement={data.settlement} nameOf={nameOf} meId={meId} />
+
+      {/* Expenses grouped by day, with a per-day report */}
+      {data.byDay.length === 0 ? (
+        <p className="text-paper-faint">Расходов пока нет. Добавьте первый — и калькулятор посчитает, кто кому должен.</p>
+      ) : (
+        <div className="space-y-6">
+          {data.byDay.map((d) => {
+            const dayExpenses = data.expenses.filter((e) => e.date.slice(0, 10) === d.date);
+            return (
+              <div key={d.date} className="rounded-xl border border-ink-line p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm uppercase tracking-[0.2em] text-paper-faint">
+                    {new Date(d.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
+                  </span>
+                  <span className="text-sm text-paper-dim">Всего: {fmtMoney(d.total)}</span>
+                </div>
+                <div className="space-y-2">
+                  {dayExpenses.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between rounded-lg border border-ink-line/60 px-4 py-2.5">
+                      <div>
+                        <div className="text-paper">{e.description}</div>
+                        <div className="text-xs text-paper-faint">
+                          платил {nameOf(e.paidById)} · делят {e.participants.length} чел.
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-paper">{fmtMoney(e.amount)}</span>
+                        <button onClick={() => planning.deleteExpense(e.id).then(load)} className="text-xs text-paper-faint hover:text-red-300">✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {d.settlement.transfers.length > 0 && (
+                  <div className="mt-3 border-t border-ink-line/60 pt-3">
+                    <div className="mb-1.5 text-xs uppercase tracking-[0.2em] text-paper-faint">Отчёт за день</div>
+                    <ul className="space-y-1 text-sm">
+                      {d.settlement.transfers.map((t, i) => (
+                        <li key={i} className="text-paper-dim">
+                          <span className="text-paper">{nameOf(t.from)}</span> → <span className="text-paper">{nameOf(t.to)}</span>: {fmtMoney(t.amount)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettlementBlock({ title, settlement, nameOf, meId }: { title: string; settlement: Settlement; nameOf: (id: string) => string; meId?: string }) {
+  const hasDebt = settlement.transfers.length > 0;
+  return (
+    <div className="rounded-xl border border-aurora/30 bg-aurora/5 p-5">
+      <h3 className="mb-3 font-serif text-xl tracking-tightest">{title}</h3>
+      {!hasDebt ? (
+        <p className="text-paper-dim">Все в расчёте 🎉</p>
+      ) : (
+        <ul className="space-y-2">
+          {settlement.transfers.map((t, i) => {
+            const mine = t.from === meId || t.to === meId;
+            return (
+              <li key={i} className={`flex items-center justify-between rounded-lg px-4 py-2.5 ${mine ? 'bg-aurora/10' : 'bg-ink/40'}`}>
+                <span className="text-paper">
+                  <span className="font-medium">{nameOf(t.from)}</span>
+                  <span className="text-paper-faint"> должен </span>
+                  <span className="font-medium">{nameOf(t.to)}</span>
+                </span>
+                <span className="font-medium text-aurora">{fmtMoney(t.amount)}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

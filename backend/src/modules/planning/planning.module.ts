@@ -72,6 +72,14 @@ const MemoryIn = z.object({
   location: z.string().optional(),
   photos: z.array(z.string()).optional(),
 });
+const ExpenseIn = z.object({
+  description: z.string().min(1).max(200),
+  amount: z.coerce.number().int().positive(), // minor units (kopecks)
+  currency: z.string().optional(),
+  date: z.string().min(1),
+  paidById: z.string().optional(),
+  participants: z.array(z.string()).optional(),
+});
 const EventIn = z.object({
   type: z.enum(['FLIGHT', 'HOTEL_CHECKIN', 'HOTEL_CHECKOUT', 'EXCURSION', 'MEETING', 'REMINDER', 'OTHER']).optional(),
   title: z.string().min(1),
@@ -175,6 +183,22 @@ class PlanningController {
   @UseGuards(RolesGuard) @Roles(UserRole.ORGANIZER, UserRole.ADMIN)
   setMemberRole(@Param('slug') slug: string, @Param('userId') userId: string, @Body() body: unknown) {
     return this.svc.setMemberRole(slug, userId, parse(RoleIn, body).role);
+  }
+
+  // ── Expenses: shared-cost calculator (any trip member) ──
+  @Get('trips/:slug/expenses')
+  expenses(@Param('slug') slug: string) {
+    return this.svc.expensesOverview(slug);
+  }
+
+  @Post('trips/:slug/expenses')
+  createExpense(@Param('slug') slug: string, @Body() body: unknown, @CurrentUser() u: AuthUser) {
+    return this.svc.createExpense(slug, parse(ExpenseIn, body), u.id);
+  }
+
+  @Delete('expenses/:id')
+  deleteExpense(@Param('id') id: string) {
+    return this.svc.deleteExpense(id);
   }
 
   // ── Memories: albums, photos, diary, timeline ──

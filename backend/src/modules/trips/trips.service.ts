@@ -24,7 +24,19 @@ export class TripsService {
    * the site and the map. Honors the Real Data Policy: user-entered coordinates
    * are stored as ESTIMATED; budget is an estimate from the stated envelope.
    */
-  async create(input: CreateTripInput, creatorId?: string) {
+  async create(input: CreateTripInput, creator?: { id: string; role: string }) {
+    const creatorId = creator?.id;
+    // Only ADMIN/SUPER_ADMIN may publish PUBLIC trips. Everyone else (regular
+    // members/organizers) can only create PRIVATE trips — public catalogue is
+    // curated by staff. Visibility is enforced server-side, not just in the UI.
+    const isAdmin = creator?.role === 'ADMIN' || creator?.role === 'SUPER_ADMIN';
+    const visibility = isAdmin ? input.visibility ?? 'PUBLIC' : 'PRIVATE';
+    const PACE_TITLE: Record<string, string> = {
+      CALM: 'Спокойная',
+      BALANCED: 'Сбалансированная',
+      ACTIVE: 'Активная',
+    };
+    const pace = input.pace ?? 'BALANCED';
     const countrySlug = slugify(input.countryName);
     const country = await this.prisma.country.upsert({
       where: { slug: countrySlug },
@@ -55,7 +67,7 @@ export class TripsService {
         bestTime: input.bestTime,
         visaNote: input.visaNote,
         heroImage: input.heroImage,
-        visibility: input.visibility ?? 'PUBLIC',
+        visibility,
         seasonLabel: input.seasonLabel,
         durationDays: input.durationDays,
         budgetMinRub: input.budgetMinRub,
@@ -76,7 +88,7 @@ export class TripsService {
     }
 
     const variant = await this.prisma.routeVariant.create({
-      data: { tripId: trip.id, pace: 'BALANCED', title: 'Сбалансированная' },
+      data: { tripId: trip.id, pace, title: PACE_TITLE[pace] },
     });
 
     // Cities are created per distinct baseCity (fallback to the trip title).
@@ -157,7 +169,7 @@ export class TripsService {
     const breakdown = await this.prisma.budgetBreakdown.create({
       data: { variantId: variant.id, currency: 'RUB' },
     });
-    const estimated = estimateBudget(input.budgetMinRub, input.budgetMaxRub, 'BALANCED');
+    const estimated = estimateBudget(input.budgetMinRub, input.budgetMaxRub, pace);
     if (estimated) {
       await this.prisma.budgetLine.createMany({
         data: estimated.map((e) => ({

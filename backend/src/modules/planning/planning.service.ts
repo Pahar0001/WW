@@ -203,6 +203,104 @@ export class PlanningService implements OnModuleInit {
     return { ok: true, role };
   }
 
+  // ── Expenses: shared-cost calculator (who owes whom) ─────
+  /** Members + expenses + computed settlement (overall and per-day). */
+  async expensesOverview(slug: string) {
+    const tripId = await this.tripId(slug);
+    const [members, expenses] = await Promise.all([
+      this.prisma.tripMember.findMany({
+        where: { tripId },
+        orderBy: { createdAt: 'asc' },
+        include: { user: { select: { id: true, email: true, name: true } } },
+      }),
+      this.prisma.expense.findMany({ where: { tripId }, orderBy: { date: 'asc' } }),
+    ]);
+    const memberList = members.map((m) => ({ id: m.user.id, name: m.user.name, email: m.user.email }));
+    const settlement = this.computeSettlement(expenses);
+    // Group by calendar day for the end-of-day report.
+    const byDayMap = new Map<string, typeof expenses>();
+    for (const e of expenses) {
+      const k = e.date.toISOString().slice(0, 10);
+      (byDayMap.get(k) ?? byDayMap.set(k, []).get(k)!).push(e);
+    }
+    const byDay = [...byDayMap.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, es]) => ({
+        date,
+        total: es.reduce((s, e) => s + e.amount, 0),
+        settlement: this.computeSettlement(es),
+      }));
+    return { members: memberList, expenses, settlement, byDay };
+  }
+
+  /** Log a shared expense. Defaults: payer = current user, participants = all
+   *  members. Only real trip members may be payer/participants. */
+  async createExpense(
+    slug: string,
+    data: { description: string; amount: number; currency?: string; date: string; paidById?: string; participants?: string[] },
+    userId: string,
+  ) {
+    const tripId = await this.tripId(slug);
+    const members = await this.prisma.tripMember.findMany({ where: { tripId }, select: { userId: true } });
+    const memberIds = new Set(members.map((m) => m.userId));
+    const paidById = data.paidById && memberIds.has(data.paidById) ? data.paidById : userId;
+    let participants = (data.participants ?? []).filter((p) => memberIds.has(p));
+    if (participants.length === 0) participants = [...memberIds]; // split among everyone
+    return this.prisma.expense.create({
+      data: {
+        tripId,
+        paidById,
+        description: data.description,
+        amount: data.amount,
+        currency: data.currency ?? 'RUB',
+        date: new Date(data.date),
+        participants,
+        createdById: userId,
+      },
+    });
+  }
+
+  deleteExpense(id: string) {
+    return this.prisma.expense.delete({ where: { id } }).then(() => ({ ok: true }));
+  }
+
+  /**
+   * Net balance per user (paid − owed share) plus a minimal set of transfers
+   * that settles everyone up. Amounts are integer minor units (kopecks), so
+   * each expense's remainder is distributed one unit at a time — no rounding drift.
+   */
+  private computeSettlement(expenses: { paidById: string; amount: number; participants: string[] }[]) {
+    const net = new Map<string, number>();
+    const add = (id: string, v: number) => net.set(id, (net.get(id) ?? 0) + v);
+    for (const e of expenses) {
+      const parts = e.participants ?? [];
+      if (parts.length === 0) continue;
+      const base = Math.floor(e.amount / parts.length);
+      let rem = e.amount - base * parts.length;
+      add(e.paidById, e.amount);
+      for (const p of parts) {
+        const share = base + (rem > 0 ? 1 : 0);
+        if (rem > 0) rem--;
+        add(p, -share);
+      }
+    }
+    const balances = [...net.entries()].map(([userId, n]) => ({ userId, net: n }));
+    const debtors = balances.filter((b) => b.net < 0).map((b) => ({ id: b.userId, amt: -b.net })).sort((a, b) => b.amt - a.amt);
+    const creditors = balances.filter((b) => b.net > 0).map((b) => ({ id: b.userId, amt: b.net })).sort((a, b) => b.amt - a.amt);
+    const transfers: { from: string; to: string; amount: number }[] = [];
+    let i = 0;
+    let j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const pay = Math.min(debtors[i].amt, creditors[j].amt);
+      if (pay > 0) transfers.push({ from: debtors[i].id, to: creditors[j].id, amount: pay });
+      debtors[i].amt -= pay;
+      creditors[j].amt -= pay;
+      if (debtors[i].amt === 0) i++;
+      if (creditors[j].amt === 0) j++;
+    }
+    return { balances, transfers };
+  }
+
   // ── Memories: albums, photos, diary, timeline ────────────
   async memoriesOverview(slug: string) {
     const tripId = await this.tripId(slug);

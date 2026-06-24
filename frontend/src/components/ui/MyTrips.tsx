@@ -11,23 +11,38 @@ import { getToken } from '@/lib/auth';
  */
 export function MyTrips() {
   const [trips, setTrips] = useState<Trip[] | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
       setTrips([]);
       return;
     }
+    setLoggedIn(true);
     listMyTrips().then(setTrips);
   }, []);
 
-  if (!trips || trips.length === 0) return null;
+  // Hidden entirely for guests; logged-in users always see the section header
+  // with a "create trip" action, even before they have any trips.
+  if (!loggedIn || !trips) return null;
 
   return (
     <section className="container-vela pt-24">
       <div className="mb-10 flex items-end justify-between border-b border-ink-line pb-6">
         <h2 className="font-serif text-3xl tracking-tightest md:text-4xl">Мои поездки</h2>
-        <span className="text-sm text-paper-faint">{trips.length}</span>
+        <Link
+          href="/trips/new"
+          data-cursor="hover"
+          className="rounded-full bg-aurora px-4 py-2 text-sm font-medium text-aurora-fg transition-transform hover:scale-[1.03]"
+        >
+          + Создать поездку
+        </Link>
       </div>
+      {trips.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-ink-line p-10 text-center text-paper-dim">
+          У вас пока нет поездок. Соберите свой первый маршрут — по дням, с темпом и участниками.
+        </div>
+      ) : (
       <div className="grid gap-6 md:grid-cols-2">
         {trips.map((t) => {
           const hero = imageUrl(t.heroImage);
@@ -70,6 +85,7 @@ export function MyTrips() {
           );
         })}
       </div>
+      )}
     </section>
   );
 }

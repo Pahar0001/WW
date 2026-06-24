@@ -12,6 +12,7 @@ export const CreateTripSchema = z.object({
   visaNote: z.string().optional(),
   heroImage: z.string().optional(),
   visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
+  pace: z.enum(['CALM', 'BALANCED', 'ACTIVE']).optional(),
   seasonLabel: z.string().optional(),
   durationDays: z.coerce.number().int().min(1).max(60),
   budgetMinRub: z.coerce.number().int().positive().optional(),

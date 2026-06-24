@@ -33,6 +33,27 @@ export interface PlanningOverview {
   tickets: Ticket[]; documents: TripDocument[]; events: CalendarEvent[]; hotels: Hotel[];
 }
 
+// ── Expenses (shared-cost calculator) ──
+export interface Expense {
+  id: string; description: string; amount: number /* kopecks */; currency: string;
+  date: string; paidById: string; participants: string[]; createdAt: string;
+}
+export interface ExpenseMember { id: string; name?: string | null; email: string }
+export interface Settlement {
+  balances: { userId: string; net: number }[];
+  transfers: { from: string; to: string; amount: number }[];
+}
+export interface ExpensesOverview {
+  members: ExpenseMember[];
+  expenses: Expense[];
+  settlement: Settlement;
+  byDay: { date: string; total: number; settlement: Settlement }[];
+}
+export interface ExpenseInput {
+  description: string; amount: number; currency?: string; date: string;
+  paidById?: string; participants?: string[];
+}
+
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`/api${path}`, {
     ...init,
@@ -69,6 +90,11 @@ export const planning = {
   removeMember: (slug: string, userId: string) => req(`/trips/${slug}/members/${userId}`, { method: 'DELETE' }),
   setMemberRole: (slug: string, userId: string, role: 'ORGANIZER' | 'MEMBER') =>
     req(`/trips/${slug}/members/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+
+  // Expenses
+  expenses: (slug: string) => req<ExpensesOverview>(`/trips/${slug}/expenses`),
+  createExpense: (slug: string, data: ExpenseInput) => req<Expense>(`/trips/${slug}/expenses`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteExpense: (id: string) => req(`/expenses/${id}`, { method: 'DELETE' }),
 
   // Memories
   memories: (slug: string) => req<MemoriesOverview>(`/trips/${slug}/memories`),

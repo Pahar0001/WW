@@ -5,7 +5,7 @@ import { SiteHeader } from '@/components/ui/SiteHeader';
 import { MyTrips } from '@/components/ui/MyTrips';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Constellation, RoutePath, Contours } from '@/components/decor/TravelDecor';
+import { Constellation } from '@/components/decor/TravelDecor';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
@@ -19,9 +19,8 @@ export default async function HomePage() {
 
       {/* Заглавный экран */}
       <section className="container-vela relative flex min-h-[78vh] flex-col justify-center">
-        {/* Ambient travel art — decorative, kept in empty top/right space, never over buttons. */}
-        <Constellation className="absolute right-2 top-2 hidden w-32 text-aurora/60 md:block" />
-        <RoutePath className="absolute -right-4 top-28 hidden w-[440px] text-aurora/35 lg:block" />
+        {/* Ambient travel art — a single faint constellation, kept in empty top/right space. */}
+        <Constellation className="absolute right-2 top-2 hidden w-28 text-aurora/35 md:block" />
         <div className="relative z-10">
         <Reveal>
           <p className="mb-6 text-sm uppercase tracking-[0.3em] text-paper-faint">
@@ -130,7 +129,6 @@ export default async function HomePage() {
       <section id="data" className="container-vela py-24">
         <Reveal>
           <div className="relative overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/40 p-10">
-            <Contours className="pointer-events-none absolute -right-6 -top-8 w-64 text-aurora/30" />
             <h2 className="relative font-serif text-2xl tracking-tightest md:text-3xl">
               Мы не выдумываем ваше путешествие.
             </h2>

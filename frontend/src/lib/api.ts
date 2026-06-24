@@ -219,6 +219,7 @@ export interface CreateTripPayload {
   visaNote?: string;
   heroImage?: string;
   visibility?: 'PUBLIC' | 'PRIVATE';
+  pace?: 'CALM' | 'BALANCED' | 'ACTIVE';
   seasonLabel?: string;
   durationDays: number;
   budgetMinRub?: number;

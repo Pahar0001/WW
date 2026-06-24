@@ -51,8 +51,9 @@ export function GenerativeBackground() {
       const primaryHsl = (css.getPropertyValue('--primary') || '168 26% 38%').trim();
       const isDark = document.documentElement.classList.contains('dark');
       solidBg = `hsl(${bgHsl})`;
-      fadeColor = `hsla(${bgHsl} / ${isDark ? 0.1 : 0.14})`;
-      lineColor = `hsla(${primaryHsl} / ${isDark ? 0.16 : 0.1})`;
+      fadeColor = `hsla(${bgHsl} / ${isDark ? 0.16 : 0.2})`;
+      // Very faint strokes — the field should read as a soft haze, not a web of lines.
+      lineColor = `hsla(${primaryHsl} / ${isDark ? 0.07 : 0.045})`;
     };
     readColors();
     // On theme toggle: recompute colors and hard-clear to the new background
@@ -60,7 +61,8 @@ export function GenerativeBackground() {
     const onTheme = () => { readColors(); ctx.fillStyle = solidBg; ctx.fillRect(0, 0, w, h); };
     window.addEventListener('vela-theme', onTheme);
 
-    const count = Math.min(140, Math.floor((w * h) / 14000));
+    // Far fewer particles than before — a calm scattering, not a dense weave.
+    const count = Math.min(42, Math.floor((w * h) / 46000));
     type P = { x: number; y: number; vx: number; vy: number };
     const ps: P[] = Array.from({ length: count }, () => ({
       x: Math.random() * w,
