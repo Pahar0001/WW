@@ -58,6 +58,7 @@ export default function AdminUsersPage() {
         <Link href="/" className="font-serif text-xl tracking-tightest">Vela</Link>
         <div className="flex items-center gap-5 text-sm">
           <Link href="/admin" className="text-paper-dim hover:text-paper">Поездки</Link>
+          <Link href="/admin/support" className="text-paper-dim hover:text-paper">Поддержка</Link>
           <span className="text-paper-faint">{me?.email}</span>
           <button onClick={() => logout()} className="rounded-full border border-ink-line px-3 py-1 text-paper-dim hover:text-paper">Выйти</button>
         </div>

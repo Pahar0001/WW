@@ -473,21 +473,30 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayLocal());
   const [paidById, setPaidById] = useState('');
-  const [parts, setParts] = useState<string[] | null>(null); // null = all members
+  // Per-member share weights; null = untouched (defaults to everyone, 1 share each).
+  const [weights, setWeights] = useState<Record<string, number> | null>(null);
   const [busy, setBusy] = useState(false);
 
   // Default payer = me (if a member), else first member.
   const effectivePayer = paidById || (members.some((m) => m.id === meId) ? meId : members[0]?.id) || '';
-  const selectedParts = parts ?? members.map((m) => m.id);
-  const togglePart = (id: string) =>
-    setParts((p) => {
-      const base = p ?? members.map((m) => m.id);
-      return base.includes(id) ? base.filter((x) => x !== id) : [...base, id];
+  const eff = weights ?? Object.fromEntries(members.map((m) => [m.id, 1]));
+  const included = members.filter((m) => (eff[m.id] ?? 0) >= 1);
+  const totalW = included.reduce((s, m) => s + (eff[m.id] || 1), 0);
+  const totalKopecks = Math.round((parseFloat(amount.replace(',', '.')) || 0) * 100);
+
+  const toggleMember = (id: string) =>
+    setWeights(() => {
+      const base = { ...eff };
+      if ((base[id] ?? 0) >= 1) delete base[id];
+      else base[id] = 1;
+      return base;
     });
+  const setWeight = (id: string, w: number) =>
+    setWeights(() => ({ ...eff, [id]: Math.max(1, Math.round(w || 1)) }));
 
   async function add() {
     const rub = parseFloat(amount.replace(',', '.'));
-    if (!desc.trim() || !(rub > 0) || selectedParts.length === 0) return;
+    if (!desc.trim() || !(rub > 0) || included.length === 0) return;
     setBusy(true);
     try {
       await planning.createExpense(slug, {
@@ -495,9 +504,10 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
         amount: Math.round(rub * 100),
         date: new Date(date).toISOString(),
         paidById: effectivePayer || undefined,
-        participants: selectedParts,
+        participants: included.map((m) => m.id),
+        shares: included.map((m) => eff[m.id] || 1),
       });
-      setDesc(''); setAmount(''); setParts(null);
+      setDesc(''); setAmount(''); setWeights(null);
       load();
     } finally { setBusy(false); }
   }
@@ -525,23 +535,34 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
           </label>
         </div>
         <div className="mt-4">
-          <div className="mb-2 text-sm text-paper-faint">Делим между (по умолчанию — все):</div>
-          <div className="flex flex-wrap gap-2">
+          <div className="mb-2 flex items-center justify-between text-sm text-paper-faint">
+            <span>Делим между (укажите доли):</span>
+            {included.length > 0 && <span>всего долей: {totalW}</span>}
+          </div>
+          <div className="space-y-2">
             {members.map((m) => {
-              const on = selectedParts.includes(m.id);
+              const on = (eff[m.id] ?? 0) >= 1;
+              const w = eff[m.id] || 1;
+              const share = on && totalKopecks > 0 ? Math.round((totalKopecks * w) / totalW) : 0;
               return (
-                <button key={m.id} type="button" onClick={() => togglePart(m.id)}
-                  className={`rounded-full border px-3 py-1 text-sm ${on ? 'border-aurora text-aurora' : 'border-ink-line text-paper-dim hover:text-paper'}`}>
-                  {m.name || m.email}
-                </button>
+                <div key={m.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${on ? 'border-aurora/40' : 'border-ink-line'}`}>
+                  <button type="button" onClick={() => toggleMember(m.id)}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs ${on ? 'border-aurora bg-aurora/20 text-aurora' : 'border-ink-line text-transparent'}`}>✓</button>
+                  <span className="flex-1 text-sm text-paper">{m.name || m.email}</span>
+                  {on && (
+                    <>
+                      <label className="flex items-center gap-1.5 text-xs text-paper-faint">
+                        доля
+                        <input type="number" min={1} value={w} onChange={(e) => setWeight(m.id, Number(e.target.value))}
+                          className="w-16 rounded-lg border border-ink-line bg-ink px-2 py-1 text-sm text-paper outline-none focus:border-aurora/60" />
+                      </label>
+                      {totalKopecks > 0 && <span className="w-24 text-right text-sm text-paper-dim">{fmtMoney(share)}</span>}
+                    </>
+                  )}
+                </div>
               );
             })}
           </div>
-          {selectedParts.length > 0 && amount && parseFloat(amount.replace(',', '.')) > 0 && (
-            <p className="mt-2 text-xs text-paper-faint">
-              по {fmtMoney(Math.round((parseFloat(amount.replace(',', '.')) * 100) / selectedParts.length))} с человека
-            </p>
-          )}
         </div>
         <button disabled={busy || !desc.trim() || !(parseFloat(amount.replace(',', '.')) > 0)} onClick={add} className={`${btn} mt-4`}>
           {busy ? 'Сохранение…' : 'Добавить расход'}
@@ -573,6 +594,7 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
                         <div className="text-paper">{e.description}</div>
                         <div className="text-xs text-paper-faint">
                           платил {nameOf(e.paidById)} · делят {e.participants.length} чел.
+                          {e.shares && e.shares.length > 0 && e.shares.some((w) => w !== e.shares[0]) ? ' · по долям' : ''}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">

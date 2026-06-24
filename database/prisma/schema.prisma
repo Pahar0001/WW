@@ -208,7 +208,8 @@ model Expense {
   amount       Int                     // minor units (kopecks)
   currency     String   @default("RUB")
   date         DateTime                 // calendar day the expense belongs to
-  participants String[] @default([])   // userIds who share this expense equally
+  participants String[] @default([])   // userIds who share this expense
+  shares       Int[]    @default([])   // weight per participant (aligned to participants); empty/equal = equal split
   createdById  String?                 // who logged it (audit)
   createdAt    DateTime @default(now())
   @@index([tripId])
@@ -476,6 +477,20 @@ model Memory {
   createdAt   DateTime @default(now())
 }
 
+// Support chat: a 1:1 thread between a user and the platform's super admins.
+// The thread is keyed by the requesting user (`userId`); `fromSupport` marks
+// replies written by staff. HTTP + polling, like the trip chat.
+model SupportMessage {
+  id          String   @id @default(cuid())
+  userId      String                   // thread owner (the user asking for help)
+  user        User     @relation("SupportThread", fields: [userId], references: [id], onDelete: Cascade)
+  authorId    String?                  // who wrote it (user or admin); null if author removed
+  fromSupport Boolean  @default(false) // true = written by staff
+  text        String
+  createdAt   DateTime @default(now())
+  @@index([userId, createdAt])
+}
+
 // Group chat message within a trip (HTTP + polling, stored in Postgres).
 model ChatMessage {
   id        String   @id @default(cuid())
@@ -529,6 +544,7 @@ model User {
   albums              Album[]        @relation("UserAlbums")
   memories            Memory[]       @relation("UserMemories")
   expensesPaid        Expense[]      @relation("ExpensePayer")
+  supportMessages     SupportMessage[] @relation("SupportThread")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

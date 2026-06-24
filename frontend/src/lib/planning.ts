@@ -36,7 +36,7 @@ export interface PlanningOverview {
 // ── Expenses (shared-cost calculator) ──
 export interface Expense {
   id: string; description: string; amount: number /* kopecks */; currency: string;
-  date: string; paidById: string; participants: string[]; createdAt: string;
+  date: string; paidById: string; participants: string[]; shares: number[]; createdAt: string;
 }
 export interface ExpenseMember { id: string; name?: string | null; email: string }
 export interface Settlement {
@@ -51,7 +51,7 @@ export interface ExpensesOverview {
 }
 export interface ExpenseInput {
   description: string; amount: number; currency?: string; date: string;
-  paidById?: string; participants?: string[];
+  paidById?: string; participants?: string[]; shares?: number[];
 }
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {

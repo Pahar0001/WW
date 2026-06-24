@@ -10,6 +10,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { PlanningModule } from './modules/planning/planning.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PlanningModule } from './modules/planning/planning.module';
     HealthModule,
     AuthModule,
     AdminModule,
+    SupportModule,
     PlanningModule,
     TripsModule,
     RoutesModule,

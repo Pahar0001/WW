@@ -79,6 +79,7 @@ const ExpenseIn = z.object({
   date: z.string().min(1),
   paidById: z.string().optional(),
   participants: z.array(z.string()).optional(),
+  shares: z.array(z.coerce.number().int().min(1)).optional(), // weight per participant
 });
 const EventIn = z.object({
   type: z.enum(['FLIGHT', 'HOTEL_CHECKIN', 'HOTEL_CHECKOUT', 'EXCURSION', 'MEETING', 'REMINDER', 'OTHER']).optional(),

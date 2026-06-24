@@ -237,15 +237,27 @@ export class PlanningService implements OnModuleInit {
    *  members. Only real trip members may be payer/participants. */
   async createExpense(
     slug: string,
-    data: { description: string; amount: number; currency?: string; date: string; paidById?: string; participants?: string[] },
+    data: { description: string; amount: number; currency?: string; date: string; paidById?: string; participants?: string[]; shares?: number[] },
     userId: string,
   ) {
     const tripId = await this.tripId(slug);
     const members = await this.prisma.tripMember.findMany({ where: { tripId }, select: { userId: true } });
     const memberIds = new Set(members.map((m) => m.userId));
     const paidById = data.paidById && memberIds.has(data.paidById) ? data.paidById : userId;
-    let participants = (data.participants ?? []).filter((p) => memberIds.has(p));
-    if (participants.length === 0) participants = [...memberIds]; // split among everyone
+
+    // Keep participants and their share-weights aligned; drop non-members.
+    const rawParts = data.participants ?? [];
+    const rawShares = data.shares ?? [];
+    const pairs = rawParts
+      .map((p, i) => ({ p, w: Math.max(1, Math.round(rawShares[i] ?? 1)) }))
+      .filter((x) => memberIds.has(x.p));
+    let participants = pairs.map((x) => x.p);
+    let shares = pairs.map((x) => x.w);
+    if (participants.length === 0) {
+      participants = [...memberIds]; // default: split among everyone, equally
+      shares = participants.map(() => 1);
+    }
+
     return this.prisma.expense.create({
       data: {
         tripId,
@@ -255,6 +267,7 @@ export class PlanningService implements OnModuleInit {
         currency: data.currency ?? 'RUB',
         date: new Date(data.date),
         participants,
+        shares,
         createdById: userId,
       },
     });
@@ -269,20 +282,29 @@ export class PlanningService implements OnModuleInit {
    * that settles everyone up. Amounts are integer minor units (kopecks), so
    * each expense's remainder is distributed one unit at a time — no rounding drift.
    */
-  private computeSettlement(expenses: { paidById: string; amount: number; participants: string[] }[]) {
+  private computeSettlement(expenses: { paidById: string; amount: number; participants: string[]; shares?: number[] }[]) {
     const net = new Map<string, number>();
     const add = (id: string, v: number) => net.set(id, (net.get(id) ?? 0) + v);
     for (const e of expenses) {
       const parts = e.participants ?? [];
       if (parts.length === 0) continue;
-      const base = Math.floor(e.amount / parts.length);
-      let rem = e.amount - base * parts.length;
+      // Weights default to equal (1 each) when missing or misaligned.
+      const weights =
+        e.shares && e.shares.length === parts.length && e.shares.every((w) => w > 0)
+          ? e.shares
+          : parts.map(() => 1);
+      const totalW = weights.reduce((s, w) => s + w, 0);
       add(e.paidById, e.amount);
-      for (const p of parts) {
-        const share = base + (rem > 0 ? 1 : 0);
-        if (rem > 0) rem--;
-        add(p, -share);
-      }
+      // Proportional split with exact integer remainder distribution: floor each
+      // share, then hand out the leftover kopecks to the largest fractional parts.
+      const exact = weights.map((w) => (e.amount * w) / totalW);
+      const baseShares = exact.map((x) => Math.floor(x));
+      let rem = e.amount - baseShares.reduce((s, x) => s + x, 0);
+      const order = parts
+        .map((_, i) => i)
+        .sort((a, b) => (exact[b] - baseShares[b]) - (exact[a] - baseShares[a]));
+      for (let k = 0; k < rem; k++) baseShares[order[k % parts.length]] += 1;
+      parts.forEach((p, i) => add(p, -baseShares[i]));
     }
     const balances = [...net.entries()].map(([userId, n]) => ({ userId, net: n }));
     const debtors = balances.filter((b) => b.net < 0).map((b) => ({ id: b.userId, amt: -b.net })).sort((a, b) => b.amt - a.amt);
