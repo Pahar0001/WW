@@ -191,6 +191,7 @@ model Trip {
   albums      Album[]
   memories    Memory[]
   expenses    Expense[]
+  reposts     Repost[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -526,6 +527,7 @@ model User {
   email               String   @unique
   name                String?
   image               String?
+  bio                 String?
   passwordHash        String?
   role                UserRole   @default(MEMBER)
   status              UserStatus @default(ACTIVE)
@@ -545,8 +547,108 @@ model User {
   memories            Memory[]       @relation("UserMemories")
   expensesPaid        Expense[]      @relation("ExpensePayer")
   supportMessages     SupportMessage[] @relation("SupportThread")
+  posts               Post[]         @relation("UserPosts")
+  likes               Like[]         @relation("UserLikes")
+  comments            Comment[]      @relation("UserComments")
+  reposts             Repost[]       @relation("UserReposts")
+  friendshipsSent     Friendship[]   @relation("FriendRequester")
+  friendshipsReceived Friendship[]   @relation("FriendAddressee")
+  notifications       Notification[] @relation("UserNotifications")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+// ─────────────────────────── Social / networking ───────────────────────────
+enum SocialTarget {
+  TRIP
+  POST
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
+  LIKE
+  COMMENT
+  REPOST
+}
+
+// A user microblog entry ("Новости путешествий").
+model Post {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation("UserPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  text      String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+
+// Polymorphic like on a TRIP or a POST.
+model Like {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation("UserLikes", fields: [userId], references: [id], onDelete: Cascade)
+  targetType SocialTarget
+  targetId   String
+  createdAt  DateTime     @default(now())
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+}
+
+// Polymorphic comment on a TRIP or a POST.
+model Comment {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
+  targetType SocialTarget
+  targetId   String
+  text       String
+  createdAt  DateTime     @default(now())
+  @@index([targetType, targetId])
+}
+
+// A repost of a public trip into the feed.
+model Repost {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("UserReposts", fields: [userId], references: [id], onDelete: Cascade)
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([userId, tripId])
+}
+
+// Friend request / friendship between two users.
+model Friendship {
+  id          String       @id @default(cuid())
+  requesterId String
+  requester   User         @relation("FriendRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User         @relation("FriendAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId, status])
+}
+
+// In-app notification (friend requests, likes, comments, reposts).
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String           // recipient
+  user       User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  actorId    String?          // who triggered it
+  targetType SocialTarget?
+  targetId   String?
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+  @@index([userId, read])
 }
 
 // Membership of a user in a trip, with a per-trip role.

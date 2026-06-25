@@ -64,7 +64,7 @@ export function SupportWidget() {
         onClick={() => setOpen((o) => !o)}
         data-cursor="hover"
         aria-label="Поддержка"
-        className="fixed bottom-5 right-5 z-[9000] flex h-14 w-14 items-center justify-center rounded-full bg-aurora text-aurora-fg shadow-lg transition-transform hover:scale-105"
+        className="fixed bottom-20 right-5 z-[9000] flex h-14 w-14 items-center justify-center rounded-full bg-aurora text-aurora-fg shadow-lg transition-transform hover:scale-105 md:bottom-5"
       >
         {open ? '✕' : (
           <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6" aria-hidden>
@@ -74,7 +74,7 @@ export function SupportWidget() {
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-5 z-[9000] flex h-[60vh] max-h-[520px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl border border-ink-line bg-ink shadow-2xl">
+        <div className="fixed bottom-40 right-5 z-[9000] flex h-[60vh] max-h-[520px] w-[92vw] max-w-sm flex-col overflow-hidden rounded-2xl border border-ink-line bg-ink shadow-2xl md:bottom-24">
           <div className="border-b border-ink-line p-4">
             <div className="font-serif text-lg tracking-tightest text-paper">Поддержка Vela</div>
             <div className="text-xs text-paper-faint">Напишите нам — ответит администратор.</div>

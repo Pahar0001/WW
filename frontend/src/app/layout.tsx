@@ -4,6 +4,7 @@ import './globals.css';
 import { MagneticCursor } from '@/components/cursor/MagneticCursor';
 import { SiteScenery } from '@/components/decor/SiteScenery';
 import { SupportWidget } from '@/components/support/SupportWidget';
+import { BottomNav } from '@/components/ui/BottomNav';
 import { Toaster } from '@/components/ui/Toaster';
 
 // Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MagneticCursor />
         {children}
         <SupportWidget />
+        <BottomNav />
         <Toaster />
       </body>
     </html>

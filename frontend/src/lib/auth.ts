@@ -8,6 +8,8 @@ export interface AuthUser {
   id: string;
   email: string;
   name?: string | null;
+  image?: string | null;
+  bio?: string | null;
   role: Role;
   status: string;
   emailVerified: boolean;

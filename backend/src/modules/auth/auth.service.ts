@@ -22,6 +22,8 @@ function publicUser(u: any) {
     id: u.id,
     email: u.email,
     name: u.name,
+    image: u.image,
+    bio: u.bio,
     role: u.role,
     status: u.status,
     emailVerified: u.emailVerified,
