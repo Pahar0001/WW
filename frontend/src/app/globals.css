@@ -100,6 +100,32 @@
   100% { transform: translate3d(112vw, 0, 0); }
 }
 
+/* Swaying sakura tree (desktop background). Origin at each group's own base so
+   the canopy pivots where it meets the trunk. */
+.sakura-canopy {
+  transform-box: fill-box;
+  transform-origin: 60% 100%;
+  animation: sakura-sway 9s ease-in-out infinite;
+}
+.sakura-branch {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: sakura-sway-soft 7s ease-in-out infinite;
+}
+.sakura-blossoms { animation: sakura-breathe 8s ease-in-out infinite; }
+@keyframes sakura-sway {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+@keyframes sakura-sway-soft {
+  0%, 100% { transform: rotate(1.4deg); }
+  50% { transform: rotate(-2deg); }
+}
+@keyframes sakura-breathe {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
+}
+
 /* Respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

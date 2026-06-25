@@ -1,8 +1,11 @@
+import { SakuraTree } from './SakuraTree';
+
 /**
  * Site-wide ambient backdrop — a calm, soft "cartoon" landscape: a faint warm
  * sun, a few slowly drifting rounded clouds, gentle layered hills along the
- * bottom, and a handful of slow sakura petals. Everything is low-contrast and
- * filled (no busy strokes) so it never competes with body text.
+ * bottom, a swaying ink-wash sakura tree (desktop), and slow falling petals.
+ * Everything is low-contrast and sits behind content so it never competes with
+ * body text.
  */
 
 function Cloud({ scale = 1 }: { scale?: number }) {
@@ -75,6 +78,9 @@ export function SiteScenery() {
           fill="hsl(var(--primary) / 0.07)"
         />
       </svg>
+
+      {/* Swaying ink-wash sakura tree (desktop only). */}
+      <SakuraTree />
 
       {/* A few slow sakura petals. */}
       {petals.map((p, i) => (
