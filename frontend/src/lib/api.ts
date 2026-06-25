@@ -221,6 +221,8 @@ export interface CreateTripPayload {
   visibility?: 'PUBLIC' | 'PRIVATE';
   pace?: 'CALM' | 'BALANCED' | 'ACTIVE';
   seasonLabel?: string;
+  startWindow?: string;
+  endWindow?: string;
   durationDays: number;
   budgetMinRub?: number;
   budgetMaxRub?: number;
@@ -259,6 +261,26 @@ export async function createTrip(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      return { ok: false, error: `HTTP ${res.status}: ${detail.slice(0, 300)}` };
+    }
+    const data = (await res.json()) as { slug: string };
+    return { ok: true, slug: data.slug };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+/** Copy a public trip into the current user's own private copy. */
+export async function copyTrip(
+  slug: string,
+): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/trips/${slug}/copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
     });
     if (!res.ok) {
       const detail = await res.text();

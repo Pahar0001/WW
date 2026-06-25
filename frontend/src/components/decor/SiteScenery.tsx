@@ -19,10 +19,16 @@ function Cloud({ scale = 1 }: { scale?: number }) {
 }
 
 export function SiteScenery() {
+  // Gentle sakura — a soft, unobtrusive drift across the whole page.
   const petals = [
-    { left: '14%', delay: '0s', dur: '26s', size: 9 },
-    { left: '46%', delay: '9s', dur: '30s', size: 8 },
-    { left: '78%', delay: '5s', dur: '28s', size: 10 },
+    { left: '6%', delay: '0s', dur: '27s', size: 9 },
+    { left: '18%', delay: '11s', dur: '32s', size: 7 },
+    { left: '30%', delay: '5s', dur: '24s', size: 11 },
+    { left: '43%', delay: '16s', dur: '30s', size: 8 },
+    { left: '55%', delay: '3s', dur: '28s', size: 10 },
+    { left: '67%', delay: '20s', dur: '34s', size: 7 },
+    { left: '79%', delay: '8s', dur: '26s', size: 12 },
+    { left: '90%', delay: '14s', dur: '31s', size: 9 },
   ];
   const clouds = [
     { top: '12%', scale: 1.1, delay: '0s', dur: '110s' },

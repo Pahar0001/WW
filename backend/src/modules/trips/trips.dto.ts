@@ -14,6 +14,8 @@ export const CreateTripSchema = z.object({
   visibility: z.enum(['PUBLIC', 'PRIVATE']).optional(),
   pace: z.enum(['CALM', 'BALANCED', 'ACTIVE']).optional(),
   seasonLabel: z.string().optional(),
+  startWindow: z.string().optional(),
+  endWindow: z.string().optional(),
   durationDays: z.coerce.number().int().min(1).max(60),
   budgetMinRub: z.coerce.number().int().positive().optional(),
   budgetMaxRub: z.coerce.number().int().positive().optional(),

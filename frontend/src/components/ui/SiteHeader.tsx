@@ -42,8 +42,8 @@ export function SiteHeader() {
     <header className="relative z-30">
       <div className="container-vela flex items-center justify-between py-6">
         <Link href="/" className="flex items-center gap-2 font-serif text-xl tracking-tightest" data-magnetic>
-          <span className="grid h-6 w-6 place-items-center rounded-full border border-aurora/40 text-[11px] text-aurora">和</span>
-          Vela
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-aurora/40 text-[12px] leading-none text-aurora">和</span>
+          <span className="leading-none">Vela</span>
         </Link>
 
         {/* Desktop nav */}
@@ -85,10 +85,9 @@ export function SiteHeader() {
           )}
         </nav>
 
-        {/* Mobile controls */}
-        <div className="flex items-center gap-3 md:hidden">
-          <ThemeToggle />
-          {user && <Link href="/profile" aria-label="Профиль"><Avatar user={user} size={32} /></Link>}
+        {/* Mobile controls — only the burger; everything else lives in the sheet
+            and the bottom navigation, to avoid duplicating the same actions. */}
+        <div className="flex items-center md:hidden">
           <button
             aria-label={open ? 'Закрыть меню' : 'Открыть меню'}
             aria-expanded={open}
@@ -106,6 +105,10 @@ export function SiteHeader() {
       {open && (
         <div className="container-vela md:hidden">
           <div className="mb-3 overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/90 p-3 shadow-xl backdrop-blur-xl">
+            <div className="mb-2 flex items-center justify-between px-3 py-1">
+              <span className="text-xs uppercase tracking-[0.2em] text-paper-faint">Тема</span>
+              <ThemeToggle />
+            </div>
             <nav className="flex flex-col text-paper-dim">
               {anchors.map((l) => (
                 <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="rounded-lg px-3 py-3 transition-colors hover:bg-ink hover:text-paper">{l.label}</a>

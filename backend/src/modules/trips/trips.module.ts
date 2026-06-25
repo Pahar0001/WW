@@ -66,6 +66,13 @@ class TripsController {
     return this.trips.create(input, { id: user.id, role: user.role });
   }
 
+  // Any authenticated user can copy a PUBLIC trip into their own PRIVATE copy.
+  @Post(':slug/copy')
+  @UseGuards(JwtAuthGuard)
+  copy(@Param('slug') slug: string, @CurrentUser() user: AuthUser) {
+    return this.trips.copyTrip(slug, user.id);
+  }
+
   @Patch(':slug')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ORGANIZER, UserRole.ADMIN) // everyone except MEMBER

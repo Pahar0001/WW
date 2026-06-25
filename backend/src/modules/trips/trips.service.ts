@@ -69,6 +69,8 @@ export class TripsService {
         heroImage: input.heroImage,
         visibility,
         seasonLabel: input.seasonLabel,
+        startWindow: input.startWindow ? new Date(input.startWindow) : null,
+        endWindow: input.endWindow ? new Date(input.endWindow) : null,
         durationDays: input.durationDays,
         budgetMinRub: input.budgetMinRub,
         budgetMaxRub: input.budgetMaxRub,
@@ -179,6 +181,143 @@ export class TripsService {
           dataStatus: e.dataStatus,
           source: e.source,
           trustLevel: 3,
+        })),
+      });
+    }
+
+    return { slug: trip.slug, id: trip.id };
+  }
+
+  /**
+   * Copy a PUBLIC trip into a new PRIVATE trip owned by the given user (their own
+   * editable copy). Clones the full graph: variants → days → places → dayPlaces,
+   * budget lines, and hotels. The copier becomes the ORGANIZER.
+   */
+  async copyTrip(slug: string, userId: string) {
+    const src = await this.prisma.trip.findUnique({
+      where: { slug },
+      include: {
+        hotels: true,
+        variants: {
+          include: {
+            budget: { include: { lines: true } },
+            days: {
+              orderBy: { dayNumber: 'asc' },
+              include: { places: { orderBy: { order: 'asc' }, include: { place: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!src) throw new NotFoundException(`Путешествие "${slug}" не найдено`);
+    if (src.visibility !== 'PUBLIC') {
+      throw new ForbiddenException('Копировать можно только публичные поездки');
+    }
+
+    // Unique slug for the copy.
+    const base = `${slugify(src.title)}-kopiya`;
+    let newSlug = base;
+    for (let n = 2; await this.prisma.trip.findUnique({ where: { slug: newSlug } }); n++) {
+      newSlug = `${base}-${n}`;
+    }
+
+    const trip = await this.prisma.trip.create({
+      data: {
+        slug: newSlug,
+        title: `${src.title} (копия)`,
+        subtitle: src.subtitle,
+        summary: src.summary,
+        longDescription: src.longDescription,
+        highlights: src.highlights,
+        bestTime: src.bestTime,
+        visaNote: src.visaNote,
+        heroImage: src.heroImage,
+        seasonLabel: src.seasonLabel,
+        startWindow: src.startWindow,
+        endWindow: src.endWindow,
+        durationDays: src.durationDays,
+        budgetMinRub: src.budgetMinRub,
+        budgetMaxRub: src.budgetMaxRub,
+        visibility: 'PRIVATE',
+        status: 'PUBLISHED',
+        countryId: src.countryId,
+      },
+    });
+
+    // The copier owns it.
+    await this.prisma.tripMember.create({ data: { tripId: trip.id, userId, role: 'ORGANIZER' } });
+
+    const uniq = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    for (const v of src.variants) {
+      const nv = await this.prisma.routeVariant.create({
+        data: { tripId: trip.id, pace: v.pace, title: v.title, summary: v.summary },
+      });
+      for (const d of v.days) {
+        const nd = await this.prisma.day.create({
+          data: { variantId: nv.id, dayNumber: d.dayNumber, title: d.title, baseCity: d.baseCity, notes: d.notes },
+        });
+        for (const dp of d.places) {
+          const p = dp.place;
+          const np = await this.prisma.place.create({
+            data: {
+              cityId: p.cityId,
+              slug: `${p.slug}-${uniq()}`,
+              name: p.name,
+              nameLocal: p.nameLocal,
+              lat: p.lat,
+              lng: p.lng,
+              description: p.description,
+              photoUrl: p.photoUrl,
+              photos: p.photos,
+              howToGet: p.howToGet,
+              tips: p.tips,
+              nearby: p.nearby,
+              dataStatus: p.dataStatus,
+              source: p.source,
+              sourceUrl: p.sourceUrl,
+              trustLevel: p.trustLevel,
+              fetchedAt: p.fetchedAt,
+            },
+          });
+          await this.prisma.dayPlace.create({ data: { dayId: nd.id, placeId: np.id, order: dp.order } });
+        }
+      }
+      if (v.budget) {
+        const nb = await this.prisma.budgetBreakdown.create({ data: { variantId: nv.id, currency: v.budget.currency } });
+        if (v.budget.lines.length) {
+          await this.prisma.budgetLine.createMany({
+            data: v.budget.lines.map((l) => ({
+              breakdownId: nb.id,
+              category: l.category,
+              amount: l.amount,
+              dataStatus: l.dataStatus,
+              source: l.source,
+              trustLevel: l.trustLevel,
+            })),
+          });
+        }
+      }
+    }
+
+    if (src.hotels.length) {
+      await this.prisma.hotel.createMany({
+        data: src.hotels.map((h) => ({
+          tripId: trip.id,
+          name: h.name,
+          cityLabel: h.cityLabel,
+          address: h.address,
+          lat: h.lat,
+          lng: h.lng,
+          checkIn: h.checkIn,
+          checkOut: h.checkOut,
+          url: h.url,
+          area: h.area,
+          priceNote: h.priceNote,
+          notes: h.notes,
+          photoUrl: h.photoUrl,
+          photos: h.photos,
+          source: h.source,
+          dataStatus: h.dataStatus,
         })),
       });
     }

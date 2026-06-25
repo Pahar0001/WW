@@ -5,6 +5,7 @@ import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { PlanLink } from '@/components/trip/PlanLink';
 import { EditTripLink } from '@/components/trip/EditTripLink';
+import { CopyTripLink } from '@/components/trip/CopyTripLink';
 import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { Constellation } from '@/components/decor/TravelDecor';
@@ -53,6 +54,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
           Vela
         </Link>
         <div className="flex items-center gap-4">
+          <CopyTripLink slug={params.slug} visibility={trip.visibility} />
           <EditTripLink slug={params.slug} />
           <PlanLink slug={params.slug} />
           <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">

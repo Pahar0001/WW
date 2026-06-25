@@ -82,9 +82,11 @@
 }
 @keyframes site-petal-fall {
   0% { transform: translate3d(0, -4vh, 0) rotate(0deg); opacity: 0; }
-  12% { opacity: 0.4; }
-  88% { opacity: 0.35; }
-  100% { transform: translate3d(28px, 108vh, 0) rotate(300deg); opacity: 0; }
+  12% { opacity: 0.5; }
+  35% { transform: translate3d(-22px, 32vh, 0) rotate(120deg); }
+  65% { transform: translate3d(24px, 66vh, 0) rotate(220deg); }
+  88% { opacity: 0.45; }
+  100% { transform: translate3d(-10px, 108vh, 0) rotate(320deg); opacity: 0; }
 }
 
 /* Soft cartoon clouds drifting slowly across the sky band. */

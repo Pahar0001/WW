@@ -58,6 +58,8 @@ export function TripForm({ canSetPublic }: { canSetPublic: boolean }) {
   const [longDescription, setLongDescription] = useState('');
   const [highlights, setHighlights] = useState('');
   const [seasonLabel, setSeasonLabel] = useState('');
+  const [startWindow, setStartWindow] = useState('');
+  const [endWindow, setEndWindow] = useState('');
   const [durationDays, setDurationDays] = useState('7');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
@@ -96,6 +98,8 @@ export function TripForm({ canSetPublic }: { canSetPublic: boolean }) {
       longDescription: longDescription || undefined,
       highlights: highlights.split('\n').map((h) => h.trim()).filter(Boolean),
       seasonLabel: seasonLabel || undefined,
+      startWindow: startWindow ? new Date(startWindow).toISOString() : undefined,
+      endWindow: endWindow ? new Date(endWindow).toISOString() : undefined,
       heroImage: heroImage || undefined,
       // Non-admins are restricted to PRIVATE (enforced server-side too).
       visibility: canSetPublic ? visibility : 'PRIVATE',
@@ -165,6 +169,14 @@ export function TripForm({ canSetPublic }: { canSetPublic: boolean }) {
         <Field label="Длительность (дней) *">
           <input type="number" min={1} max={60} className={inputCls} value={durationDays} onChange={(e) => setDurationDays(e.target.value)} />
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Дата начала">
+            <input type="date" className={inputCls} value={startWindow} onChange={(e) => setStartWindow(e.target.value)} />
+          </Field>
+          <Field label="Дата окончания">
+            <input type="date" className={inputCls} value={endWindow} onChange={(e) => setEndWindow(e.target.value)} />
+          </Field>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Бюджет от (₽)">
             <input type="number" className={inputCls} value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} />
