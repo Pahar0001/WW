@@ -13,6 +13,7 @@ export interface AuthUser {
   role: Role;
   status: string;
   emailVerified: boolean;
+  termsAcceptedAt?: string | null;
 }
 
 export function getToken(): string | null {
@@ -23,6 +24,8 @@ export function setToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token);
   // Also a cookie so Server Components can read it (e.g. private trips).
   document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${7 * 24 * 3600}; samesite=lax`;
+  // Let always-mounted listeners (e.g. the terms gate) re-check the session.
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('vela:auth-changed'));
 }
 export function logout() {
   localStorage.removeItem(TOKEN_KEY);
@@ -71,6 +74,7 @@ export const auth = {
   verifyEmail: (email: string, code: string) =>
     post<{ ok: boolean; alreadyVerified?: boolean }>('/auth/verify-email', { email, code }),
   resendVerification: () => post<{ ok: boolean; alreadyVerified?: boolean }>('/auth/resend-verification', {}),
+  acceptTerms: () => post<{ ok: boolean; termsAcceptedAt: string }>('/auth/accept-terms', {}),
   async me(): Promise<AuthUser | null> {
     if (!getToken()) return null;
     const res = await fetch('/api/auth/me', { headers: authHeaders(), cache: 'no-store' });

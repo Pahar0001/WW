@@ -28,6 +28,9 @@ function Verify() {
       const r = await auth.verifyEmail(email.trim(), code.trim());
       setDone(true);
       toast.success(r.alreadyVerified ? 'Email уже подтверждён' : 'Email подтверждён ✓');
+      // Nudge the always-mounted terms gate to re-check (it will show the
+      // acceptance modal now that the email is verified).
+      window.dispatchEvent(new Event('vela:auth-changed'));
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

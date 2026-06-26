@@ -175,6 +175,53 @@ export const api = {
   getTrip: (slug: string, token?: string) => get<Trip>(`/trips/${slug}`, token),
 };
 
+export type Comfort = 'BUDGET' | 'STANDARD' | 'COMFORT';
+
+export interface SpendEstimate {
+  currency: 'RUB';
+  comfort: Comfort;
+  travelers: number;
+  durationDays: number;
+  nights: number;
+  cities: number;
+  transfers: number;
+  perPerson: {
+    categories: { category: string; amount: number }[];
+    total: number;
+    low: number;
+    high: number;
+  };
+  group: { total: number; low: number; high: number };
+  dataStatus: DataStatus;
+  assumptions: {
+    note: string;
+    ratesPerPerson: Record<string, number>;
+    reserveRate: number;
+    band: number;
+  };
+}
+
+/** Automatic spend estimate for a trip. Browser-only (sends token if present). */
+export async function getTripEstimate(
+  slug: string,
+  params: { travelers?: number; comfort?: Comfort },
+): Promise<SpendEstimate | null> {
+  const qs = new URLSearchParams();
+  if (params.travelers) qs.set('travelers', String(params.travelers));
+  if (params.comfort) qs.set('comfort', params.comfort);
+  const suffix = qs.toString() ? `?${qs}` : '';
+  try {
+    const res = await fetch(`${BROWSER_BASE}/trips/${slug}/estimate${suffix}`, {
+      headers: authHeader(),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as SpendEstimate;
+  } catch {
+    return null;
+  }
+}
+
 /** Trips the logged-in user belongs to (incl. private). Browser-only (uses token). */
 export async function listMyTrips(): Promise<Trip[]> {
   try {

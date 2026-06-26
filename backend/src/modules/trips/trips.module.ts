@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -47,6 +48,23 @@ class TripsController {
   @Get(':slug')
   get(@Param('slug') slug: string, @Req() req: any) {
     return this.trips.getBySlug(slug, optionalAccessor(req));
+  }
+
+  // Automatic spend estimate. Optional ?travelers= & ?comfort=BUDGET|STANDARD|COMFORT.
+  @Get(':slug/estimate')
+  estimate(
+    @Param('slug') slug: string,
+    @Query('travelers') travelers: string | undefined,
+    @Query('comfort') comfort: string | undefined,
+    @Req() req: any,
+  ) {
+    const n = travelers ? parseInt(travelers, 10) : undefined;
+    const c = comfort === 'BUDGET' || comfort === 'COMFORT' || comfort === 'STANDARD' ? comfort : undefined;
+    return this.trips.estimateSpend(
+      slug,
+      { travelers: Number.isFinite(n as number) ? n : undefined, comfort: c },
+      optionalAccessor(req),
+    );
   }
 
   // Any authenticated user may create a trip. Non-admins are restricted to

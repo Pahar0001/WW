@@ -64,6 +64,12 @@ class AuthController {
     return this.auth.resendVerification(user.id);
   }
 
+  @Post('accept-terms')
+  @UseGuards(JwtAuthGuard)
+  acceptTerms(@CurrentUser() user: AuthUser) {
+    return this.auth.acceptTerms(user.id);
+  }
+
   @Post('forgot-password')
   forgot(@Body() body: unknown) {
     return this.auth.requestPasswordReset(parse(Forgot, body).email);

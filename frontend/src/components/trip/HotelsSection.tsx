@@ -27,8 +27,10 @@ export function HotelsSection({
 
   const bookingUrl = (city: string) =>
     `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}`;
+  // Yandex Travel removed the `/hotels/search/` route (now 404). The live search
+  // page is `/hotels/`; the destination text is passed via the `text` query param.
   const yandexUrl = (city: string) =>
-    `https://travel.yandex.ru/hotels/search/?text=${encodeURIComponent(city)}`;
+    `https://travel.yandex.ru/hotels/?text=${encodeURIComponent(city)}`;
 
   return (
     <div className="rounded-2xl border border-ink-line bg-ink-soft/40 p-7">

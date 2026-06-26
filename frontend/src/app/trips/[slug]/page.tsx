@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
+import { SpendEstimator } from '@/components/trip/SpendEstimator';
 import { PlanLink } from '@/components/trip/PlanLink';
 import { EditTripLink } from '@/components/trip/EditTripLink';
 import { CopyTripLink } from '@/components/trip/CopyTripLink';
@@ -210,6 +211,11 @@ export default async function TripPage({ params }: { params: { slug: string } })
       {/* Interactive experience */}
       <section className="container-vela">
         <TripExperience trip={trip} />
+      </section>
+
+      {/* Automatic spend estimate */}
+      <section className="container-vela mt-16">
+        <SpendEstimator slug={params.slug} />
       </section>
 
       {/* Honest opinions */}

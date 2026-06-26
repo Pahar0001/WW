@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface Accessor { id: string; role: string }
 import { estimateBudget } from '../../common/budget';
+import { estimateTripSpend, type Comfort } from '../../common/estimate';
 import { CreateTripInput, UpdateTripInput } from './trips.dto';
 
 function slugify(input: string): string {
@@ -560,5 +561,32 @@ export class TripsService {
     });
     if (!trip) throw new NotFoundException(`Trip "${slug}" not found`);
     return trip;
+  }
+
+  /**
+   * Automatic ballpark spend estimate for a trip (see common/estimate.ts).
+   * Pulls the minimal inputs straight from the trip — duration and the number of
+   * distinct base cities on the balanced itinerary — so it works with zero manual
+   * data. `travelers`/`comfort` are optional overrides from the UI. Respects the
+   * same visibility gate as getBySlug (private trips need access).
+   */
+  async estimateSpend(
+    slug: string,
+    opts: { travelers?: number; comfort?: Comfort },
+    accessor?: Accessor | null,
+  ) {
+    const trip = await this.getBySlug(slug, accessor); // gate + load graph
+    const balanced = trip.variants.find((v) => v.pace === 'BALANCED') ?? trip.variants[0];
+    const cities = new Set<string>();
+    for (const d of balanced?.days ?? []) {
+      const c = d.baseCity?.trim();
+      if (c) cities.add(c);
+    }
+    return estimateTripSpend({
+      durationDays: trip.durationDays,
+      cities: cities.size || 1,
+      travelers: opts.travelers ?? 2,
+      comfort: opts.comfort ?? 'STANDARD',
+    });
   }
 }

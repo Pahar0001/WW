@@ -27,6 +27,7 @@ function publicUser(u: any) {
     role: u.role,
     status: u.status,
     emailVerified: u.emailVerified,
+    termsAcceptedAt: u.termsAcceptedAt,
     createdAt: u.createdAt,
   };
 }
@@ -112,6 +113,19 @@ export class AuthService {
     });
     await this.audit.log({ userId: user.id, action: 'email.verify', objectType: 'user', objectId: user.id });
     return { ok: true };
+  }
+
+  /** Record acceptance of the Terms of Use (idempotent — keeps the first time). */
+  async acceptTerms(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    if (user.termsAcceptedAt) return { ok: true, termsAcceptedAt: user.termsAcceptedAt };
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { termsAcceptedAt: new Date() },
+    });
+    await this.audit.log({ userId, action: 'terms.accept', objectType: 'user', objectId: userId });
+    return { ok: true, termsAcceptedAt: updated.termsAcceptedAt };
   }
 
   async requestPasswordReset(email: string) {

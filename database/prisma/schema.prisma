@@ -536,6 +536,9 @@ model User {
   emailVerifyExpiry   DateTime?
   passwordResetToken  String?
   passwordResetExpiry DateTime?
+  // When the user accepted the Terms of Use (пользовательское соглашение).
+  // Null = not yet accepted → the blocking terms modal is shown after email verify.
+  termsAcceptedAt     DateTime?
   saved               SavedTrip[]
   memberships         TripMember[]
   auditLogs           AuditLog[]
