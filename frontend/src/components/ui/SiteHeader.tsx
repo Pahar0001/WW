@@ -14,6 +14,7 @@ const anchors = [
 const social = [
   { href: '/feed', label: 'Лента' },
   { href: '/news', label: 'Новости' },
+  { href: '/community', label: 'Сообщество' },
   { href: '/network', label: 'Люди' },
 ];
 

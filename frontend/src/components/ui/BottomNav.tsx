@@ -9,6 +9,7 @@ import { network } from '@/lib/network';
 const ITEMS = [
   { href: '/feed', label: 'Лента', icon: 'M4 6h16M4 12h16M4 18h10' },
   { href: '/news', label: 'Новости', icon: 'M4 5h16v14H4zM8 9h8M8 13h5' },
+  { href: '/community', label: 'Страны', icon: 'M12 3a9 9 0 100 18 9 9 0 000-18M3.5 9h17M3.5 15h17M12 3c-3 3-3 15 0 18M12 3c3 3 3 15 0 18' },
   { href: '/network', label: 'Люди', icon: 'M9 11a3 3 0 100-6 3 3 0 000 6zM2 20a7 7 0 0114 0M17 11a3 3 0 100-6' },
   { href: '/notifications', label: 'Уведом.', icon: 'M6 9a6 6 0 1112 0c0 5 2 6 2 6H4s2-1 2-6M10 21h4' },
   { href: '/profile', label: 'Профиль', icon: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0' },

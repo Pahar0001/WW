@@ -504,6 +504,22 @@ model ChatMessage {
   @@index([tripId, createdAt])
 }
 
+// Public, country-scoped community board: travellers share document/visa
+// experience and answer each other's questions. Not tied to any trip. A message
+// is either a top-level question/post (parentId = null) or a reply/answer to one.
+model CommunityMessage {
+  id        String   @id @default(cuid())
+  country   String                   // country code, e.g. "tr", "ge" (see common/countries.ts)
+  userId    String
+  user      User     @relation("UserCommunityMessages", fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  parentId  String?
+  parent    CommunityMessage?  @relation("CommunityReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   CommunityMessage[] @relation("CommunityReplies")
+  createdAt DateTime @default(now())
+  @@index([country, parentId, createdAt])
+}
+
 // ─────────────────────────── Auth & RBAC ───────────────────────────
 enum UserRole {
   SUPER_ADMIN
@@ -546,6 +562,7 @@ model User {
   documents           TripDocument[] @relation("UserDocuments")
   events              CalendarEvent[] @relation("UserEvents")
   messages            ChatMessage[]  @relation("UserMessages")
+  communityMessages   CommunityMessage[] @relation("UserCommunityMessages")
   albums              Album[]        @relation("UserAlbums")
   memories            Memory[]       @relation("UserMemories")
   expensesPaid        Expense[]      @relation("ExpensePayer")

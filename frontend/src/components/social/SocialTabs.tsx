@@ -8,6 +8,7 @@ import { network } from '@/lib/network';
 const TABS = [
   { href: '/feed', label: 'Лента' },
   { href: '/news', label: 'Новости' },
+  { href: '/community', label: 'Сообщество' },
   { href: '/network', label: 'Люди' },
   { href: '/notifications', label: 'Уведомления' },
   { href: '/profile', label: 'Профиль' },
@@ -25,7 +26,7 @@ export function SocialTabs() {
     <div className="mb-8 flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1">
       <Link href="/" className="mr-1 shrink-0 text-sm text-paper-faint hover:text-paper">← Главная</Link>
       {TABS.map((t) => {
-        const active = path === t.href;
+        const active = path === t.href || path.startsWith(t.href + '/');
         return (
           <Link
             key={t.href}

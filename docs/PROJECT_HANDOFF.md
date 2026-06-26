@@ -121,7 +121,8 @@ git log --oneline -12
 Все добавления полей/моделей (nullable или с `@default`, безопасны для `db push`) прошли так:
 `emailVerifyExpiry`, `Expense` (+ `shares`), `SupportMessage`, `User.bio`, соц‑модели
 (`Post`/`Like`/`Comment`/`Repost`/`Friendship`/`Notification`), `Trip.startWindow/endWindow`
-(поля уже были в схеме, заполнение добавлено в форму создания), **`User.termsAcceptedAt`**.
+(поля уже были в схеме, заполнение добавлено в форму создания), **`User.termsAcceptedAt`**,
+**`CommunityMessage`** (страновой комьюнити-чат).
 Локально применять так:
 ```bash
 cd backend
@@ -174,6 +175,8 @@ cp prisma/schema.prisma ../database/prisma/schema.prisma   # держать ко
 | GET | `/api/trips/:slug` | опц. auth (приватные — только доступным) |
 | **GET** | **`/api/trips/:slug/estimate?travelers=&comfort=`** (автооценка трат) | опц. auth |
 | **POST** | **`/api/auth/accept-terms`** (принять пользовательское соглашение) | вошедший |
+| **GET** | **`/api/community/rooms`** (страны-комнаты + счётчики) · **`/api/community/:country`** (тред) | публично |
+| **POST** | **`/api/community/:country`** `{text, parentId?}` (вопрос/ответ) · **DELETE** `/api/community/messages/:id` | вошедший |
 | POST | `/api/trips` | вошедший (не‑админ → PRIVATE; поддерживает `pace`, `startWindow`, `endWindow`) |
 | **POST** | **`/api/trips/:slug/copy`** | вошедший (копия PUBLIC‑поездки в свою приватную) |
 | PATCH | `/api/trips/:slug` | ORGANIZER+ (поля + status/visibility + days/hotels — замена целиком) |
@@ -289,6 +292,10 @@ visibility по роли — используется в `/admin` и `/trips/new
   per‑category суммы, итог на человека и группу с диапазоном (ESTIMATED, не котировка).
 - **Пользовательское соглашение:** блокирующая модалка после подтверждения email (без принятия сайт
   недоступен), страница `/terms`, поле `User.termsAcceptedAt`, эндпоинт `/auth/accept-terms`.
+- **Сообщество по странам** (`/community`, `/community/[country]`): общий публичный чат с разделением
+  по странам — обмен опытом по визам/документам, вопросы и ответы (один уровень вложенности). Модель
+  `CommunityMessage` (country/parentId/replies), модуль `community`, список стран `common/countries.ts`
+  (единый источник). Чтение публичное, публикация/удаление — вошедшим (своё или ADMIN). Опрос 5с.
 - **Соцсеть:** лента публичных поездок (лайк/коммент/репост), новости‑микроблог (текст+фото, лайк/коммент),
   друзья (заявки/принятие), уведомления (бейджи), профили (свой редактируемый + чужой `/u/:id`).
 - **Чат поддержки:** плавающий виджет для пользователей → super admin; инбокс `/admin/support`.
