@@ -3,6 +3,7 @@ import { api, imageUrl } from '@/lib/api';
 import { Reveal } from '@/components/ui/Reveal';
 import { SiteHeader } from '@/components/ui/SiteHeader';
 import { MyTrips } from '@/components/ui/MyTrips';
+import { HomeMenu } from '@/components/ui/HomeMenu';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Constellation } from '@/components/decor/TravelDecor';
@@ -57,6 +58,9 @@ export default async function HomePage() {
         </Reveal>
         </div>
       </section>
+
+      {/* Быстрое меню по разделам */}
+      <HomeMenu />
 
       {/* Мои поездки (видно только вошедшим, у кого есть поездки) */}
       <MyTrips />

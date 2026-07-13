@@ -14,6 +14,7 @@ import { SupportModule } from './modules/support/support.module';
 import { SocialModule } from './modules/social/social.module';
 import { NetworkModule } from './modules/network/network.module';
 import { CommunityModule } from './modules/community/community.module';
+import { AssistantModule } from './modules/assistant/assistant.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CommunityModule } from './modules/community/community.module';
     SocialModule,
     NetworkModule,
     CommunityModule,
+    AssistantModule,
     PlanningModule,
     TripsModule,
     RoutesModule,

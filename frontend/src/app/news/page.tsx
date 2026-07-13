@@ -7,6 +7,7 @@ import { social, type NewsPost } from '@/lib/social';
 import { SocialTabs } from '@/components/social/SocialTabs';
 import { CommentThread } from '@/components/social/CommentThread';
 import { Avatar } from '@/components/social/Avatar';
+import { toast } from '@/components/ui/Toaster';
 
 const fmt = (s: string) => new Date(s).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -54,7 +55,9 @@ function Composer({ onPosted }: { onPosted: () => void }) {
     setUploading(true);
     const r = await uploadImage(file);
     setUploading(false);
+    e.target.value = '';
     if (r.ok) setImageUrl(r.url);
+    else toast.error(`Не удалось загрузить фото: ${r.error}`);
   }
   async function post() {
     if (!text.trim()) return;

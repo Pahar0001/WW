@@ -41,7 +41,13 @@ export default function ProfilePage() {
     setUploading(true);
     const r = await uploadImage(file);
     setUploading(false);
-    if (r.ok) setImage(r.url);
+    e.target.value = ''; // allow re-selecting the same file after an error
+    if (r.ok) {
+      setImage(r.url);
+      toast.success('Фото загружено — не забудьте «Сохранить»');
+    } else {
+      toast.error(`Не удалось загрузить фото: ${r.error}`);
+    }
   }
   async function save() {
     setSaving(true);

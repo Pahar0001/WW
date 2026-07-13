@@ -39,14 +39,6 @@
     font-feature-settings: 'ss01', 'cv01';
     transition: background-color 0.4s ease, color 0.4s ease;
   }
-  /* Custom cursor replaces the native one on fine-pointer devices. */
-  @media (hover: hover) and (pointer: fine) {
-    * { cursor: none; }
-  }
-  /* …but never on touch / coarse-pointer devices — hide it entirely there. */
-  @media (hover: none), (pointer: coarse) {
-    .vela-cursor { display: none !important; }
-  }
   ::selection {
     background: hsl(var(--primary));
     color: hsl(var(--primary-fg));

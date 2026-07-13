@@ -49,10 +49,19 @@ services:
       # Optional email provider; if unset, links are logged to the API console.
       - key: RESEND_API_KEY
         sync: false
+      # AI consultant (Groq, OpenAI-compatible). If unset, the assistant replies
+      # with a "not configured" note instead of failing.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
       # Optional S3-compatible file storage (Cloudflare R2 recommended).
       # If unset, uploads use local disk (ephemeral on free tier).
       - key: S3_ENDPOINT
         sync: false
+      # NOTE: for Supabase Storage set this to the project's real region
+      # (e.g. eu-central-1) — "auto" only works for Cloudflare R2 and breaks
+      # Supabase request signing (uploads 500).
       - key: S3_REGION
         value: auto
       - key: S3_BUCKET

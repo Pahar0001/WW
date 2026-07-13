@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
-import { MagneticCursor } from '@/components/cursor/MagneticCursor';
 import { SiteScenery } from '@/components/decor/SiteScenery';
 import { SupportWidget } from '@/components/support/SupportWidget';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { TermsGate } from '@/components/auth/TermsGate';
+import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 import { Toaster } from '@/components/ui/Toaster';
 
 // Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
@@ -34,9 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <SiteScenery />
-        <MagneticCursor />
         {children}
         <SupportWidget />
+        <AssistantWidget />
         <BottomNav />
         <TermsGate />
         <Toaster />
