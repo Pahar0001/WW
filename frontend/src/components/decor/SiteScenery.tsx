@@ -11,7 +11,7 @@ import { SakuraTree } from './SakuraTree';
 function Cloud({ scale = 1 }: { scale?: number }) {
   return (
     <svg width={120 * scale} height={48 * scale} viewBox="0 0 120 48" fill="none" aria-hidden>
-      <g fill="hsl(var(--primary) / 0.06)">
+      <g fill="hsl(var(--primary) / 0.04)">
         <ellipse cx="38" cy="32" rx="30" ry="16" />
         <ellipse cx="64" cy="26" rx="26" ry="20" />
         <ellipse cx="88" cy="32" rx="24" ry="14" />
@@ -22,21 +22,16 @@ function Cloud({ scale = 1 }: { scale?: number }) {
 }
 
 export function SiteScenery() {
-  // Gentle sakura — a soft, unobtrusive drift across the whole page.
+  // Gentle sakura — fewer, softer petals for a calmer, less "busy" backdrop.
   const petals = [
-    { left: '6%', delay: '0s', dur: '27s', size: 9 },
-    { left: '18%', delay: '11s', dur: '32s', size: 7 },
-    { left: '30%', delay: '5s', dur: '24s', size: 11 },
-    { left: '43%', delay: '16s', dur: '30s', size: 8 },
-    { left: '55%', delay: '3s', dur: '28s', size: 10 },
-    { left: '67%', delay: '20s', dur: '34s', size: 7 },
-    { left: '79%', delay: '8s', dur: '26s', size: 12 },
-    { left: '90%', delay: '14s', dur: '31s', size: 9 },
+    { left: '12%', delay: '0s', dur: '34s', size: 8 },
+    { left: '38%', delay: '13s', dur: '38s', size: 7 },
+    { left: '68%', delay: '7s', dur: '32s', size: 9 },
+    { left: '88%', delay: '19s', dur: '40s', size: 7 },
   ];
   const clouds = [
-    { top: '12%', scale: 1.1, delay: '0s', dur: '110s' },
-    { top: '24%', scale: 0.7, delay: '-40s', dur: '150s' },
-    { top: '8%', scale: 0.9, delay: '-80s', dur: '130s' },
+    { top: '11%', scale: 1.0, delay: '0s', dur: '150s' },
+    { top: '20%', scale: 0.7, delay: '-70s', dur: '180s' },
   ];
 
   return (
@@ -45,7 +40,7 @@ export function SiteScenery() {
       <div
         className="absolute right-[12%] top-[10%] h-40 w-40 rounded-full"
         style={{
-          background: 'radial-gradient(circle at 50% 50%, hsl(38 70% 70% / 0.18), hsl(38 70% 70% / 0) 70%)',
+          background: 'radial-gradient(circle at 50% 50%, hsl(38 60% 72% / 0.11), hsl(38 60% 72% / 0) 70%)',
         }}
       />
 

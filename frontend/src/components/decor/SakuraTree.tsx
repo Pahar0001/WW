@@ -28,7 +28,7 @@ function Blossoms({ x, y, r = 16 }: { x: number; y: number; r?: number }) {
 export function SakuraTree() {
   return (
     <svg
-      className="absolute -bottom-2 -right-16 hidden h-[66vh] max-h-[680px] w-auto opacity-90 md:block lg:-right-6"
+      className="absolute -bottom-2 -right-16 hidden h-[62vh] max-h-[640px] w-auto opacity-40 md:block lg:-right-6"
       viewBox="0 0 420 520"
       fill="none"
       aria-hidden

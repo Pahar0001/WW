@@ -7,27 +7,29 @@
   --font-serif: 'Fraunces', Georgia, serif;
   --radius: 1rem;
 
-  /* ── Light (default): warm paper + graphite + sage ── */
-  --bg: 40 30% 97%;        /* warm paper */
-  --bg-2: 38 26% 94%;      /* card / soft surface */
-  --line: 38 16% 86%;      /* hairline */
-  --fg: 30 12% 18%;        /* warm graphite */
-  --fg-2: 32 8% 38%;       /* secondary text */
-  --fg-3: 33 7% 52%;       /* faint text */
-  --primary: 168 26% 38%;  /* calm eucalyptus */
-  --primary-fg: 40 30% 98%;
+  /* ── Light (default): warm ivory + soft graphite + muted warm sage ──
+     Refined for a calm, premium feel: warmer neutrals, a soft desaturated
+     sage accent (no cold blue-teal), slightly higher text contrast. */
+  --bg: 40 33% 97.5%;      /* warm ivory paper */
+  --bg-2: 40 24% 95%;      /* card / soft surface */
+  --line: 40 15% 88%;      /* hairline */
+  --fg: 28 15% 20%;        /* warm graphite (a touch darker for readability) */
+  --fg-2: 30 10% 40%;      /* secondary text */
+  --fg-3: 32 9% 53%;       /* faint text */
+  --primary: 146 19% 42%;  /* soft, warm sage */
+  --primary-fg: 44 42% 98%;
 }
 
 .dark {
   /* ── Dark: warm charcoal (not black) + warm off-white + lighter sage ── */
-  --bg: 30 9% 12%;
-  --bg-2: 30 8% 15%;
-  --line: 32 7% 23%;
-  --fg: 40 22% 91%;
-  --fg-2: 36 11% 70%;
-  --fg-3: 36 9% 54%;
-  --primary: 168 30% 58%;
-  --primary-fg: 30 12% 12%;
+  --bg: 30 10% 11%;
+  --bg-2: 30 9% 14%;
+  --line: 32 8% 22%;
+  --fg: 42 24% 92%;
+  --fg-2: 36 13% 72%;
+  --fg-3: 36 10% 56%;
+  --primary: 146 22% 62%;
+  --primary-fg: 30 12% 11%;
 }
 
 @layer base {
@@ -55,6 +57,13 @@
   .text-balance {
     text-wrap: balance;
   }
+  /* Soft, premium elevation for cards and primary buttons. */
+  .shadow-soft {
+    box-shadow: 0 1px 2px hsl(28 15% 20% / 0.04), 0 8px 24px -12px hsl(28 15% 20% / 0.12);
+  }
+  .shadow-soft-lg {
+    box-shadow: 0 2px 4px hsl(28 15% 20% / 0.05), 0 18px 48px -20px hsl(28 15% 20% / 0.18);
+  }
 }
 
 @keyframes twinkle {
@@ -67,17 +76,17 @@
   position: absolute;
   top: -4vh;
   border-radius: 100% 0 100% 0;
-  background: radial-gradient(circle at 30% 30%, rgba(222,176,170,0.55), rgba(205,150,150,0.32));
+  background: radial-gradient(circle at 30% 30%, hsl(18 32% 80% / 0.4), hsl(18 28% 72% / 0.22));
   opacity: 0;
   will-change: transform, opacity;
   animation: site-petal-fall linear infinite;
 }
 @keyframes site-petal-fall {
   0% { transform: translate3d(0, -4vh, 0) rotate(0deg); opacity: 0; }
-  12% { opacity: 0.5; }
+  12% { opacity: 0.32; }
   35% { transform: translate3d(-22px, 32vh, 0) rotate(120deg); }
   65% { transform: translate3d(24px, 66vh, 0) rotate(220deg); }
-  88% { opacity: 0.45; }
+  88% { opacity: 0.28; }
   100% { transform: translate3d(-10px, 108vh, 0) rotate(320deg); opacity: 0; }
 }
 

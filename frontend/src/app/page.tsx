@@ -47,7 +47,7 @@ export default async function HomePage() {
             <Link
               href="/trips/china-floating-mountains"
               data-magnetic
-              className="rounded-full bg-paper px-7 py-3.5 text-sm font-medium text-ink transition-transform duration-500 ease-smooth hover:scale-[1.03]"
+              className="rounded-full bg-paper px-7 py-3.5 text-sm font-medium text-ink shadow-soft-lg transition-transform duration-500 ease-smooth hover:scale-[1.03]"
             >
               Открыть «Китай 2027»
             </Link>
