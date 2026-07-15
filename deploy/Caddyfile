@@ -1,0 +1,15 @@
+# Caddy auto-obtains and auto-renews Let's Encrypt TLS for these domains.
+# Requirements: ports 80 and 443 open on the VPS, and DNS A-records for
+# velatrips.ru and www.velatrips.ru pointing to the VPS public IP.
+
+# Redirect www → apex (keeps a single canonical URL).
+www.velatrips.ru {
+	redir https://velatrips.ru{uri} permanent
+}
+
+velatrips.ru {
+	encode zstd gzip
+	# Everything goes to the Next.js server, which itself proxies /api and
+	# /uploads to the backend.
+	reverse_proxy web:3000
+}

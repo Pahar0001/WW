@@ -1,0 +1,61 @@
+# Production stack for a single VPS (e.g. reg.ru "Облачный сервер").
+#
+#   Internet ──▶ Caddy (80/443, auto HTTPS) ──▶ web (Next.js :3000)
+#                                                 └─ proxies /api,/uploads ─▶ backend (NestJS :4000)
+#   backend ──▶ Neon (managed PostgreSQL, external) via DATABASE_URL
+#   files   ──▶ Supabase Storage (external) via S3_* ; local disk is fallback
+#
+# There is NO local Postgres here — the database lives on Neon (free, managed).
+# Only Caddy publishes ports; web and backend stay on the internal network.
+#
+# Usage on the server:
+#   cp .env.prod.example .env     # then fill in real values (see docs/DEPLOY_VPS.md)
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      API_PORT: "4000"
+    volumes:
+      - vela_uploads:/app/uploads   # fallback for uploads if S3 is unset/misconfigured
+    expose:
+      - "4000"
+    # Image CMD runs: prisma db push (creates schema on Neon) → seed → start.
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NODE_ENV: production
+      # The Next server proxies the browser's /api and /uploads to the backend.
+      BACKEND_URL: http://backend:4000
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # persists issued TLS certificates
+      - caddy_config:/config
+
+volumes:
+  vela_uploads:
+  caddy_data:
+  caddy_config:
