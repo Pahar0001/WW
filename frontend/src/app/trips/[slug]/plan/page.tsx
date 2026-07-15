@@ -473,8 +473,12 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayLocal());
   const [paidById, setPaidById] = useState('');
+  // Split mode: 'weights' = равно/по долям; 'exact' = точная сумма на человека.
+  const [mode, setMode] = useState<'weights' | 'exact'>('weights');
   // Per-member share weights; null = untouched (defaults to everyone, 1 share each).
   const [weights, setWeights] = useState<Record<string, number> | null>(null);
+  // Per-member exact amounts (ruble strings) for the 'exact' mode.
+  const [exactAmounts, setExactAmounts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   // Default payer = me (if a member), else first member.
@@ -483,6 +487,11 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
   const included = members.filter((m) => (eff[m.id] ?? 0) >= 1);
   const totalW = included.reduce((s, m) => s + (eff[m.id] || 1), 0);
   const totalKopecks = Math.round((parseFloat(amount.replace(',', '.')) || 0) * 100);
+
+  // Exact mode: per-member kopecks and the auto-computed total.
+  const exactKop = (id: string) => Math.round((parseFloat((exactAmounts[id] || '').replace(',', '.')) || 0) * 100);
+  const exactIncluded = members.filter((m) => exactKop(m.id) > 0);
+  const exactTotal = exactIncluded.reduce((s, m) => s + exactKop(m.id), 0);
 
   const toggleMember = (id: string) =>
     setWeights(() => {
@@ -494,20 +503,35 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
   const setWeight = (id: string, w: number) =>
     setWeights(() => ({ ...eff, [id]: Math.max(1, Math.round(w || 1)) }));
 
+  const canAdd = mode === 'weights'
+    ? !!desc.trim() && parseFloat(amount.replace(',', '.')) > 0 && included.length > 0
+    : !!desc.trim() && exactTotal > 0;
+
   async function add() {
-    const rub = parseFloat(amount.replace(',', '.'));
-    if (!desc.trim() || !(rub > 0) || included.length === 0) return;
+    if (!canAdd) return;
     setBusy(true);
     try {
-      await planning.createExpense(slug, {
-        description: desc.trim(),
-        amount: Math.round(rub * 100),
-        date: new Date(date).toISOString(),
-        paidById: effectivePayer || undefined,
-        participants: included.map((m) => m.id),
-        shares: included.map((m) => eff[m.id] || 1),
-      });
-      setDesc(''); setAmount(''); setWeights(null);
+      if (mode === 'exact') {
+        await planning.createExpense(slug, {
+          description: desc.trim(),
+          amount: exactTotal, // recomputed server-side too; sent for the DTO
+          date: new Date(date).toISOString(),
+          paidById: effectivePayer || undefined,
+          participants: exactIncluded.map((m) => m.id),
+          shares: exactIncluded.map((m) => exactKop(m.id)),
+          exactSplit: true,
+        });
+      } else {
+        await planning.createExpense(slug, {
+          description: desc.trim(),
+          amount: totalKopecks,
+          date: new Date(date).toISOString(),
+          paidById: effectivePayer || undefined,
+          participants: included.map((m) => m.id),
+          shares: included.map((m) => eff[m.id] || 1),
+        });
+      }
+      setDesc(''); setAmount(''); setWeights(null); setExactAmounts({});
       load();
     } finally { setBusy(false); }
   }
@@ -524,9 +548,27 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
       {/* Add form */}
       <div className="rounded-xl border border-ink-line bg-ink-soft/40 p-5">
         <h3 className="mb-3 font-serif text-xl tracking-tightest">Добавить расход</h3>
+
+        {/* Split mode toggle */}
+        <div className="mb-4 inline-flex rounded-full border border-ink-line p-1 text-sm">
+          {([['weights', 'Поровну / по долям'], ['exact', 'Точные суммы']] as const).map(([m, label]) => (
+            <button key={m} type="button" onClick={() => setMode(m)}
+              className={`rounded-full px-4 py-1.5 transition-colors ${mode === m ? 'bg-aurora text-aurora-fg' : 'text-paper-dim hover:text-paper'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
           <input className={inp} placeholder="За что (ужин, такси, билеты…)" value={desc} onChange={(e) => setDesc(e.target.value)} />
-          <input className={inp} inputMode="decimal" placeholder="Сумма, ₽" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          {mode === 'weights' ? (
+            <input className={inp} inputMode="decimal" placeholder="Сумма, ₽" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          ) : (
+            <div className={`${inp} flex items-center justify-between`}>
+              <span className="text-paper-faint">Итого по суммам</span>
+              <span className="text-paper">{fmtMoney(exactTotal)}</span>
+            </div>
+          )}
           <label className="text-sm text-paper-faint">Дата<input type="date" className={inp} value={date} onChange={(e) => setDate(e.target.value)} /></label>
           <label className="text-sm text-paper-faint">Кто платил
             <select className={inp} value={effectivePayer} onChange={(e) => setPaidById(e.target.value)}>
@@ -534,13 +576,28 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
             </select>
           </label>
         </div>
+
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between text-sm text-paper-faint">
-            <span>Делим между (укажите доли):</span>
-            {included.length > 0 && <span>всего долей: {totalW}</span>}
+            <span>{mode === 'weights' ? 'Делим между (укажите доли):' : 'Сколько на каждого (₽):'}</span>
+            {mode === 'weights' && included.length > 0 && <span>всего долей: {totalW}</span>}
           </div>
           <div className="space-y-2">
             {members.map((m) => {
+              if (mode === 'exact') {
+                const on = exactKop(m.id) > 0;
+                return (
+                  <div key={m.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${on ? 'border-aurora/40' : 'border-ink-line'}`}>
+                    <span className="flex-1 text-sm text-paper">{m.name || m.email}</span>
+                    <div className="flex items-center gap-1.5">
+                      <input inputMode="decimal" placeholder="0" value={exactAmounts[m.id] ?? ''}
+                        onChange={(e) => setExactAmounts((s) => ({ ...s, [m.id]: e.target.value }))}
+                        className="w-24 rounded-lg border border-ink-line bg-ink px-2 py-1 text-right text-sm text-paper outline-none focus:border-aurora/60" />
+                      <span className="text-sm text-paper-faint">₽</span>
+                    </div>
+                  </div>
+                );
+              }
               const on = (eff[m.id] ?? 0) >= 1;
               const w = eff[m.id] || 1;
               const share = on && totalKopecks > 0 ? Math.round((totalKopecks * w) / totalW) : 0;
@@ -563,8 +620,12 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
               );
             })}
           </div>
+          {mode === 'exact' && (
+            <p className="mt-2 text-xs text-paper-faint">Общая сумма чека посчитается автоматически как сумма по людям. В конце калькулятор сведёт, кто кому переводит одним платежом.</p>
+          )}
         </div>
-        <button disabled={busy || !desc.trim() || !(parseFloat(amount.replace(',', '.')) > 0)} onClick={add} className={`${btn} mt-4`}>
+
+        <button disabled={busy || !canAdd} onClick={add} className={`${btn} mt-4`}>
           {busy ? 'Сохранение…' : 'Добавить расход'}
         </button>
       </div>
@@ -594,7 +655,7 @@ function Expenses({ slug, meId }: { slug: string; meId?: string }) {
                         <div className="text-paper">{e.description}</div>
                         <div className="text-xs text-paper-faint">
                           платил {nameOf(e.paidById)} · делят {e.participants.length} чел.
-                          {e.shares && e.shares.length > 0 && e.shares.some((w) => w !== e.shares[0]) ? ' · по долям' : ''}
+                          {e.exactSplit ? ' · точные суммы' : (e.shares && e.shares.length > 0 && e.shares.some((w) => w !== e.shares[0]) ? ' · по долям' : '')}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">

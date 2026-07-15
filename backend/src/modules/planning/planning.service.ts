@@ -237,7 +237,7 @@ export class PlanningService implements OnModuleInit {
    *  members. Only real trip members may be payer/participants. */
   async createExpense(
     slug: string,
-    data: { description: string; amount: number; currency?: string; date: string; paidById?: string; participants?: string[]; shares?: number[] },
+    data: { description: string; amount: number; currency?: string; date: string; paidById?: string; participants?: string[]; shares?: number[]; exactSplit?: boolean },
     userId: string,
   ) {
     const tripId = await this.tripId(slug);
@@ -245,17 +245,35 @@ export class PlanningService implements OnModuleInit {
     const memberIds = new Set(members.map((m) => m.userId));
     const paidById = data.paidById && memberIds.has(data.paidById) ? data.paidById : userId;
 
-    // Keep participants and their share-weights aligned; drop non-members.
     const rawParts = data.participants ?? [];
     const rawShares = data.shares ?? [];
-    const pairs = rawParts
-      .map((p, i) => ({ p, w: Math.max(1, Math.round(rawShares[i] ?? 1)) }))
-      .filter((x) => memberIds.has(x.p));
-    let participants = pairs.map((x) => x.p);
-    let shares = pairs.map((x) => x.w);
-    if (participants.length === 0) {
-      participants = [...memberIds]; // default: split among everyone, equally
-      shares = participants.map(() => 1);
+    let participants: string[];
+    let shares: number[];
+    let amount = data.amount;
+    let exactSplit = false;
+
+    if (data.exactSplit) {
+      // Exact per-person amounts (kopecks): keep members with a positive amount;
+      // the expense total is the sum of those amounts (authoritative).
+      const pairs = rawParts
+        .map((p, i) => ({ p, amt: Math.max(0, Math.round(rawShares[i] ?? 0)) }))
+        .filter((x) => memberIds.has(x.p) && x.amt > 0);
+      if (pairs.length === 0) throw new BadRequestException('Укажите сумму хотя бы одному участнику');
+      participants = pairs.map((x) => x.p);
+      shares = pairs.map((x) => x.amt);
+      amount = shares.reduce((s, a) => s + a, 0);
+      exactSplit = true;
+    } else {
+      // Weighted (or equal) split — shares are weights, aligned to participants.
+      const pairs = rawParts
+        .map((p, i) => ({ p, w: Math.max(1, Math.round(rawShares[i] ?? 1)) }))
+        .filter((x) => memberIds.has(x.p));
+      participants = pairs.map((x) => x.p);
+      shares = pairs.map((x) => x.w);
+      if (participants.length === 0) {
+        participants = [...memberIds]; // default: split among everyone, equally
+        shares = participants.map(() => 1);
+      }
     }
 
     return this.prisma.expense.create({
@@ -263,11 +281,12 @@ export class PlanningService implements OnModuleInit {
         tripId,
         paidById,
         description: data.description,
-        amount: data.amount,
+        amount,
         currency: data.currency ?? 'RUB',
         date: new Date(data.date),
         participants,
         shares,
+        exactSplit,
         createdById: userId,
       },
     });
@@ -282,12 +301,18 @@ export class PlanningService implements OnModuleInit {
    * that settles everyone up. Amounts are integer minor units (kopecks), so
    * each expense's remainder is distributed one unit at a time — no rounding drift.
    */
-  private computeSettlement(expenses: { paidById: string; amount: number; participants: string[]; shares?: number[] }[]) {
+  private computeSettlement(expenses: { paidById: string; amount: number; participants: string[]; shares?: number[]; exactSplit?: boolean }[]) {
     const net = new Map<string, number>();
     const add = (id: string, v: number) => net.set(id, (net.get(id) ?? 0) + v);
     for (const e of expenses) {
       const parts = e.participants ?? [];
       if (parts.length === 0) continue;
+      // Exact per-person amounts: each participant simply owes their own amount.
+      if (e.exactSplit && e.shares && e.shares.length === parts.length) {
+        add(e.paidById, e.amount);
+        parts.forEach((p, i) => add(p, -e.shares![i]));
+        continue;
+      }
       // Weights default to equal (1 each) when missing or misaligned.
       const weights =
         e.shares && e.shares.length === parts.length && e.shares.every((w) => w > 0)

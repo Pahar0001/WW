@@ -210,7 +210,9 @@ model Expense {
   currency     String   @default("RUB")
   date         DateTime                 // calendar day the expense belongs to
   participants String[] @default([])   // userIds who share this expense
-  shares       Int[]    @default([])   // weight per participant (aligned to participants); empty/equal = equal split
+  shares       Int[]    @default([])   // per participant (aligned to participants). Weights by default;
+                                        // when exactSplit=true these are EXACT amounts owed (kopecks).
+  exactSplit   Boolean  @default(false) // true = shares are exact per-person amounts, not weights
   createdById  String?                 // who logged it (audit)
   createdAt    DateTime @default(now())
   @@index([tripId])
