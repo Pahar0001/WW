@@ -7,29 +7,29 @@
   --font-serif: 'Fraunces', Georgia, serif;
   --radius: 1rem;
 
-  /* ── Light (default): warm ivory + soft graphite + muted warm sage ──
-     Refined for a calm, premium feel: warmer neutrals, a soft desaturated
-     sage accent (no cold blue-teal), slightly higher text contrast. */
-  --bg: 40 33% 97.5%;      /* warm ivory paper */
-  --bg-2: 40 24% 95%;      /* card / soft surface */
-  --line: 40 15% 88%;      /* hairline */
-  --fg: 28 15% 20%;        /* warm graphite (a touch darker for readability) */
-  --fg-2: 30 10% 40%;      /* secondary text */
-  --fg-3: 32 9% 53%;       /* faint text */
-  --primary: 146 19% 42%;  /* soft, warm sage */
-  --primary-fg: 44 42% 98%;
+  /* ── Light (default): soft cream + warm charcoal + muted antique gold ──
+     "Stone & gold", tender/expensive: creamy paper, delicate gold accent,
+     soft (not black) charcoal text. */
+  --bg: 42 46% 95.5%;      /* soft cream paper */
+  --bg-2: 44 50% 97.5%;    /* lighter cream card surface */
+  --line: 40 26% 87%;      /* soft warm hairline */
+  --fg: 34 14% 23%;        /* warm charcoal (soft, not black) */
+  --fg-2: 34 11% 44%;      /* secondary text */
+  --fg-3: 36 10% 56%;      /* faint text */
+  --primary: 39 44% 47%;   /* muted antique gold (readable on cream) */
+  --primary-fg: 36 40% 14%;  /* espresso text on gold — richer than white */
 }
 
 .dark {
-  /* ── Dark: warm charcoal (not black) + warm off-white + lighter sage ── */
-  --bg: 30 10% 11%;
-  --bg-2: 30 9% 14%;
-  --line: 32 8% 22%;
-  --fg: 42 24% 92%;
-  --fg-2: 36 13% 72%;
-  --fg-3: 36 10% 56%;
-  --primary: 146 22% 62%;
-  --primary-fg: 30 12% 11%;
+  /* ── Dark: warm charcoal + cream off-white + lighter gold ── */
+  --bg: 36 12% 11%;
+  --bg-2: 36 10% 14%;
+  --line: 38 9% 23%;
+  --fg: 44 30% 91%;
+  --fg-2: 40 14% 71%;
+  --fg-3: 38 11% 56%;
+  --primary: 42 52% 64%;
+  --primary-fg: 36 35% 13%;
 }
 
 @layer base {
@@ -76,7 +76,7 @@
   position: absolute;
   top: -4vh;
   border-radius: 100% 0 100% 0;
-  background: radial-gradient(circle at 30% 30%, hsl(18 32% 80% / 0.4), hsl(18 28% 72% / 0.22));
+  background: radial-gradient(circle at 30% 30%, hsl(40 44% 80% / 0.4), hsl(38 40% 70% / 0.22));
   opacity: 0;
   will-change: transform, opacity;
   animation: site-petal-fall linear infinite;
@@ -125,6 +125,25 @@
 @keyframes sakura-breathe {
   0%, 100% { opacity: 0.9; }
   50% { opacity: 1; }
+}
+
+/* Slow, elegant marquee (бегущая строка). Two copies of the track slide left
+   in lockstep for a seamless loop; pause on hover. */
+.marquee {
+  overflow: hidden;
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: marquee-slide 48s linear infinite;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee-slide {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 /* Respect reduced-motion. */

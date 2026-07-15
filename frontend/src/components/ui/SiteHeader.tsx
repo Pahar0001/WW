@@ -9,7 +9,7 @@ import { Avatar } from '@/components/social/Avatar';
 
 const anchors = [
   { href: '#dream-trips', label: 'Путешествия' },
-  { href: '#data', label: 'Честные данные' },
+  { href: '/data', label: 'Честные данные' },
 ];
 const social = [
   { href: '/feed', label: 'Лента' },

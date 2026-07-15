@@ -4,6 +4,7 @@ import { Reveal } from '@/components/ui/Reveal';
 import { SiteHeader } from '@/components/ui/SiteHeader';
 import { MyTrips } from '@/components/ui/MyTrips';
 import { HomeMenu } from '@/components/ui/HomeMenu';
+import { Marquee } from '@/components/ui/Marquee';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Constellation } from '@/components/decor/TravelDecor';
@@ -17,6 +18,9 @@ export default async function HomePage() {
       <VerifyBanner />
       {/* Навигация */}
       <SiteHeader />
+
+      {/* Бегущая строка с ключевой информацией */}
+      <Marquee />
 
       {/* Заглавный экран */}
       <section className="container-vela relative flex min-h-[78vh] flex-col justify-center">
@@ -44,15 +48,17 @@ export default async function HomePage() {
         </Reveal>
         <Reveal delay={0.24}>
           <div className="mt-10 flex items-center gap-5">
-            <Link
-              href="/trips/china-floating-mountains"
+            <a
+              href="#dream-trips"
               data-magnetic
-              className="rounded-full bg-paper px-7 py-3.5 text-sm font-medium text-ink shadow-soft-lg transition-transform duration-500 ease-smooth hover:scale-[1.03]"
+              className="group inline-flex items-center gap-4 rounded-full bg-paper py-2 pl-8 pr-2 text-ink shadow-soft-lg transition-transform duration-500 ease-smooth hover:scale-[1.02]"
             >
-              Открыть «Китай 2027»
-            </Link>
-            <a href="#dream-trips" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
-              Все маршруты →
+              <span className="text-sm font-medium tracking-wide">Все маршруты</span>
+              <span className="grid h-11 w-11 place-items-center rounded-full bg-aurora text-aurora-fg transition-transform duration-500 ease-smooth group-hover:translate-x-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
             </a>
           </div>
         </Reveal>
@@ -129,7 +135,7 @@ export default async function HomePage() {
         )}
       </section>
 
-      {/* Честные данные */}
+      {/* Честные данные — тизер со ссылкой на полную страницу */}
       <section id="data" className="container-vela py-24">
         <Reveal>
           <div className="relative overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/40 p-10">
@@ -143,6 +149,14 @@ export default async function HomePage() {
               значения видно его происхождение, уровень доверия и дату — чтобы вы
               всегда знали, чему можно верить.
             </p>
+            <Link
+              href="/data"
+              data-cursor="hover"
+              className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-aurora hover:opacity-80"
+            >
+              Как устроены честные данные
+              <span aria-hidden>→</span>
+            </Link>
           </div>
         </Reveal>
       </section>
