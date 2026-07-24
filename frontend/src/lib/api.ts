@@ -254,6 +254,7 @@ export interface TravelPlan {
   hotelLinks: { city: string; booking: string; yandex: string; ostrovok: string }[];
   dataStatus: DataStatus;
   fetchedAt: string;
+  marker?: string | null;
 }
 
 /** Реальные цены перелёта + отельные ссылки под даты. Browser-only. */
@@ -288,6 +289,7 @@ export interface TripOrder {
   brief?: string | null;
   status: TripOrderStatus;
   adminNote?: string | null;
+  priceRub?: number | null;
   createdAt: string;
   updatedAt: string;
   user?: { id: string; email: string; name?: string | null };
@@ -341,7 +343,7 @@ export async function adminListOrders(): Promise<TripOrder[]> {
 /** Обновить статус/комментарий заявки (админка). */
 export async function adminUpdateOrder(
   id: string,
-  patch: { status?: TripOrderStatus; adminNote?: string },
+  patch: { status?: TripOrderStatus; adminNote?: string; priceRub?: number | null },
 ): Promise<boolean> {
   try {
     const res = await fetch(`${BROWSER_BASE}/orders/${id}`, {

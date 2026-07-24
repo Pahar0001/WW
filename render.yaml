@@ -59,6 +59,10 @@ services:
       # «Перелёт и даты». Если не задан, блок честно предлагает поиск Aviasales.
       - key: TRAVELPAYOUTS_TOKEN
         sync: false
+      # Партнёрский marker Travelpayouts (кабинет → Программы → Aviasales):
+      # добавляется к ссылкам выдачи — комиссия владельцу с бронирований.
+      - key: TRAVELPAYOUTS_MARKER
+        sync: false
       # Optional S3-compatible file storage (Cloudflare R2 recommended).
       # If unset, uploads use local disk (ephemeral on free tier).
       - key: S3_ENDPOINT

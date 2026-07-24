@@ -33,6 +33,8 @@ export interface TravelPlan {
   source: 'aviasales';
   dataStatus: 'VERIFIED';
   fetchedAt: string;
+  /** Партнёрский marker (если задан) — фронт добавляет его к ссылке поиска. */
+  marker: string | null;
 }
 
 const API = 'https://api.travelpayouts.com/aviasales/v3/prices_for_dates';
@@ -49,6 +51,11 @@ export class TravelService {
 
   get configured(): boolean {
     return Boolean(process.env.TRAVELPAYOUTS_TOKEN);
+  }
+
+  /** Партнёрский marker Travelpayouts — монетизация переходов на Aviasales. */
+  private get marker(): string {
+    return process.env.TRAVELPAYOUTS_MARKER ?? '';
   }
 
   status() {
@@ -90,7 +97,9 @@ export class TravelService {
         durationMin: f.duration ?? 0,
         originAirport: f.origin_airport ?? origin,
         destinationAirport: f.destination_airport ?? destination,
-        link: `https://www.aviasales.ru${f.link}`,
+        // Партнёрская атрибуция: marker добавляется к ссылке выдачи (комиссия
+        // владельцу с бронирований). Без marker — обычная ссылка.
+        link: `https://www.aviasales.ru${f.link}${this.marker ? `&marker=${this.marker}` : ''}`,
       }));
       this.cache.set(key, { at: Date.now(), data: offers });
       // Не даём кэшу расти бесконечно.
@@ -210,6 +219,7 @@ export class TravelService {
       source: 'aviasales',
       dataStatus: 'VERIFIED',
       fetchedAt: new Date().toISOString(),
+      marker: this.marker || null,
     };
   }
 }

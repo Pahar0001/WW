@@ -38,6 +38,8 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-Vela <onboarding@resend.dev>}
       # Travelpayouts (Aviasales Data API) — реальные цены авиабилетов.
       TRAVELPAYOUTS_TOKEN: ${TRAVELPAYOUTS_TOKEN:-}
+      # Партнёрский marker Travelpayouts — комиссия с переходов на Aviasales.
+      TRAVELPAYOUTS_MARKER: ${TRAVELPAYOUTS_MARKER:-}
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       S3_REGION: ${S3_REGION:-auto}
       S3_BUCKET: ${S3_BUCKET:-}

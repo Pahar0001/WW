@@ -116,19 +116,27 @@ export class OrdersService {
     return { count };
   }
 
-  /** Обновить статус/комментарий (ADMIN+). Комментарий виден пользователю. */
-  async update(id: string, patch: { status?: string; adminNote?: string }) {
+  /** Обновить статус/комментарий/стоимость (ADMIN+). Всё видно пользователю. */
+  async update(id: string, patch: { status?: string; adminNote?: string; priceRub?: number | null }) {
     const order = await this.prisma.tripOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('Заявка не найдена');
     const status =
       patch.status && (STATUSES as readonly string[]).includes(patch.status)
         ? (patch.status as OrderStatus)
         : undefined;
+    // Стоимость услуги: только целое ₽ > 0; null/0 — «по договорённости».
+    const priceRub =
+      patch.priceRub === undefined
+        ? undefined
+        : Number.isFinite(patch.priceRub) && (patch.priceRub as number) > 0
+          ? Math.round(patch.priceRub as number)
+          : null;
     return this.prisma.tripOrder.update({
       where: { id },
       data: {
         ...(status && { status }),
         ...(patch.adminNote !== undefined && { adminNote: patch.adminNote?.slice(0, 4000) || null }),
+        ...(priceRub !== undefined && { priceRub }),
       },
     });
   }

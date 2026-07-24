@@ -45,7 +45,10 @@ class OrdersController {
   @Patch(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
-  update(@Param('id') id: string, @Body() body: { status?: string; adminNote?: string }) {
+  update(
+    @Param('id') id: string,
+    @Body() body: { status?: string; adminNote?: string; priceRub?: number | null },
+  ) {
     return this.orders.update(id, body ?? {});
   }
 }

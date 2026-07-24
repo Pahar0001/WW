@@ -97,6 +97,18 @@ export default function OrderPage() {
           Опишите поездку мечты своими словами — ИИ уточнит детали и превратит их в бриф,
           а наш организатор соберёт для вас маршрут и вернётся с предложением.
         </p>
+        <div className="mt-6 grid max-w-2xl gap-3 sm:grid-cols-3">
+          {[
+            { n: '1', t: 'Заявка бесплатна', d: 'Опишите пожелание — ни к чему не обязывает' },
+            { n: '2', t: 'Предложение и цена', d: 'Организатор пришлёт маршрут и стоимость услуги' },
+            { n: '3', t: 'Оплата после согласования', d: 'Платите, только если предложение подходит' },
+          ].map((s) => (
+            <div key={s.n} className="rounded-xl border border-ink-line bg-ink-soft/40 p-4">
+              <div className="font-serif text-lg text-aurora">{s.n}. {s.t}</div>
+              <div className="mt-1 text-sm text-paper-faint">{s.d}</div>
+            </div>
+          ))}
+        </div>
       </Reveal>
 
       <div className="mt-10 max-w-3xl">
@@ -225,9 +237,14 @@ export default function OrderPage() {
                     {o.brief}
                   </pre>
                 )}
-                {o.adminNote && (
+                {(o.adminNote || o.priceRub != null) && (
                   <div className="mt-3 rounded-xl border border-aurora/25 bg-aurora/5 p-4 text-sm text-paper">
                     <span className="mb-1 block text-xs uppercase tracking-[0.2em] text-aurora">Ответ организатора</span>
+                    {o.priceRub != null && (
+                      <div className="mb-1.5 font-serif text-lg">
+                        Стоимость услуги: {new Intl.NumberFormat('ru-RU').format(o.priceRub)} ₽
+                      </div>
+                    )}
                     {o.adminNote}
                   </div>
                 )}

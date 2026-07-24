@@ -600,6 +600,7 @@ model TripOrder {
   brief     String?         // ИИ-конкретизированный бриф (может быть отредактирован пользователем)
   status    TripOrderStatus @default(NEW)
   adminNote String?         // ответ/комментарий админа (виден пользователю)
+  priceRub  Int?            // стоимость услуги «маршрут под ключ» — назначает админ
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
   @@index([status, createdAt])

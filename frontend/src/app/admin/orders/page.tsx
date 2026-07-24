@@ -28,6 +28,7 @@ export default function AdminOrdersPage() {
   const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
   const [orders, setOrders] = useState<TripOrder[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [prices, setPrices] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,17 +41,23 @@ export default function AdminOrdersPage() {
       adminListOrders().then((list) => {
         setOrders(list);
         setNotes(Object.fromEntries(list.map((o) => [o.id, o.adminNote ?? ''])));
+        setPrices(Object.fromEntries(list.map((o) => [o.id, o.priceRub != null ? String(o.priceRub) : ''])));
       });
     });
   }, []);
 
   async function save(id: string, status?: TripOrderStatus) {
     setSavingId(id);
-    const ok = await adminUpdateOrder(id, { status, adminNote: notes[id] ?? '' });
+    const priceRub = prices[id]?.trim() ? Number(prices[id]) : null;
+    const ok = await adminUpdateOrder(id, { status, adminNote: notes[id] ?? '', priceRub });
     setSavingId(null);
     if (ok) {
       setOrders((os) =>
-        os.map((o) => (o.id === id ? { ...o, status: status ?? o.status, adminNote: notes[id] ?? '' } : o)),
+        os.map((o) =>
+          o.id === id
+            ? { ...o, status: status ?? o.status, adminNote: notes[id] ?? '', priceRub }
+            : o,
+        ),
       );
     }
   }
@@ -115,6 +122,16 @@ export default function AdminOrdersPage() {
                     <option key={s} value={s}>{STATUS_RU[s]}</option>
                   ))}
                 </select>
+              </label>
+              <label className="block w-36">
+                <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Стоимость (₽)</span>
+                <input
+                  type="number"
+                  className={inp}
+                  value={prices[o.id] ?? ''}
+                  onChange={(e) => setPrices((p) => ({ ...p, [o.id]: e.target.value }))}
+                  placeholder="—"
+                />
               </label>
               <label className="block min-w-[260px] flex-1">
                 <span className="mb-1.5 block text-xs uppercase tracking-[0.2em] text-paper-faint">Ответ пользователю</span>

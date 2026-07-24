@@ -62,9 +62,11 @@ function durationLabel(min: number): string | null {
 }
 
 // Прямая ссылка на поиск Aviasales (когда в кэше нет котировок).
-function searchUrl(origin: string, dest: string, depart: string, ret: string): string {
+// marker — партнёрская атрибуция Travelpayouts (если задан на бэке).
+function searchUrl(origin: string, dest: string, depart: string, ret: string, marker?: string | null): string {
   const dm = (iso: string) => `${iso.slice(8, 10)}${iso.slice(5, 7)}`;
-  return `https://www.aviasales.ru/search/${origin}${dm(depart)}${dest}${dm(ret)}1`;
+  const base = `https://www.aviasales.ru/search/${origin}${dm(depart)}${dest}${dm(ret)}1`;
+  return marker ? `${base}?marker=${marker}` : base;
 }
 
 export function TravelPlanner({
@@ -170,7 +172,7 @@ export function TravelPlanner({
             На эти даты в кэше цен пока пусто — посмотрите живую выдачу:{' '}
             {plan.destination && (
               <a
-                href={searchUrl(origin, plan.destination.iata, depart, ret)}
+                href={searchUrl(origin, plan.destination.iata, depart, ret, plan.marker)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-aurora hover:underline"
