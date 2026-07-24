@@ -467,12 +467,19 @@ export class TripsService {
 
   /** List published, PUBLIC trips (private ones never appear in the public grid). */
   async list() {
+    // Only the fields the collection cards + featured hero need — avoids shipping
+    // long descriptions/variants for every trip (much smaller, faster payload).
     return this.prisma.trip.findMany({
       where: { status: 'PUBLISHED', visibility: 'PUBLIC' },
-      include: {
-        country: true,
-        scores: true,
-        variants: { select: { id: true, pace: true, title: true } },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        subtitle: true,
+        heroImage: true,
+        durationDays: true,
+        seasonLabel: true,
+        country: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
     });

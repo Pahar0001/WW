@@ -76,11 +76,34 @@ export const auth = {
   resendVerification: () => post<{ ok: boolean; alreadyVerified?: boolean }>('/auth/resend-verification', {}),
   acceptTerms: () => post<{ ok: boolean; termsAcceptedAt: string }>('/auth/accept-terms', {}),
   async me(): Promise<AuthUser | null> {
-    if (!getToken()) return null;
-    const res = await fetch('/api/auth/me', { headers: authHeaders(), cache: 'no-store' });
-    if (!res.ok) return null;
-    return (await res.json()) as AuthUser;
+    if (!getToken()) {
+      meCache = null;
+      return null;
+    }
+    // Dedupe: many components ask for the session on mount. Share one request
+    // for a short window instead of hammering the (slow, free-tier) backend.
+    const now = Date.now();
+    if (meCache && now - meCache.ts < ME_TTL) return meCache.promise;
+    const promise = (async () => {
+      const res = await fetch('/api/auth/me', { headers: authHeaders(), cache: 'no-store' });
+      if (!res.ok) {
+        meCache = null;
+        return null;
+      }
+      return (await res.json()) as AuthUser;
+    })();
+    meCache = { ts: now, promise };
+    return promise;
   },
 };
+
+// Short-lived shared session cache (invalidated on login/logout below).
+const ME_TTL = 15000;
+let meCache: { ts: number; promise: Promise<AuthUser | null> } | null = null;
+if (typeof window !== 'undefined') {
+  window.addEventListener('vela:auth-changed', () => {
+    meCache = null;
+  });
+}
 
 export const isAdminRole = (r?: Role) => r === 'ADMIN' || r === 'SUPER_ADMIN';
