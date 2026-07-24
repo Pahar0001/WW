@@ -115,7 +115,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
                   : '—'
               }
             />
-            <Fact label="Вариантов темпа" value={String(trip.variants.length)} />
+            <Fact label="Вариантов темпа" value={trip.variants.length > 0 ? String(trip.variants.length) : '—'} />
           </div>
         </Reveal>
       </section>

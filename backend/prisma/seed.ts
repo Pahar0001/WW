@@ -12,6 +12,7 @@
 import { PrismaClient, Pace, Prisma } from '@prisma/client';
 import { estimateBudget } from '../src/common/budget';
 import { seedSpb } from './seed-spb';
+import { seedCountryTrips } from './seed-countries';
 
 const prisma = new PrismaClient();
 const SRC = 'wikidata/openstreetmap (approx; verify before VERIFIED)';
@@ -514,6 +515,9 @@ async function main() {
 
   // Additional trip: Санкт-Петербург (PRIVATE, owned by the Super Admin).
   await seedSpb(prisma);
+
+  // Ознакомительные маршруты по странам сообщества (PUBLIC).
+  await seedCountryTrips(prisma);
 }
 
 main()
