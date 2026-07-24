@@ -39,8 +39,14 @@ export default function NetworkPage() {
   return (
     <main className="container-vela min-h-screen py-8 pb-28 md:pb-12">
       <SocialTabs />
-      <h1 className="font-serif text-3xl tracking-tightest md:text-4xl">Люди</h1>
-      <p className="mt-2 text-paper-dim">Находите попутчиков и друзей, отправляйте заявки.</p>
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Люди
+      </p>
+      <h1 className="font-serif display-2">Люди</h1>
+      <p className="mt-4 max-w-2xl text-lg text-paper-dim">
+        Находите попутчиков и друзей, отправляйте заявки.
+      </p>
 
       {friends && friends.incoming.length > 0 && (
         <Section title={`Входящие заявки (${friends.incoming.length})`}>
@@ -84,7 +90,7 @@ function UserRow({ user, rel, onChange }: { user: SocialUser & { bio?: string | 
   const act = async (fn: () => Promise<unknown>) => { setBusy(true); try { await fn(); onChange(); } finally { setBusy(false); } };
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-ink-line p-3">
+    <div className="flex items-center gap-3 rounded-xl border border-ink-line bg-ink-soft/40 p-3 shadow-soft transition-colors hover:border-aurora/30">
       <Avatar user={user} size={40} link />
       <div className="min-w-0 flex-1">
         <div className="truncate text-paper">{user.name || user.email}</div>

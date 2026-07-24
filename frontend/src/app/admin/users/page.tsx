@@ -64,7 +64,11 @@ export default function AdminUsersPage() {
         </div>
       </header>
 
-      <h1 className="font-serif text-4xl tracking-tightest">Администрирование</h1>
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Админка
+      </p>
+      <h1 className="font-serif display-2">Администрирование</h1>
 
       {/* Dashboard */}
       <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">

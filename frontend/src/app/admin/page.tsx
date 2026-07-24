@@ -53,15 +53,19 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <h1 className="font-serif text-4xl tracking-tightest">Панель управления</h1>
-      <p className="mt-3 max-w-2xl text-paper-dim">
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Админка
+      </p>
+      <h1 className="font-serif display-2">Панель управления</h1>
+      <p className="mt-4 max-w-2xl text-lg text-paper-dim">
         Добавляйте и удаляйте путешествия прямо здесь — без редактирования файлов.
         Координаты мест вводятся из проверенного источника (Google Maps / OSM) и
         сохраняются как оценочные. Бюджет рассчитается автоматически из указанного диапазона.
       </p>
 
       {/* Управление существующими путешествиями */}
-      <section className="mt-10 rounded-2xl border border-ink-line bg-ink-soft/40 p-6">
+      <section className="mt-10 rounded-2xl border border-ink-line bg-ink-soft/50 p-6 shadow-soft sm:p-8">
         <h2 className="font-serif text-2xl tracking-tightest">Существующие путешествия</h2>
         {trips.length === 0 ? (
           <p className="mt-3 text-sm text-paper-faint">Пока ничего нет.</p>

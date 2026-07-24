@@ -7,6 +7,8 @@ import { imageUrl } from '@/lib/api';
 import { social, type FeedTrip } from '@/lib/social';
 import { SocialTabs } from '@/components/social/SocialTabs';
 import { CommentThread } from '@/components/social/CommentThread';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function FeedPage() {
   const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
@@ -25,12 +27,33 @@ export default function FeedPage() {
   return (
     <main className="container-vela min-h-screen py-8 pb-28 md:pb-12">
       <SocialTabs />
-      <h1 className="font-serif text-3xl tracking-tightest md:text-4xl">Лента путешествий</h1>
-      <p className="mt-2 text-paper-dim">Публичные маршруты сообщества — лайкайте, комментируйте и репостите.</p>
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Лента
+      </p>
+      <h1 className="font-serif display-2">Лента путешествий</h1>
+      <p className="mt-4 max-w-2xl text-lg text-paper-dim">
+        Публичные маршруты сообщества — лайкайте, комментируйте и репостите.
+      </p>
 
       <div className="mt-8 space-y-6">
-        {!trips && <p className="text-paper-faint">Загрузка…</p>}
-        {trips && trips.length === 0 && <p className="text-paper-faint">Пока нет публичных путешествий.</p>}
+        {!trips &&
+          Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/40">
+              <Skeleton className="h-48 w-full rounded-none" />
+              <div className="space-y-3 p-5">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-7 w-2/3" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            </div>
+          ))}
+        {trips && trips.length === 0 && (
+          <EmptyState
+            title="Пока нет публичных путешествий"
+            hint="Как только появятся общедоступные маршруты, они окажутся здесь — с лайками, комментариями и репостами."
+          />
+        )}
         {trips?.map((t) => <TripCard key={t.id} trip={t} meId={me?.id} />)}
       </div>
     </main>
@@ -56,17 +79,20 @@ function TripCard({ trip, meId }: { trip: FeedTrip; meId?: string }) {
   }
 
   return (
-    <article className="overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/40">
+    <article className="card-lux group overflow-hidden rounded-2xl">
       <Link href={`/trips/${trip.slug}`} className="block">
         {hero && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={hero} alt={trip.title} className="h-48 w-full object-cover" />
+          <div className="relative h-52 w-full overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={hero} alt={trip.title} className="h-full w-full object-cover transition-transform duration-[1.4s] ease-smooth group-hover:scale-[1.05]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-ink-soft/70 to-transparent" />
+          </div>
         )}
-        <div className="p-5">
+        <div className="p-6">
           <div className="text-xs uppercase tracking-[0.2em] text-paper-faint">
             {trip.country?.name}{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''} · {trip.durationDays} дн.
           </div>
-          <h2 className="mt-1 font-serif text-2xl tracking-tightest text-paper">{trip.title}</h2>
+          <h2 className="mt-2 font-serif text-2xl tracking-tightest text-paper transition-colors group-hover:text-aurora">{trip.title}</h2>
           {trip.summary && <p className="mt-2 line-clamp-2 text-paper-dim">{trip.summary}</p>}
         </div>
       </Link>

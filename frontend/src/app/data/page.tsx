@@ -72,11 +72,14 @@ export default function HonestDataPage() {
       {/* Hero */}
       <section className="container-vela max-w-3xl pt-8">
         <Reveal>
-          <p className="text-sm uppercase tracking-[0.3em] text-paper-faint">Принцип Vela</p>
+          <p className="flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+            <span className="h-px w-8 bg-aurora/60" />
+            Принцип Vela
+          </p>
         </Reveal>
         <Reveal delay={0.08}>
-          <h1 className="mt-5 font-serif text-4xl leading-[1.08] tracking-tightest text-balance md:text-6xl">
-            Мы не выдумываем ваше <span className="text-aurora">путешествие</span>.
+          <h1 className="mt-5 font-serif display-2 text-balance">
+            Мы не выдумываем ваше <span className="text-gold-gradient">путешествие</span>.
           </h1>
         </Reveal>
         <Reveal delay={0.16}>
@@ -97,7 +100,7 @@ export default function HonestDataPage() {
         <div className="mt-8 grid gap-4 md:grid-cols-2">
           {PRINCIPLES.map((p, i) => (
             <Reveal key={i} delay={i * 0.05}>
-              <div className="h-full rounded-2xl border border-ink-line bg-ink-soft/50 p-7">
+              <div className="card-lux h-full rounded-2xl p-7">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-aurora/10 font-serif text-aurora">
                   {i + 1}
                 </div>
@@ -121,7 +124,7 @@ export default function HonestDataPage() {
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {STATUSES.map((s, i) => (
             <Reveal key={s.tag} delay={i * 0.05}>
-              <div className="h-full rounded-2xl border border-ink-line bg-ink-soft/50 p-7">
+              <div className="card-lux h-full rounded-2xl p-7">
                 <span className={`inline-block rounded-full border px-3 py-1 text-xs uppercase tracking-wider ${s.cls}`}>
                   {s.label}
                 </span>

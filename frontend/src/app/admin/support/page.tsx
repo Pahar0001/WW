@@ -64,8 +64,12 @@ export default function AdminSupportPage() {
         </div>
       </header>
 
-      <h1 className="font-serif text-4xl tracking-tightest">Чат поддержки</h1>
-      <p className="mt-2 text-paper-dim">Обращения пользователей. Выберите диалог и ответьте.</p>
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Админка
+      </p>
+      <h1 className="font-serif display-2">Чат поддержки</h1>
+      <p className="mt-3 text-lg text-paper-dim">Обращения пользователей. Выберите диалог и ответьте.</p>
 
       <div className="mt-8 grid gap-6 md:grid-cols-[320px_1fr]">
         {/* Threads list */}

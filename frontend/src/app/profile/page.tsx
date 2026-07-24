@@ -63,9 +63,13 @@ export default function ProfilePage() {
   return (
     <main className="container-vela min-h-screen py-8 pb-28 md:pb-12">
       <SocialTabs />
-      <h1 className="font-serif text-3xl tracking-tightest md:text-4xl">Мой профиль</h1>
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Профиль
+      </p>
+      <h1 className="font-serif display-2">Мой профиль</h1>
 
-      <div className="mt-6 rounded-2xl border border-ink-line bg-ink-soft/40 p-5">
+      <div className="mt-6 rounded-2xl border border-ink-line bg-ink-soft/50 p-6 shadow-soft sm:p-7">
         <div className="flex items-center gap-4">
           <Avatar user={{ ...me, image: image || me.image }} size={72} />
           <div>
@@ -95,7 +99,7 @@ export default function ProfilePage() {
       <div className="mt-4 space-y-4">
         {data && data.posts.length === 0 && <p className="text-paper-faint">Вы ещё ничего не публиковали.</p>}
         {data?.posts.map((p) => (
-          <div key={p.id} className="rounded-xl border border-ink-line p-4">
+          <div key={p.id} className="rounded-xl border border-ink-line bg-ink-soft/40 p-4 shadow-soft">
             <div className="text-xs text-paper-faint">{fmt(p.createdAt)}</div>
             <p className="mt-1 whitespace-pre-wrap text-paper">{p.text}</p>
             {p.imageUrl && (

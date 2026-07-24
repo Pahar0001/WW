@@ -9,8 +9,8 @@ import { EditTripLink } from '@/components/trip/EditTripLink';
 import { CopyTripLink } from '@/components/trip/CopyTripLink';
 import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
-import { Constellation } from '@/components/decor/TravelDecor';
 import { Reveal } from '@/components/ui/Reveal';
+import { Card } from '@/components/ui/Card';
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
   const token = cookies().get('vela_token')?.value;
@@ -64,45 +64,65 @@ export default async function TripPage({ params }: { params: { slug: string } })
         </div>
       </header>
 
-      {/* Заглавное изображение */}
-      {imageUrl(trip.heroImage) && (
-        <div className="container-vela">
-          <div className="relative h-64 w-full overflow-hidden rounded-2xl border border-ink-line md:h-96">
+      {/* ── Кинематографичный герой ── */}
+      {imageUrl(trip.heroImage) ? (
+        <section className="relative mb-16">
+          <div className="relative h-[62vh] min-h-[440px] w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imageUrl(trip.heroImage)!}
               alt={trip.title}
               className="h-full w-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/30 to-transparent" />
+            {/* Explicit dark overlay + light text (image is always dark). */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
+            <div className="absolute inset-x-0 bottom-0">
+              <div className="container-vela pb-10">
+                <Reveal>
+                  <p className="flex items-center gap-3 text-sm uppercase tracking-[0.28em] text-white/70">
+                    <span className="h-px w-8 bg-aurora/70" />
+                    {trip.country.name} · {trip.durationDays} дней{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''}
+                  </p>
+                </Reveal>
+                <Reveal delay={0.08}>
+                  <h1 className="mt-5 max-w-4xl font-serif display-2 text-white [text-shadow:0_2px_30px_rgba(0,0,0,0.55)]">
+                    {trip.title}
+                  </h1>
+                </Reveal>
+                {trip.summary && (
+                  <Reveal delay={0.16}>
+                    <p className="mt-5 max-w-2xl text-lg text-white/85 text-balance [text-shadow:0_1px_16px_rgba(0,0,0,0.5)]">
+                      {trip.summary}
+                    </p>
+                  </Reveal>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Hero */}
-      <section className="container-vela relative pb-16 pt-10">
-        <Constellation className="pointer-events-none absolute right-0 top-6 hidden w-32 text-aurora/40 lg:block" />
-        <Reveal>
-          <p className="text-sm uppercase tracking-[0.3em] text-paper-faint">
-            {trip.country.name} · {trip.durationDays} дней · {trip.seasonLabel}
-          </p>
-        </Reveal>
-        <Reveal delay={0.08}>
-          <h1 className="mt-5 max-w-4xl font-serif text-5xl leading-[1.05] tracking-tightest text-balance md:text-6xl">
-            {trip.title}
-          </h1>
-        </Reveal>
-        {trip.summary && (
-          <Reveal delay={0.16}>
-            <p className="mt-6 max-w-2xl text-lg text-paper-dim text-balance">
-              {trip.summary}
+        </section>
+      ) : (
+        <section className="container-vela relative pb-10 pt-10">
+          <Reveal>
+            <p className="flex items-center gap-3 text-sm uppercase tracking-[0.28em] text-paper-faint">
+              <span className="h-px w-8 bg-aurora/60" />
+              {trip.country.name} · {trip.durationDays} дней{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''}
             </p>
           </Reveal>
-        )}
+          <Reveal delay={0.08}>
+            <h1 className="mt-5 max-w-4xl font-serif display-2 text-balance">{trip.title}</h1>
+          </Reveal>
+          {trip.summary && (
+            <Reveal delay={0.16}>
+              <p className="mt-6 max-w-2xl text-lg text-paper-dim text-balance">{trip.summary}</p>
+            </Reveal>
+          )}
+        </section>
+      )}
 
-        {/* Quick facts */}
-        <Reveal delay={0.2}>
-          <div className="mt-10 flex flex-wrap gap-x-10 gap-y-4 border-y border-ink-line py-5 text-sm">
+      {/* Quick facts */}
+      <section className="container-vela pb-16">
+        <Reveal>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-6 rounded-2xl border border-ink-line bg-ink-soft/40 p-6 sm:grid-cols-4 sm:p-8">
             <Fact label="Длительность" value={`${trip.durationDays} дней`} />
             <Fact label="Сезон" value={trip.seasonLabel ?? '—'} />
             <Fact
@@ -130,7 +150,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
                 {trip.longDescription}
               </p>
               {trip.bestTime && (
-                <div className="mt-8 rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+                <div className="card-lux mt-8 rounded-xl p-5">
                   <div className="text-xs uppercase tracking-[0.25em] text-paper-faint">
                     Когда ехать
                   </div>
@@ -138,7 +158,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
                 </div>
               )}
               {trip.visaNote && (
-                <div className="mt-4 rounded-xl border border-ink-line bg-ink-soft/40 p-5">
+                <div className="card-lux mt-4 rounded-xl p-5">
                   <div className="text-xs uppercase tracking-[0.25em] text-paper-faint">
                     Виза
                   </div>
@@ -231,17 +251,17 @@ export default async function TripPage({ params }: { params: { slug: string } })
           <div className="grid gap-5 md:grid-cols-2">
             {trip.opinions.map((o, i) => (
               <Reveal key={i} delay={i * 0.05}>
-                <div className="rounded-2xl border border-ink-line bg-ink-soft/40 p-7">
+                <Card variant="lux" className="h-full p-7">
                   <div className="flex items-center justify-between">
                     <span className="text-xs uppercase tracking-[0.25em] text-paper-faint">
                       {o.persona}
                     </span>
                     {o.rating != null && (
-                      <span className="text-sm text-paper">{o.rating}</span>
+                      <span className="font-serif text-lg text-aurora">{o.rating}</span>
                     )}
                   </div>
                   <p className="mt-4 text-paper-dim">{o.verdict}</p>
-                </div>
+                </Card>
               </Reveal>
             ))}
           </div>
@@ -254,10 +274,10 @@ export default async function TripPage({ params }: { params: { slug: string } })
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-xs uppercase tracking-[0.25em] text-paper-faint">
+      <div className="text-xs uppercase tracking-[0.22em] text-paper-faint">
         {label}
       </div>
-      <div className="mt-1 text-paper">{value}</div>
+      <div className="mt-2 font-serif text-xl tracking-tightest text-paper">{value}</div>
     </div>
   );
 }

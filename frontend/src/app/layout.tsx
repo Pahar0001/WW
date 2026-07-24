@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import { SiteScenery } from '@/components/decor/SiteScenery';
+import { Atmosphere } from '@/components/fx/Atmosphere';
 import { SupportWidget } from '@/components/support/SupportWidget';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { TermsGate } from '@/components/auth/TermsGate';
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <SiteScenery />
+        <Atmosphere />
         {children}
         <SupportWidget />
         <AssistantWidget />

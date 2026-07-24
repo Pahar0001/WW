@@ -8,6 +8,8 @@ import { SocialTabs } from '@/components/social/SocialTabs';
 import { CommentThread } from '@/components/social/CommentThread';
 import { Avatar } from '@/components/social/Avatar';
 import { toast } from '@/components/ui/Toaster';
+import { Skeleton } from '@/components/ui/Skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 const fmt = (s: string) => new Date(s).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -29,14 +31,35 @@ export default function NewsPage() {
   return (
     <main className="container-vela min-h-screen py-8 pb-28 md:pb-12">
       <SocialTabs />
-      <h1 className="font-serif text-3xl tracking-tightest md:text-4xl">Новости путешествий</h1>
-      <p className="mt-2 text-paper-dim">Делитесь впечатлениями, советами и фотографиями из поездок.</p>
+      <p className="mb-3 flex items-center gap-3 text-xs uppercase tracking-[0.28em] text-paper-faint">
+        <span className="h-px w-8 bg-aurora/60" />
+        Новости
+      </p>
+      <h1 className="font-serif display-2">Новости путешествий</h1>
+      <p className="mt-4 max-w-2xl text-lg text-paper-dim">
+        Делитесь впечатлениями, советами и фотографиями из поездок.
+      </p>
 
       <Composer onPosted={load} />
 
       <div className="mt-8 space-y-5">
-        {!posts && <p className="text-paper-faint">Загрузка…</p>}
-        {posts && posts.length === 0 && <p className="text-paper-faint">Пока нет постов. Будьте первым!</p>}
+        {!posts &&
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-ink-line bg-ink-soft/50 p-5 shadow-soft">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-40" />
+                  <Skeleton className="h-2.5 w-24" />
+                </div>
+              </div>
+              <Skeleton className="mt-4 h-4 w-full" />
+              <Skeleton className="mt-2 h-4 w-3/4" />
+            </div>
+          ))}
+        {posts && posts.length === 0 && (
+          <EmptyState title="Пока нет постов" hint="Будьте первым — расскажите о своём путешествии." />
+        )}
         {me && posts?.map((p) => <PostCard key={p.id} post={p} me={me} onDeleted={load} />)}
       </div>
     </main>
@@ -70,7 +93,7 @@ function Composer({ onPosted }: { onPosted: () => void }) {
   }
 
   return (
-    <div className="mt-6 rounded-2xl border border-ink-line bg-ink-soft/40 p-5">
+    <div className="mt-6 rounded-2xl border border-ink-line bg-ink-soft/50 p-5 shadow-soft">
       <textarea
         className="min-h-[80px] w-full rounded-lg border border-ink-line bg-ink px-3 py-2 text-paper placeholder:text-paper-faint outline-none focus:border-aurora/60"
         placeholder="Что нового в ваших путешествиях?" value={text} onChange={(e) => setText(e.target.value)}
@@ -105,7 +128,7 @@ function PostCard({ post, me, onDeleted }: { post: NewsPost; me: AuthUser; onDel
   }
 
   return (
-    <article className="rounded-2xl border border-ink-line bg-ink-soft/40 p-5">
+    <article className="rounded-2xl border border-ink-line bg-ink-soft/50 p-5 shadow-soft">
       <div className="flex items-center gap-3">
         <Avatar user={post.author} size={40} link />
         <div className="flex-1">
