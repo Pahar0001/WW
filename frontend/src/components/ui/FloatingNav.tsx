@@ -102,32 +102,38 @@ export function FloatingNav() {
         hidden ? 'translate-y-24 opacity-0' : 'translate-y-0 opacity-100'
       }`}
     >
-      <nav className="glass pointer-events-auto flex max-w-[95vw] items-center gap-1.5 overflow-x-auto rounded-2xl px-2 py-2 shadow-soft-lg">
+      {/* ВАЖНО: overflow-x-auto стоит только на внутреннем контейнере ссылок.
+          На самой «пилюле» его быть не должно — любой overflow ≠ visible
+          обрезает выпадающее меню профиля (absolute вверх), и клик по аватару
+          «не работает»: меню открывается невидимым. */}
+      <nav className="glass pointer-events-auto flex max-w-[95vw] items-center gap-1.5 rounded-2xl px-2 py-2 shadow-soft-lg">
         {/* Логотип */}
         <Link
           href="/"
           data-magnetic
-          className="mr-1 flex items-center gap-2 rounded-xl bg-paper px-3.5 py-2 font-serif text-lg leading-none tracking-tightest text-ink"
+          className="mr-1 flex shrink-0 items-center gap-2 rounded-xl bg-paper px-3.5 py-2 font-serif text-lg leading-none tracking-tightest text-ink"
           aria-label="Vela — на главную"
         >
           <span className="text-[13px] text-aurora">和</span>
           Vela
         </Link>
 
-        {/* Разделы */}
-        {links.map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className={`shrink-0 rounded-xl px-3.5 py-2 text-sm transition-colors ${
-              isActive(l.href)
-                ? 'bg-ink-line/60 text-paper'
-                : 'text-paper-dim hover:bg-ink-line/40 hover:text-paper'
-            }`}
-          >
-            {l.label}
-          </Link>
-        ))}
+        {/* Разделы — при нехватке места скроллятся внутри, не обрезая меню */}
+        <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+          {links.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className={`shrink-0 rounded-xl px-3.5 py-2 text-sm transition-colors ${
+                isActive(l.href)
+                  ? 'bg-ink-line/60 text-paper'
+                  : 'text-paper-dim hover:bg-ink-line/40 hover:text-paper'
+              }`}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </div>
 
         <span className="mx-1 h-6 w-px shrink-0 bg-ink-line" />
 
