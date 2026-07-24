@@ -1,10 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import { extname, join } from 'path';
+import { join } from 'path';
+import { PrismaService } from '../prisma/prisma.service';
 
-// Where local-disk files live (also served statically at /uploads, see main.ts).
+// Legacy local-disk dir (still served statically at /uploads for old files).
 export const UPLOAD_DIR = join(process.cwd(), 'uploads');
 
 /**
@@ -22,6 +21,8 @@ export class StorageService {
   private readonly bucket = process.env.S3_BUCKET;
   private readonly publicUrl = process.env.S3_PUBLIC_URL?.replace(/\/$/, '');
   private readonly client = this.makeClient();
+
+  constructor(private readonly prisma: PrismaService) {}
 
   isRemote(): boolean {
     return Boolean(this.client && this.bucket && this.publicUrl);
@@ -41,7 +42,7 @@ export class StorageService {
   }
 
   async save(buffer: Buffer, originalName: string, mime: string): Promise<string> {
-    const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extname(originalName).toLowerCase()}`;
+    const key = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     if (this.isRemote()) {
       try {
@@ -50,25 +51,28 @@ export class StorageService {
         );
         return `${this.publicUrl}/${key}`;
       } catch (err) {
-        // Don't 500 the whole upload if the bucket/credentials are misconfigured
-        // — log the real reason and fall back to local disk so the feature works.
-        const e = err as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } };
+        // Don't 500 if the bucket/credentials are misconfigured — log the real
+        // reason and fall back to the persistent DB store so uploads keep working.
+        const e = err as { name?: string; message?: string };
         this.logger.error(
-          `S3 upload failed (${e?.name ?? 'Error'}: ${e?.message ?? err}) — falling back to local disk. ` +
+          `S3 upload failed (${e?.name ?? 'Error'}: ${e?.message ?? err}) — falling back to DB store. ` +
             `Check S3_ENDPOINT/S3_REGION (Supabase needs the real project region, not "auto"), ` +
             `S3_BUCKET, keys and that the bucket is public.`,
         );
       }
     }
 
-    // Local fallback (also the dev / no-S3 path). Ephemeral on Render free tier.
-    if (!existsSync(UPLOAD_DIR)) await mkdir(UPLOAD_DIR, { recursive: true });
-    await writeFile(join(UPLOAD_DIR, key), buffer);
-    if (!this.isRemote() && !this.warned) {
-      this.logger.warn('S3 not configured — using local disk (ephemeral on Render free).');
-      this.warned = true;
-    }
-    return `/uploads/${key}`;
+    // Persistent fallback: store the bytes in the database (survives restarts on
+    // the free tier, unlike the ephemeral container disk). Served via GET /api/uploads/:id.
+    const row = await this.prisma.upload.create({
+      data: { mime, data: buffer, size: buffer.length },
+    });
+    return `/api/uploads/${row.id}`;
   }
-  private warned = false;
+
+  /** Fetch a DB-stored upload for serving. */
+  async getUpload(id: string): Promise<{ mime: string; data: Buffer } | null> {
+    const row = await this.prisma.upload.findUnique({ where: { id } });
+    return row ? { mime: row.mime, data: Buffer.from(row.data) } : null;
+  }
 }

@@ -708,3 +708,15 @@ model SavedTrip {
   createdAt DateTime @default(now())
   @@unique([userId, tripId])
 }
+
+// Persistent storage for uploaded files (avatars, post/gallery photos).
+// Kept in the DB so images survive container restarts on the free tier
+// (local disk is ephemeral, and external S3 needs correct env config).
+// Served via GET /api/uploads/:id.
+model Upload {
+  id        String   @id @default(cuid())
+  mime      String
+  data      Bytes
+  size      Int
+  createdAt DateTime @default(now())
+}

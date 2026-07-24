@@ -1,4 +1,5 @@
 import { getRegime, ENTRY_CHECKLIST, type Regime } from '@/lib/entry-requirements';
+import { getEmbassy } from '@/lib/embassies';
 
 const toneClass: Record<Regime['tone'], string> = {
   ok: 'border-emerald-500/40 text-emerald-600 dark:text-emerald-300',
@@ -14,6 +15,7 @@ const toneClass: Record<Regime['tone'], string> = {
  */
 export function EntryRequirements({ code, countryName }: { code: string; countryName: string }) {
   const { regime, hint } = getRegime(code);
+  const embassy = getEmbassy(code);
 
   return (
     <section className="card-lux mt-6 overflow-hidden rounded-2xl p-6 sm:p-8">
@@ -47,6 +49,22 @@ export function EntryRequirements({ code, countryName }: { code: string; country
           перед поездкой.
         </p>
       </div>
+
+      {/* Официальный источник (посольство / консульство) */}
+      {embassy && (
+        <a
+          href={embassy}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="relative mt-4 inline-flex items-center gap-2.5 rounded-full border border-ink-line bg-ink-soft/50 px-5 py-2.5 text-sm font-medium text-paper transition-colors hover:border-aurora/50"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 21V10l8-6 8 6v11M4 21h16M9 21v-6h6v6M3 10h18" />
+          </svg>
+          Посольство и визовые вопросы
+          <span className="text-paper-faint">↗</span>
+        </a>
+      )}
 
       {/* Универсальный чек-лист */}
       <div className="relative mt-6 grid gap-x-8 gap-y-5 sm:grid-cols-2">
