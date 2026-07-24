@@ -144,6 +144,7 @@ export interface Trip {
   opinions: TripOpinion[];
   hotels?: Hotel[];
   _count?: { members: number };
+  rating?: { avg: number; count: number; mine: number | null };
 }
 
 async function get<T>(path: string, token?: string): Promise<T | null> {
@@ -408,4 +409,18 @@ export async function uploadImage(
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
+}
+
+/** Submit a 1–5 star rating for a trip; returns the fresh aggregate. */
+export async function rateTrip(
+  slug: string,
+  stars: number,
+): Promise<{ avg: number; count: number; mine: number | null }> {
+  const res = await fetch(`${BROWSER_BASE}/trips/${slug}/rate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body: JSON.stringify({ stars }),
+  });
+  if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+  return res.json();
 }

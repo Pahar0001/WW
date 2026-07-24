@@ -89,6 +89,24 @@ const COUNTRIES: CountrySeed[] = [
   { code: 'gb', name: 'Великобритания', landmark: 'Big Ben', title: 'Великобритания — Лондон и Шотландия', subtitle: 'Лондон, Эдинбург и графства', summary: 'История и характер: имперский Лондон, шотландские замки и зелёные графства.', highlights: ['Лондон', 'Шотландия и Эдинбург', 'Стоунхендж и Бат', 'Озёрный край'], bestTime: 'Май–сентябрь.', seasonLabel: 'Май–сентябрь', durationDays: 7 },
 ];
 
+// Строит читаемый план «по дням» из ключевых мест страны (ориентир, не точный
+// маршрут — точки/бюджет пользователь настраивает в конструкторе).
+function buildItinerary(highlights: string[], days: number): string {
+  if (highlights.length === 0) return '';
+  const perStop = Math.max(1, Math.round(days / highlights.length));
+  const lines: string[] = [];
+  let d = 1;
+  highlights.forEach((h, i) => {
+    const end = i === highlights.length - 1 ? days : Math.min(days, d + perStop - 1);
+    if (d > days) return;
+    const range = d >= end ? `День ${d}` : `Дни ${d}–${end}`;
+    const lead = i === 0 ? 'Прибытие, акклиматизация и ' : '';
+    lines.push(`• ${range} — ${lead}${h}.`);
+    d = end + 1;
+  });
+  return lines.join('\n');
+}
+
 export async function seedCountryTrips(prisma: PrismaClient) {
   let ok = 0;
   for (const c of COUNTRIES) {
@@ -101,10 +119,17 @@ export async function seedCountryTrips(prisma: PrismaClient) {
     const hero = await fetchWikiImage(c.landmark);
     await sleep(250); // мягкая пауза между странами
     const slug = `${c.code}-znakomstvo`;
+    const itinerary = buildItinerary(c.highlights, c.durationDays);
     const longDescription =
-      `${c.summary} ` +
-      'Это ознакомительный маршрут: общие ориентиры по стране, ключевые места и сезон. ' +
-      'Детальный план по дням — с картой, отелями и бюджетом — соберите под себя в конструкторе поездки.';
+      `${c.summary}\n\n` +
+      `Что успеть за ${c.durationDays} дней. ${c.bestTime} Ниже — примерный план по дням: ` +
+      'это ориентир, чтобы почувствовать ритм поездки. Точный маршрут с точками на карте, ' +
+      'отелями и бюджетом вы настраиваете под себя в конструкторе.\n\n' +
+      'Примерный план по дням:\n' +
+      itinerary +
+      '\n\nПрактика. Сверьте визовый режим и документы в разделе «Сообщество» по этой стране — ' +
+      'там же справка по въезду/выезду и ссылка на посольство. Бюджет и цены рассчитываются под ' +
+      'конкретные даты в конструкторе и помечаются как оценка.';
 
     const data = {
       slug,

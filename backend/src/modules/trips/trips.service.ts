@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface Accessor { id: string; role: string }
@@ -560,7 +560,48 @@ export class TripsService {
       },
     });
     if (!trip) throw new NotFoundException(`Trip "${slug}" not found`);
-    return trip;
+
+    // User star ratings: average, count, and the accessor's own rating.
+    const [agg, mine] = await Promise.all([
+      this.prisma.tripRating.aggregate({
+        where: { tripId: trip.id },
+        _avg: { stars: true },
+        _count: true,
+      }),
+      accessor
+        ? this.prisma.tripRating.findUnique({
+            where: { tripId_userId: { tripId: trip.id, userId: accessor.id } },
+          })
+        : Promise.resolve(null),
+    ]);
+    return {
+      ...trip,
+      rating: {
+        avg: agg._avg.stars ?? 0,
+        count: agg._count,
+        mine: mine?.stars ?? null,
+      },
+    };
+  }
+
+  /** Upsert the accessor's 1–5 star rating for a trip; returns fresh aggregate. */
+  async rate(slug: string, userId: string, stars: number) {
+    if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+      throw new BadRequestException('Оценка должна быть от 1 до 5.');
+    }
+    const trip = await this.prisma.trip.findUnique({ where: { slug }, select: { id: true } });
+    if (!trip) throw new NotFoundException(`Trip "${slug}" not found`);
+    await this.prisma.tripRating.upsert({
+      where: { tripId_userId: { tripId: trip.id, userId } },
+      update: { stars },
+      create: { tripId: trip.id, userId, stars },
+    });
+    const agg = await this.prisma.tripRating.aggregate({
+      where: { tripId: trip.id },
+      _avg: { stars: true },
+      _count: true,
+    });
+    return { avg: agg._avg.stars ?? 0, count: agg._count, mine: stars };
   }
 
   /**

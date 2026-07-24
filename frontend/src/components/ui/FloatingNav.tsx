@@ -8,8 +8,22 @@ import { network } from '@/lib/network';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Avatar } from '@/components/social/Avatar';
 
-// Routes where the floating nav should stay out of the way (their own chrome).
-const HIDDEN_PREFIXES = ['/admin', '/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
+// Routes where the floating nav should stay out of the way — their own chrome
+// (admin/auth) or a social page that already has its own top tab bar (SocialTabs).
+const HIDDEN_PREFIXES = [
+  '/admin',
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/feed',
+  '/news',
+  '/community',
+  '/network',
+  '/notifications',
+  '/profile',
+];
 
 const publicLinks = [
   { href: '/', label: 'Главная' },

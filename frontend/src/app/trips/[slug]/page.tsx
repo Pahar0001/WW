@@ -8,6 +8,7 @@ import { PlanLink } from '@/components/trip/PlanLink';
 import { EditTripLink } from '@/components/trip/EditTripLink';
 import { CopyTripLink } from '@/components/trip/CopyTripLink';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
+import { TripRating } from '@/components/trip/TripRating';
 import { Reveal } from '@/components/ui/Reveal';
 import { Card } from '@/components/ui/Card';
 
@@ -117,6 +118,13 @@ export default async function TripPage({ params }: { params: { slug: string } })
             />
             <Fact label="Вариантов темпа" value={trip.variants.length > 0 ? String(trip.variants.length) : '—'} />
           </div>
+        </Reveal>
+      </section>
+
+      {/* Оценки пользователей (звёзды) */}
+      <section className="container-vela pb-16">
+        <Reveal>
+          <TripRating slug={params.slug} initial={trip.rating} />
         </Reveal>
       </section>
 

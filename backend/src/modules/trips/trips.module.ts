@@ -91,6 +91,14 @@ class TripsController {
     return this.trips.copyTrip(slug, user.id);
   }
 
+  // Star rating (1–5). One per user per trip; upserts.
+  @Post(':slug/rate')
+  @UseGuards(JwtAuthGuard)
+  rate(@Param('slug') slug: string, @Body() body: { stars?: number }, @CurrentUser() user: AuthUser) {
+    const stars = Number(body?.stars);
+    return this.trips.rate(slug, user.id, stars);
+  }
+
   @Patch(':slug')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ORGANIZER, UserRole.ADMIN) // everyone except MEMBER

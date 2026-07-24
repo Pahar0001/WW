@@ -132,11 +132,6 @@ export function Hero({ featured, tripCount }: { featured: Trip | null; tripCount
             </Link>
           )}
         </div>
-
-        {/* Vertical side label */}
-        <div className="pointer-events-none absolute -right-2 top-1/2 hidden -translate-y-1/2 rotate-90 text-[10px] uppercase tracking-[0.4em] text-paper-faint xl:block">
-          На честных данных
-        </div>
       </motion.div>
 
     </section>
