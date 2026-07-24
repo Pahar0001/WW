@@ -7,6 +7,7 @@ import { TextReveal } from '@/components/ui/Motion';
 import type { Trip } from '@/lib/api';
 import { plural } from '@/lib/plural';
 import { getHeroMedia } from '@/lib/hero-media';
+import { COUNTRY_COORDS, type GlobeMarker } from '@/lib/country-coords';
 
 // WebGL only on the client (no SSR).
 const Hero3D = dynamic(() => import('@/components/ui/Hero3D').then((m) => m.Hero3D), {
@@ -15,10 +16,31 @@ const Hero3D = dynamic(() => import('@/components/ui/Hero3D').then((m) => m.Hero
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; tripCount: number }) {
+export function HeroImmersive({
+  featured,
+  tripCount,
+  trips = [],
+}: {
+  featured: Trip | null;
+  tripCount: number;
+  trips?: Trip[];
+}) {
   // Задел под Higgsfield: генеративное фото/видео ложится ПОД 3D-сцену
   // (см. lib/hero-media.ts); без него — текущее поведение, только глобус.
   const media = getHeroMedia();
+
+  // Кликабельные страны на глобусе: одна точка на страну (первый маршрут),
+  // реальные координаты из COUNTRY_COORDS.
+  const markers: GlobeMarker[] = [];
+  const seen = new Set<string>();
+  for (const t of trips) {
+    const slug = t.country.slug;
+    if (!slug || seen.has(slug)) continue;
+    const coords = COUNTRY_COORDS[slug];
+    if (!coords) continue;
+    seen.add(slug);
+    markers.push({ slug: t.slug, name: t.country.name, ...coords });
+  }
   return (
     <section className="relative min-h-[100svh] overflow-hidden bg-[#0d0b08] text-white">
       {media.kind === 'image' && (
@@ -37,9 +59,9 @@ export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; 
           className="absolute inset-0 h-full w-full object-cover opacity-40"
         />
       )}
-      {/* 3D backdrop */}
+      {/* 3D backdrop — глобус интерактивный: наведите на точку-страну и кликните */}
       <div className="absolute inset-0">
-        <Hero3D />
+        <Hero3D markers={markers} />
       </div>
       {/* Vignette + fades + left scrim for text legibility over the globe */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_50%_40%,transparent_35%,rgba(13,11,8,0.7)_100%)]" />
@@ -47,7 +69,9 @@ export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; 
       <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-[#0d0b08] to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0d0b08] to-transparent" />
 
-      <div className="container-vela relative z-10 flex min-h-[100svh] flex-col justify-center py-28">
+      {/* pointer-events-none: клики проходят сквозь текстовый слой к глобусу;
+          интерактивные элементы возвращают pointer-events-auto точечно. */}
+      <div className="pointer-events-none container-vela relative z-10 flex min-h-[100svh] flex-col justify-center py-28">
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -76,7 +100,7 @@ export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; 
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: EASE, delay: 0.62 }}
-          className="mt-10 flex flex-wrap items-center gap-4"
+          className="pointer-events-auto mt-10 flex flex-wrap items-center gap-4"
         >
           <Link
             href="#dream-trips"
@@ -124,14 +148,28 @@ export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; 
           >
             <Link
               href={`/trips/${featured.slug}`}
-              className="group inline-flex items-center gap-3 text-sm text-white/60 transition-colors hover:text-white"
+              className="group pointer-events-auto inline-flex items-center gap-3 text-sm text-white/60 transition-colors hover:text-white"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-aurora" />
-              Маршрут недели · {featured.country.name} — {featured.title}
+              Маршрут недели · {featured.title}
               <span className="transition-transform duration-500 group-hover:translate-x-1">→</span>
             </Link>
           </motion.div>
         )}
+
+        {/* Подсказка про интерактивный глобус */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, ease: EASE, delay: 1.2 }}
+          className="mt-6 flex items-center gap-2.5 text-xs uppercase tracking-[0.2em] text-white/40"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-aurora/60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-aurora/80" />
+          </span>
+          Точки на глобусе — страны: наведите и откройте маршрут
+        </motion.p>
       </div>
     </section>
   );

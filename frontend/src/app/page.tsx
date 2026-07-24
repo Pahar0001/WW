@@ -27,7 +27,7 @@ export default async function HomePage() {
       <Marquee />
 
       {/* Заглавный экран — иммерсивный 3D-герой */}
-      <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} />
+      <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} trips={trips} />
 
       {/* Быстрое меню по разделам */}
       <HomeMenu />

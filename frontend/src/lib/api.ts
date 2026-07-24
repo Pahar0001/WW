@@ -138,7 +138,7 @@ export interface Trip {
   budgetMaxRub?: number | null;
   visibility?: 'PUBLIC' | 'PRIVATE';
   status?: 'DRAFT' | 'PUBLISHED' | 'HIDDEN';
-  country: { name: string; nameLocal?: string | null };
+  country: { name: string; nameLocal?: string | null; slug?: string };
   variants: RouteVariant[];
   scores?: TripScore | null;
   opinions: TripOpinion[];

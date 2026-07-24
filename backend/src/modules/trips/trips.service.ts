@@ -479,7 +479,8 @@ export class TripsService {
         heroImage: true,
         durationDays: true,
         seasonLabel: true,
-        country: { select: { name: true } },
+        // slug страны нужен фронту для маркеров на 3D-глобусе (география клика)
+        country: { select: { name: true, slug: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
