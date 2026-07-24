@@ -27,6 +27,7 @@ const HIDDEN_PREFIXES = [
 
 const publicLinks = [
   { href: '/', label: 'Главная' },
+  { href: '/order', label: 'Заказать' },
   { href: '/community', label: 'Сообщество' },
   { href: '/data', label: 'Данные' },
 ];

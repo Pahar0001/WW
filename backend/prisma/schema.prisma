@@ -576,8 +576,34 @@ model User {
   friendshipsSent     Friendship[]   @relation("FriendRequester")
   friendshipsReceived Friendship[]   @relation("FriendAddressee")
   notifications       Notification[] @relation("UserNotifications")
+  tripOrders          TripOrder[]    @relation("UserTripOrders")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+// ─────────────────────────── Заказ путешествия ───────────────────────────
+
+enum TripOrderStatus {
+  NEW          // новая заявка, админ ещё не смотрел
+  IN_PROGRESS  // админ взял в работу
+  DONE         // маршрут подготовлен / заявка закрыта
+  DECLINED     // отклонена (с пояснением в adminNote)
+}
+
+// Заявка «закажите мне путешествие»: пользователь описывает пожелание своими
+// словами, ИИ конкретизирует его в структурированный бриф, админ обрабатывает.
+model TripOrder {
+  id        String          @id @default(cuid())
+  userId    String
+  user      User            @relation("UserTripOrders", fields: [userId], references: [id], onDelete: Cascade)
+  wish      String          // исходное пожелание пользователя (как написал)
+  brief     String?         // ИИ-конкретизированный бриф (может быть отредактирован пользователем)
+  status    TripOrderStatus @default(NEW)
+  adminNote String?         // ответ/комментарий админа (виден пользователю)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 // ─────────────────────────── Social / networking ───────────────────────────

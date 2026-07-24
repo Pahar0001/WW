@@ -278,6 +278,83 @@ export async function getTravelPlan(
   }
 }
 
+// ── Заказ путешествия (пожелание → ИИ-бриф → админ) ──
+
+export type TripOrderStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'DECLINED';
+
+export interface TripOrder {
+  id: string;
+  wish: string;
+  brief?: string | null;
+  status: TripOrderStatus;
+  adminNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: { id: string; email: string; name?: string | null };
+}
+
+async function post<T>(path: string, body: unknown): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: (data as any)?.message ?? 'Ошибка запроса' };
+    return { ok: true, data: data as T };
+  } catch {
+    return { ok: false, error: 'Сеть недоступна. Попробуйте ещё раз.' };
+  }
+}
+
+/** ИИ-конкретизация пожелания (предпросмотр брифа, без сохранения). */
+export const refineOrder = (wish: string) =>
+  post<{ brief: string | null; configured: boolean }>('/orders/refine', { wish });
+
+/** Отправить заявку админу. */
+export const createOrder = (wish: string, brief?: string | null) =>
+  post<TripOrder>('/orders', { wish, brief });
+
+/** Мои заявки. Browser-only. */
+export async function listMyOrders(): Promise<TripOrder[]> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/orders/mine`, { headers: authHeader(), cache: 'no-store' });
+    if (!res.ok) return [];
+    return (await res.json()) as TripOrder[];
+  } catch {
+    return [];
+  }
+}
+
+/** Все заявки (админка). */
+export async function adminListOrders(): Promise<TripOrder[]> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/orders`, { headers: authHeader(), cache: 'no-store' });
+    if (!res.ok) return [];
+    return (await res.json()) as TripOrder[];
+  } catch {
+    return [];
+  }
+}
+
+/** Обновить статус/комментарий заявки (админка). */
+export async function adminUpdateOrder(
+  id: string,
+  patch: { status?: TripOrderStatus; adminNote?: string },
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/orders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify(patch),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Trips the logged-in user belongs to (incl. private). Browser-only (uses token). */
 export async function listMyTrips(): Promise<Trip[]> {
   try {

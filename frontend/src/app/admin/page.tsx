@@ -47,6 +47,7 @@ export default function AdminPage() {
         <div className="flex items-center gap-5 text-sm">
           <Link href="/admin/users" data-cursor="hover" className="text-paper-dim hover:text-paper">Пользователи</Link>
           <Link href="/admin/support" data-cursor="hover" className="text-paper-dim hover:text-paper">Поддержка</Link>
+          <Link href="/admin/orders" data-cursor="hover" className="text-paper-dim hover:text-paper">Заявки</Link>
           <Link href="/" data-cursor="hover" className="text-paper-dim hover:text-paper">← На главную</Link>
           <span className="text-paper-faint">{me?.email}</span>
           <button onClick={() => logout()} className="rounded-full border border-ink-line px-3 py-1 text-paper-dim hover:text-paper">Выйти</button>

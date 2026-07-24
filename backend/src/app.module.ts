@@ -16,6 +16,7 @@ import { NetworkModule } from './modules/network/network.module';
 import { CommunityModule } from './modules/community/community.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { TravelModule } from './modules/travel/travel.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { TravelModule } from './modules/travel/travel.module';
     IntegrationsModule,
     UploadsModule,
     TravelModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}
