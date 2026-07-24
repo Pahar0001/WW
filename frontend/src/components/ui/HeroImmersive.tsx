@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { TextReveal } from '@/components/ui/Motion';
 import type { Trip } from '@/lib/api';
 import { plural } from '@/lib/plural';
+import { getHeroMedia } from '@/lib/hero-media';
 
 // WebGL only on the client (no SSR).
 const Hero3D = dynamic(() => import('@/components/ui/Hero3D').then((m) => m.Hero3D), {
@@ -15,8 +16,27 @@ const Hero3D = dynamic(() => import('@/components/ui/Hero3D').then((m) => m.Hero
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; tripCount: number }) {
+  // Задел под Higgsfield: генеративное фото/видео ложится ПОД 3D-сцену
+  // (см. lib/hero-media.ts); без него — текущее поведение, только глобус.
+  const media = getHeroMedia();
   return (
     <section className="relative min-h-[100svh] overflow-hidden bg-[#0d0b08] text-white">
+      {media.kind === 'image' && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={media.src} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-40" />
+      )}
+      {media.kind === 'video' && (
+        <video
+          src={media.src}
+          poster={media.poster}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover opacity-40"
+        />
+      )}
       {/* 3D backdrop */}
       <div className="absolute inset-0">
         <Hero3D />
@@ -61,7 +81,7 @@ export function HeroImmersive({ featured, tripCount }: { featured: Trip | null; 
           <Link
             href="#dream-trips"
             data-magnetic
-            className="sheen group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-sm font-medium text-[#0d0b08] transition-transform duration-500 ease-smooth hover:-translate-y-0.5"
+            className="sheen glow-gold group relative inline-flex items-center gap-3 overflow-hidden rounded-full bg-white px-8 py-4 text-sm font-medium text-[#0d0b08] transition-transform duration-500 ease-smooth hover:-translate-y-0.5"
           >
             <span className="relative">Все маршруты</span>
             <span className="relative grid h-8 w-8 place-items-center rounded-full bg-aurora text-aurora-fg transition-transform duration-500 ease-smooth group-hover:translate-x-0.5">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { imageUrl, type Trip } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { FadeIn } from '@/components/ui/Motion';
+import { pluralize } from '@/lib/plural';
 
 const PREVIEW = 4; // сколько маршрутов показываем в свёрнутом виде
 
@@ -38,7 +39,7 @@ export function TripCollection({ trips }: { trips: Trip[] }) {
                 <div className="p-8">
                   <div className="flex items-baseline justify-between text-xs text-paper-faint">
                     <span className="uppercase tracking-[0.22em]">{t.seasonLabel ?? 'Круглый год'}</span>
-                    <span>{t.durationDays} дней</span>
+                    <span>{pluralize(t.durationDays, 'день', 'дня', 'дней')}</span>
                   </div>
                   <h3 className="mt-4 font-serif text-2xl tracking-tightest text-paper md:text-3xl">{t.title}</h3>
                   {t.subtitle && <p className="mt-2 text-paper-dim">{t.subtitle}</p>}

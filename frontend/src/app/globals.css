@@ -166,6 +166,18 @@
     background: radial-gradient(circle, var(--halo), transparent 70%);
   }
 
+  /* Мягкое золотое свечение премиум-кнопок (hover). Без резких эффектов:
+     длинная плавная кривая, свечение из палитры (aurora), не неон. */
+  .glow-gold {
+    transition: box-shadow 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .glow-gold:hover {
+    box-shadow:
+      0 0 0 1px hsl(var(--primary) / 0.35),
+      0 6px 18px -6px hsl(var(--primary) / 0.4),
+      0 16px 56px -12px hsl(var(--primary) / 0.45);
+  }
+
   /* Light-sweep sheen for buttons. */
   .sheen::before {
     content: '';

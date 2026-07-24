@@ -16,11 +16,11 @@ const sizes: Record<ButtonSize, string> = {
 
 const variants: Record<ButtonVariant, string> = {
   // dark charcoal pill with cream text (primary CTA)
-  primary: 'sheen bg-paper text-ink shadow-soft-lg hover:-translate-y-0.5',
+  primary: 'sheen glow-gold bg-paper text-ink shadow-soft-lg hover:-translate-y-0.5',
   // antique-gold fill
-  gold: 'sheen bg-aurora text-aurora-fg shadow-soft hover:-translate-y-0.5',
+  gold: 'sheen glow-gold bg-aurora text-aurora-fg shadow-soft hover:-translate-y-0.5',
   // hairline outline
-  outline: 'border border-ink-line text-paper hover:border-aurora/50 hover:-translate-y-0.5',
+  outline: 'glow-gold border border-ink-line text-paper hover:border-aurora/50 hover:-translate-y-0.5',
   // text-only
   ghost: 'px-1 text-paper-dim hover:text-paper',
 };
