@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { api, imageUrl } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
-import { SpendEstimator } from '@/components/trip/SpendEstimator';
+import { TripCosts } from '@/components/trip/TripCosts';
 import { PlanLink } from '@/components/trip/PlanLink';
 import { EditTripLink } from '@/components/trip/EditTripLink';
 import { CopyTripLink } from '@/components/trip/CopyTripLink';
@@ -11,6 +11,7 @@ import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { TripRating } from '@/components/trip/TripRating';
 import { Reveal } from '@/components/ui/Reveal';
 import { Card } from '@/components/ui/Card';
+import { pluralize } from '@/lib/plural';
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
   const token = cookies().get('vela_token')?.value;
@@ -57,24 +58,27 @@ export default async function TripPage({ params }: { params: { slug: string } })
               alt={trip.title}
               className="h-full w-full object-cover"
             />
-            {/* Explicit dark overlay + light text (image is always dark). */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
+            {/* Explicit dark overlay + light text (image is always dark).
+                Двойной скрим: общий градиент + локальная виньетка за текстом —
+                текст читается на любом фото, включая светлые участки. */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/15" />
+            <div className="absolute inset-0 bg-[radial-gradient(85%_65%_at_18%_88%,rgba(0,0,0,0.62),transparent_72%)]" />
             <div className="absolute inset-x-0 bottom-0">
-              <div className="container-vela pb-10">
+              <div className="container-vela pb-12">
                 <Reveal>
-                  <p className="flex items-center gap-3 text-sm uppercase tracking-[0.28em] text-white/70">
-                    <span className="h-px w-8 bg-aurora/70" />
-                    {trip.country.name} · {trip.durationDays} дней{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''}
+                  <p className="flex items-center gap-3 text-sm uppercase tracking-[0.28em] text-white/85 [text-shadow:0_1px_12px_rgba(0,0,0,0.7)]">
+                    <span className="h-px w-8 bg-aurora/80" />
+                    {trip.country.name} · {pluralize(trip.durationDays, 'день', 'дня', 'дней')}{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''}
                   </p>
                 </Reveal>
                 <Reveal delay={0.08}>
-                  <h1 className="mt-5 max-w-4xl font-serif display-2 text-white [text-shadow:0_2px_30px_rgba(0,0,0,0.55)]">
+                  <h1 className="mt-5 max-w-4xl font-serif display-2 text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.75),0_10px_50px_rgba(0,0,0,0.5)]">
                     {trip.title}
                   </h1>
                 </Reveal>
                 {trip.summary && (
                   <Reveal delay={0.16}>
-                    <p className="mt-5 max-w-2xl text-lg text-white/85 text-balance [text-shadow:0_1px_16px_rgba(0,0,0,0.5)]">
+                    <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/95 text-balance [text-shadow:0_1px_10px_rgba(0,0,0,0.8),0_4px_28px_rgba(0,0,0,0.55)]">
                       {trip.summary}
                     </p>
                   </Reveal>
@@ -88,7 +92,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
           <Reveal>
             <p className="flex items-center gap-3 text-sm uppercase tracking-[0.28em] text-paper-faint">
               <span className="h-px w-8 bg-aurora/60" />
-              {trip.country.name} · {trip.durationDays} дней{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''}
+              {trip.country.name} · {pluralize(trip.durationDays, 'день', 'дня', 'дней')}{trip.seasonLabel ? ` · ${trip.seasonLabel}` : ''}
             </p>
           </Reveal>
           <Reveal delay={0.08}>
@@ -106,7 +110,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
       <section className="container-vela pb-16">
         <Reveal>
           <div className="grid grid-cols-2 gap-x-8 gap-y-6 rounded-2xl border border-ink-line bg-ink-soft/40 p-6 sm:grid-cols-4 sm:p-8">
-            <Fact label="Длительность" value={`${trip.durationDays} дней`} />
+            <Fact label="Длительность" value={pluralize(trip.durationDays, 'день', 'дня', 'дней')} />
             <Fact label="Сезон" value={trip.seasonLabel ?? '—'} />
             <Fact
               label="Бюджет (цель)"
@@ -210,9 +214,9 @@ export default async function TripPage({ params }: { params: { slug: string } })
         <TripExperience trip={trip} />
       </section>
 
-      {/* Automatic spend estimate */}
+      {/* Перелёт под даты (реальные цены Aviasales) + полный расчёт трат */}
       <section className="container-vela mt-16">
-        <SpendEstimator slug={params.slug} />
+        <TripCosts slug={params.slug} durationDays={trip.durationDays} />
       </section>
 
       {/* Honest opinions */}

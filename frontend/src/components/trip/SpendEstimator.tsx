@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { getTripEstimate, type Comfort, type SpendEstimate } from '@/lib/api';
 
 /**
- * "Примерные траты" — automatic ballpark spend estimate for the trip.
- * Inputs: travellers + comfort tier (minimal). Everything else (duration, number
- * of cities) the backend reads straight from the trip, so a useful number shows
- * up with zero manual data. The figure is an ESTIMATE, never a supplier quote.
+ * «Примерные траты» — полный расчёт стоимости поездки на срок:
+ *  · отель + «прожиточный минимум» дня + транспорт + развлечения — БАЗА «Эконом»,
+ *    «Стандарт»/«Комфорт» — индексация базы (бэкенд, common/estimate.ts);
+ *  · перелёт — реальная котировка Aviasales из блока «Перелёт и даты»
+ *    (проп flightPrice), помечается «проверено»; без дат — честный «выберите даты».
  */
 const COMFORT_LABEL: Record<Comfort, string> = {
   BUDGET: 'Эконом',
@@ -16,8 +17,9 @@ const COMFORT_LABEL: Record<Comfort, string> = {
 };
 
 const CATEGORY_RU: Record<string, string> = {
-  HOTELS: 'Жильё',
-  FOOD: 'Питание',
+  FLIGHTS: 'Перелёт (туда-обратно)',
+  HOTELS: 'Отель',
+  FOOD: 'Прожиточный минимум (еда и мелочи)',
   TRANSPORT: 'Транспорт',
   ACTIVITIES: 'Развлечения',
   RESERVE: 'Резерв (10%)',
@@ -25,16 +27,23 @@ const CATEGORY_RU: Record<string, string> = {
 
 const fmt = (n: number) => new Intl.NumberFormat('ru-RU').format(n);
 
-export function SpendEstimator({ slug }: { slug: string }) {
+export function SpendEstimator({
+  slug,
+  flightPrice,
+}: {
+  slug: string;
+  /** Реальная цена билетов на человека из блока «Перелёт и даты» (null — дат нет). */
+  flightPrice?: number | null;
+}) {
   const [travelers, setTravelers] = useState(2);
-  const [comfort, setComfort] = useState<Comfort>('STANDARD');
+  const [comfort, setComfort] = useState<Comfort>('BUDGET');
   const [data, setData] = useState<SpendEstimate | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    getTripEstimate(slug, { travelers, comfort }).then((d) => {
+    getTripEstimate(slug, { travelers, comfort, flightRub: flightPrice ?? null }).then((d) => {
       if (alive) {
         setData(d);
         setLoading(false);
@@ -43,14 +52,14 @@ export function SpendEstimator({ slug }: { slug: string }) {
     return () => {
       alive = false;
     };
-  }, [slug, travelers, comfort]);
+  }, [slug, travelers, comfort, flightPrice]);
 
   return (
     <div className="rounded-2xl border border-ink-line bg-ink-soft/40 p-7">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-serif text-2xl tracking-tightest">Примерные траты</h3>
         <span className="rounded-full border border-aurora/30 px-2 py-0.5 text-[10px] uppercase tracking-wider text-aurora">
-          оценка
+          база «эконом» · индексация
         </span>
       </div>
 
@@ -114,9 +123,25 @@ export function SpendEstimator({ slug }: { slug: string }) {
             {/* Per-person breakdown */}
             <div className="divide-y divide-ink-line">
               {data.perPerson.categories.map((l) => (
-                <div key={l.category} className="flex items-center justify-between py-2.5">
+                <div key={l.category} className="flex items-center justify-between gap-3 py-2.5">
                   <span className="text-paper-dim">{CATEGORY_RU[l.category] ?? l.category}</span>
-                  <span className="text-paper">≈ {fmt(l.amount)} ₽</span>
+                  {l.amount != null ? (
+                    <span className="flex items-center gap-2 whitespace-nowrap">
+                      <span className="text-paper">
+                        {l.dataStatus === 'VERIFIED' ? '' : '≈ '}
+                        {fmt(l.amount)} ₽
+                      </span>
+                      {l.dataStatus === 'VERIFIED' && (
+                        <span className="rounded-full border border-emerald-300/30 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-emerald-300">
+                          проверено
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="whitespace-nowrap text-xs text-paper-faint">
+                      выберите даты выше ↑
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -139,11 +164,17 @@ export function SpendEstimator({ slug }: { slug: string }) {
           </div>
 
           <p className="mt-5 text-xs leading-relaxed text-paper-faint">
-            Расчёт автоматический: из длительности ({data.durationDays} дн., {data.nights} ноч.) и
-            числа городов маршрута ({data.cities}, переездов {data.transfers}) по типовым дневным
-            ставкам на человека для уровня «{COMFORT_LABEL[data.comfort]}». Это{' '}
-            <span className="text-aurora">оценка</span>, а не котировка поставщиков — реальные цены
-            появятся после подключения провайдеров бронирования.
+            Как считаем: базовые ставки уровня «Эконом» — отель за ночь, прожиточный минимум дня
+            (еда и мелочи), транспорт и развлечения на {data.durationDays} дн. ({data.nights} ноч.,
+            городов: {data.cities}); «Стандарт» и «Комфорт» — индексация базы ×
+            {String(data.comfortIndex).replace('.', ',')}.{' '}
+            {data.flight ? (
+              <>Перелёт — <span className="text-emerald-300">реальная котировка Aviasales</span>,
+              остальное — <span className="text-aurora">оценка</span> (±{Math.round(data.assumptions.band * 100)}%).</>
+            ) : (
+              <>Перелёт добавится в расчёт, когда выберете даты в блоке «Перелёт и даты» — цены
+              билетов мы не выдумываем. Остальное — <span className="text-aurora">оценка</span>.</>
+            )}
           </p>
         </div>
       )}

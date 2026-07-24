@@ -50,19 +50,26 @@ class TripsController {
     return this.trips.getBySlug(slug, optionalAccessor(req));
   }
 
-  // Automatic spend estimate. Optional ?travelers= & ?comfort=BUDGET|STANDARD|COMFORT.
+  // Automatic spend estimate. Optional ?travelers= & ?comfort=BUDGET|STANDARD|COMFORT
+  // & ?flightRub= (реальная котировка билетов из блока «Перелёт и даты»).
   @Get(':slug/estimate')
   estimate(
     @Param('slug') slug: string,
     @Query('travelers') travelers: string | undefined,
     @Query('comfort') comfort: string | undefined,
+    @Query('flightRub') flightRub: string | undefined,
     @Req() req: any,
   ) {
     const n = travelers ? parseInt(travelers, 10) : undefined;
+    const f = flightRub ? parseInt(flightRub, 10) : undefined;
     const c = comfort === 'BUDGET' || comfort === 'COMFORT' || comfort === 'STANDARD' ? comfort : undefined;
     return this.trips.estimateSpend(
       slug,
-      { travelers: Number.isFinite(n as number) ? n : undefined, comfort: c },
+      {
+        travelers: Number.isFinite(n as number) ? n : undefined,
+        comfort: c,
+        flightRub: Number.isFinite(f as number) ? f : undefined,
+      },
       optionalAccessor(req),
     );
   }

@@ -620,7 +620,7 @@ export class TripsService {
    */
   async estimateSpend(
     slug: string,
-    opts: { travelers?: number; comfort?: Comfort },
+    opts: { travelers?: number; comfort?: Comfort; flightRub?: number },
     accessor?: Accessor | null,
   ) {
     const trip = await this.getBySlug(slug, accessor); // gate + load graph
@@ -635,6 +635,7 @@ export class TripsService {
       cities: cities.size || 1,
       travelers: opts.travelers ?? 2,
       comfort: opts.comfort ?? 'STANDARD',
+      flightRub: opts.flightRub ?? null,
     });
   }
 }

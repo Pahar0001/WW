@@ -181,13 +181,15 @@ export type Comfort = 'BUDGET' | 'STANDARD' | 'COMFORT';
 export interface SpendEstimate {
   currency: 'RUB';
   comfort: Comfort;
+  comfortIndex: number;
   travelers: number;
   durationDays: number;
   nights: number;
   cities: number;
   transfers: number;
+  flight: { perPerson: number; source: 'aviasales'; dataStatus: DataStatus } | null;
   perPerson: {
-    categories: { category: string; amount: number }[];
+    categories: { category: string; amount: number | null; dataStatus: DataStatus }[];
     total: number;
     low: number;
     high: number;
@@ -196,7 +198,8 @@ export interface SpendEstimate {
   dataStatus: DataStatus;
   assumptions: {
     note: string;
-    ratesPerPerson: Record<string, number>;
+    baseRatesEconomy: Record<string, number>;
+    comfortIndex: number;
     reserveRate: number;
     band: number;
   };
@@ -205,11 +208,12 @@ export interface SpendEstimate {
 /** Automatic spend estimate for a trip. Browser-only (sends token if present). */
 export async function getTripEstimate(
   slug: string,
-  params: { travelers?: number; comfort?: Comfort },
+  params: { travelers?: number; comfort?: Comfort; flightRub?: number | null },
 ): Promise<SpendEstimate | null> {
   const qs = new URLSearchParams();
   if (params.travelers) qs.set('travelers', String(params.travelers));
   if (params.comfort) qs.set('comfort', params.comfort);
+  if (params.flightRub != null) qs.set('flightRub', String(params.flightRub));
   const suffix = qs.toString() ? `?${qs}` : '';
   try {
     const res = await fetch(`${BROWSER_BASE}/trips/${slug}/estimate${suffix}`, {
@@ -218,6 +222,57 @@ export async function getTripEstimate(
     });
     if (!res.ok) return null;
     return (await res.json()) as SpendEstimate;
+  } catch {
+    return null;
+  }
+}
+
+// ── Перелёт и даты (реальные цены Aviasales через Travelpayouts) ──
+
+export interface FlightOffer {
+  price: number; // руб., туда-обратно на человека
+  airline: string;
+  flightNumber: string;
+  departureAt: string;
+  returnAt: string | null;
+  transfers: number;
+  returnTransfers: number;
+  durationMin: number;
+  originAirport: string;
+  destinationAirport: string;
+  link: string; // абсолютная ссылка на выдачу Aviasales
+}
+
+export interface TravelPlan {
+  configured: boolean;
+  origin: { iata: string; city: string };
+  destination: { iata: string; city: string } | null;
+  depart: string;
+  return: string;
+  nights: number;
+  flights: FlightOffer[];
+  hotelLinks: { city: string; booking: string; yandex: string; ostrovok: string }[];
+  dataStatus: DataStatus;
+  fetchedAt: string;
+}
+
+/** Реальные цены перелёта + отельные ссылки под даты. Browser-only. */
+export async function getTravelPlan(
+  slug: string,
+  params: { origin: string; depart: string; ret: string },
+): Promise<TravelPlan | null> {
+  const qs = new URLSearchParams({
+    origin: params.origin,
+    depart: params.depart,
+    return: params.ret,
+  });
+  try {
+    const res = await fetch(`${BROWSER_BASE}/travel/plan/${slug}?${qs}`, {
+      headers: authHeader(),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as TravelPlan;
   } catch {
     return null;
   }
