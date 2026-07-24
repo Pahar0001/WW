@@ -6,7 +6,7 @@ import { HomeMenu } from '@/components/ui/HomeMenu';
 import { Marquee } from '@/components/ui/Marquee';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Hero } from '@/components/ui/Hero';
+import { HeroImmersive } from '@/components/ui/HeroImmersive';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { TripCollection } from '@/components/ui/TripCollection';
@@ -26,8 +26,8 @@ export default async function HomePage() {
       {/* Бегущая строка с ключевой информацией */}
       <Marquee />
 
-      {/* Заглавный экран — кинематографичный герой */}
-      <Hero featured={trips[0] ?? null} tripCount={trips.length} />
+      {/* Заглавный экран — иммерсивный 3D-герой */}
+      <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} />
 
       {/* Быстрое меню по разделам */}
       <HomeMenu />
