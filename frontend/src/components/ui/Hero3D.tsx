@@ -9,6 +9,9 @@ import type { GlobeMarker } from '@/lib/country-coords';
 
 const GOLD = '#d8b878';
 const R = 2.2;
+// «Магнитный» радиус: страна подсвечивается и кликается, если курсор ближе
+// этого расстояния в пикселях — целиться в саму точку не нужно.
+const SNAP_PX = 56;
 
 // Fibonacci-sphere point (unit), scaled by radius.
 function spherePoint(i: number, n: number, radius = 1): THREE.Vector3 {
@@ -29,86 +32,35 @@ function latLngToVector3(lat: number, lng: number, radius = R): THREE.Vector3 {
   );
 }
 
-/** Кликабельный маркер страны: золотая точка + пульс; hover — подпись, клик — маршрут. */
-function Marker({
-  marker,
-  hovered,
-  onHover,
-  onLeave,
-  onSelect,
-}: {
-  marker: GlobeMarker & { pos: THREE.Vector3 };
-  hovered: boolean;
-  onHover: () => void;
-  onLeave: () => void;
-  onSelect: () => void;
-}) {
-  const halo = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }) => {
-    if (!halo.current) return;
-    // Мягкий «дышащий» пульс; на hover — заметнее.
-    const t = clock.elapsedTime * 1.6;
-    const s = (hovered ? 1.9 : 1.25) + Math.sin(t) * 0.18;
-    halo.current.scale.setScalar(s);
-    (halo.current.material as THREE.MeshBasicMaterial).opacity = hovered ? 0.5 : 0.22;
-  });
-  return (
-    <group position={marker.pos}>
-      {/* Невидимая крупная зона клика — тапать по точке легко и на мобильном */}
-      <mesh
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          onHover();
-        }}
-        onPointerOut={onLeave}
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect();
-        }}
-      >
-        <sphereGeometry args={[0.16, 8, 8]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
-      {/* Ядро точки */}
-      <mesh scale={hovered ? 1.55 : 1}>
-        <sphereGeometry args={[0.038, 12, 12]} />
-        <meshBasicMaterial color={hovered ? '#f0dcae' : GOLD} />
-      </mesh>
-      {/* Свечение-гало */}
-      <mesh ref={halo}>
-        <sphereGeometry args={[0.05, 12, 12]} />
-        <meshBasicMaterial color={GOLD} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </mesh>
-      {/* Подпись при наведении — стеклянная плашка в стиле сайта */}
-      {hovered && (
-        <Html position={[0, 0.14, 0]} center distanceFactor={7} zIndexRange={[20, 0]}>
-          <button
-            type="button"
-            onClick={onSelect}
-            className="pointer-events-auto flex items-center gap-2 whitespace-nowrap rounded-full border border-[#d8b878]/45 bg-[#0d0b08]/85 px-4 py-2 text-[13px] text-white shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-md"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-[#d8b878]" />
-            {marker.name}
-            <span className="text-[#d8b878]">смотреть маршрут →</span>
-          </button>
-        </Html>
-      )}
-    </group>
-  );
+type MarkerPoint = GlobeMarker & { pos: THREE.Vector3 };
+
+interface AimState {
+  pointer: { x: number; y: number } | null; // NDC курсора (null — вне канваса)
+  hovered: MarkerPoint | null; // «примагниченная» страна
+  dragging: boolean;
+  dragDx: number; // накопленный поворот от перетаскивания
 }
 
+/**
+ * «Магнитное» прицеливание: на каждом кадре проецируем страны в экранные
+ * координаты и подсвечиваем ближайшую к курсору видимую (лицевая сторона
+ * сферы) в радиусе SNAP_PX. Кликать можно рядом с точкой, не по ней.
+ */
 function Globe({
   reduced,
   markers,
   particleCount,
+  aim,
+  onHover,
 }: {
   reduced: boolean;
   markers: GlobeMarker[];
   particleCount: number;
+  aim: React.MutableRefObject<AimState>;
+  onHover: (m: MarkerPoint | null) => void;
 }) {
   const group = useRef<THREE.Group>(null);
-  const router = useRouter();
-  const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
+  const hoveredRef = useRef<MarkerPoint | null>(null);
 
   const positions = useMemo(() => {
     const N = particleCount;
@@ -122,7 +74,7 @@ function Globe({
     return arr;
   }, [particleCount]);
 
-  const markerPoints = useMemo(
+  const markerPoints = useMemo<MarkerPoint[]>(
     () => markers.map((m) => ({ ...m, pos: latLngToVector3(m.lat, m.lng) })),
     [markers],
   );
@@ -148,24 +100,54 @@ function Globe({
     });
   }, [markerPoints]);
 
-  // Курсор-«рука» над маркером.
-  useEffect(() => {
-    document.body.style.cursor = hoveredSlug ? 'pointer' : '';
-    return () => {
-      document.body.style.cursor = '';
-    };
-  }, [hoveredSlug]);
+  const world = useMemo(() => new THREE.Vector3(), []);
+  const camDir = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state, dt) => {
     if (!group.current) return;
-    // Вращение замирает, пока пользователь целится в страну.
-    if (!reduced && !hoveredSlug) group.current.rotation.y += dt * 0.06;
-    // Subtle parallax toward the pointer.
-    const px = state.pointer.x * 0.25;
-    const py = state.pointer.y * 0.2;
-    group.current.rotation.x += (py - group.current.rotation.x) * 0.05;
-    group.current.position.x += (px - group.current.position.x) * 0.05;
+    const aiming = aim.current.pointer !== null;
+
+    // Перетаскивание вращает глобус руками; авто-вращение замирает, пока
+    // пользователь целится (курсор над канвасом) — цели не убегают.
+    if (aim.current.dragDx !== 0) {
+      group.current.rotation.y += aim.current.dragDx;
+      aim.current.dragDx = 0;
+    } else if (!reduced && !aiming) {
+      group.current.rotation.y += dt * 0.05;
+    }
+    // Никакого параллакса позиции группы: цели не смещаются под курсором.
+    group.current.rotation.x += (0 - group.current.rotation.x) * 0.04;
+
+    // ── Магнитный подбор ближайшей страны ──
+    const p = aim.current.pointer;
+    let best: MarkerPoint | null = null;
+    if (p && !aim.current.dragging) {
+      const { width, height } = state.size;
+      state.camera.getWorldDirection(camDir);
+      let bestD = SNAP_PX;
+      for (const m of markerPoints) {
+        world.copy(m.pos).applyMatrix4(group.current.matrixWorld);
+        // Только лицевая сторона сферы (нормаль к камере).
+        const facing = world.clone().normalize().dot(camDir) < -0.12;
+        if (!facing) continue;
+        world.project(state.camera);
+        const dx = (world.x - p.x) * (width / 2);
+        const dy = (world.y - p.y) * (height / 2);
+        const d = Math.hypot(dx, dy);
+        if (d < bestD) {
+          bestD = d;
+          best = m;
+        }
+      }
+    }
+    if (hoveredRef.current?.slug !== best?.slug) {
+      hoveredRef.current = best;
+      aim.current.hovered = best;
+      onHover(best);
+    }
   });
+
+  const hovered = hoveredRef.current;
 
   return (
     <group ref={group}>
@@ -201,17 +183,48 @@ function Globe({
           blending={THREE.AdditiveBlending}
         />
       ))}
-      {/* Кликабельные страны */}
+      {/* Страны: точка + гало; подсветка — у «примагниченной» */}
       {markerPoints.map((m) => (
-        <Marker
-          key={m.slug}
-          marker={m}
-          hovered={hoveredSlug === m.slug}
-          onHover={() => setHoveredSlug(m.slug)}
-          onLeave={() => setHoveredSlug((s) => (s === m.slug ? null : s))}
-          onSelect={() => router.push(`/trips/${m.slug}`)}
-        />
+        <CountryDot key={m.slug} marker={m} hovered={hovered?.slug === m.slug} />
       ))}
+    </group>
+  );
+}
+
+function CountryDot({ marker, hovered }: { marker: MarkerPoint; hovered: boolean }) {
+  const halo = useRef<THREE.Mesh>(null);
+  const core = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    if (!halo.current || !core.current) return;
+    const t = clock.elapsedTime * 1.6;
+    const target = hovered ? 2.6 : 1.35 + Math.sin(t + marker.lat) * 0.15;
+    halo.current.scale.setScalar(halo.current.scale.x + (target - halo.current.scale.x) * 0.15);
+    (halo.current.material as THREE.MeshBasicMaterial).opacity = hovered ? 0.55 : 0.22;
+    const cs = hovered ? 1.7 : 1;
+    core.current.scale.setScalar(core.current.scale.x + (cs - core.current.scale.x) * 0.2);
+  });
+  return (
+    <group position={marker.pos}>
+      <mesh ref={core}>
+        <sphereGeometry args={[0.042, 12, 12]} />
+        <meshBasicMaterial color={hovered ? '#f5e4b8' : GOLD} />
+      </mesh>
+      <mesh ref={halo}>
+        <sphereGeometry args={[0.05, 12, 12]} />
+        <meshBasicMaterial color={GOLD} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      {/* Подпись «примагниченной» страны — крупная, кликабельная */}
+      {hovered && (
+        <Html position={[0, 0.16, 0]} center distanceFactor={6.5} zIndexRange={[30, 0]}>
+          <div className="pointer-events-none flex flex-col items-center gap-1.5">
+            <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-[#d8b878]/50 bg-[#0d0b08]/90 px-5 py-2.5 text-sm text-white shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-md">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#d8b878]" />
+              <span className="font-medium">{marker.name}</span>
+              <span className="text-[#d8b878]">открыть маршрут →</span>
+            </div>
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -241,23 +254,32 @@ function Dust() {
   );
 }
 
-function Rig() {
+/** Плавный дрейф камеры — только пока пользователь НЕ целится в страну. */
+function Rig({ aim }: { aim: React.MutableRefObject<AimState> }) {
   const { camera } = useThree();
   useFrame((state) => {
-    camera.position.x += (state.pointer.x * 0.6 - camera.position.x) * 0.03;
-    camera.position.y += (-state.pointer.y * 0.4 - camera.position.y) * 0.03;
+    const idle = aim.current.pointer === null;
+    const tx = idle ? state.pointer.x * 0.5 : 0;
+    const ty = idle ? -state.pointer.y * 0.35 : 0;
+    camera.position.x += (tx - camera.position.x) * 0.02;
+    camera.position.y += (ty - camera.position.y) * 0.02;
     camera.lookAt(0, 0, 0);
   });
   return null;
 }
 
 export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
+  const router = useRouter();
   const reduced =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   // Перф: на мобильных — вдвое меньше частиц (WebGL на low-end).
   const particleCount =
     typeof window !== 'undefined' && window.innerWidth < 768 ? 1300 : 2600;
+
+  const aim = useRef<AimState>({ pointer: null, hovered: null, dragging: false, dragDx: 0 });
+  const drag = useRef({ active: false, moved: 0, lastX: 0 });
+  const [hoveredName, setHoveredName] = useState<string | null>(null);
 
   // Перф: пауза рендера, когда герой вне вьюпорта (кадры не жгут батарею).
   const wrap = useRef<HTMLDivElement>(null);
@@ -271,19 +293,75 @@ export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
     return () => io.disconnect();
   }, []);
 
+  // Курсор: «рука» над примагниченной страной, «grab» при перетаскивании.
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el) return;
+    el.style.cursor = hoveredName ? 'pointer' : '';
+  }, [hoveredName]);
+
+  const toNdc = (e: { clientX: number; clientY: number }) => {
+    const rect = wrap.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      y: -(((e.clientY - rect.top) / rect.height) * 2 - 1),
+    };
+  };
+
   return (
-    <div ref={wrap} className="h-full w-full">
+    <div
+      ref={wrap}
+      className="h-full w-full touch-pan-y select-none"
+      onPointerMove={(e) => {
+        aim.current.pointer = toNdc(e);
+        if (process.env.NODE_ENV !== 'production') (window as any).__aim = aim.current;
+        if (drag.current.active) {
+          const dx = e.clientX - drag.current.lastX;
+          drag.current.lastX = e.clientX;
+          drag.current.moved += Math.abs(dx);
+          aim.current.dragDx += dx * 0.004; // вращение глобуса рукой
+          aim.current.dragging = drag.current.moved > 6;
+        }
+      }}
+      onPointerDown={(e) => {
+        drag.current = { active: true, moved: 0, lastX: e.clientX };
+        aim.current.pointer = toNdc(e);
+      }}
+      onPointerUp={() => {
+        const wasDrag = drag.current.moved > 6;
+        drag.current.active = false;
+        aim.current.dragging = false;
+        // Клик (не перетаскивание) → открываем примагниченную страну.
+        if (!wasDrag && aim.current.hovered) {
+          router.push(`/trips/${aim.current.hovered.slug}`);
+        }
+      }}
+      onPointerLeave={() => {
+        aim.current.pointer = null;
+        aim.current.dragging = false;
+        drag.current.active = false;
+      }}
+    >
       <Canvas
         camera={{ position: [0, 0, 6.2], fov: 42 }}
         dpr={[1, 2]}
         frameloop={visible ? 'always' : 'never'}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        // События обрабатываем на обёртке (магнитный снапинг), r3f-рейкаст не нужен.
+        events={undefined}
       >
         <fog attach="fog" args={['#0d0b08', 7, 13]} />
         <ambientLight intensity={0.6} />
-        <Globe reduced={reduced} markers={markers} particleCount={particleCount} />
+        <Globe
+          reduced={reduced}
+          markers={markers}
+          particleCount={particleCount}
+          aim={aim}
+          onHover={(m) => setHoveredName(m?.name ?? null)}
+        />
         <Dust />
-        {!reduced && <Rig />}
+        {!reduced && <Rig aim={aim} />}
       </Canvas>
     </div>
   );
