@@ -5,6 +5,7 @@ import { SiteScenery } from '@/components/decor/SiteScenery';
 import { Atmosphere } from '@/components/fx/Atmosphere';
 import { SupportWidget } from '@/components/support/SupportWidget';
 import { BottomNav } from '@/components/ui/BottomNav';
+import { FloatingNav } from '@/components/ui/FloatingNav';
 import { TermsGate } from '@/components/auth/TermsGate';
 import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 import { Toaster } from '@/components/ui/Toaster';
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SupportWidget />
         <AssistantWidget />
         <BottomNav />
+        <FloatingNav />
         <TermsGate />
         <Toaster />
       </body>

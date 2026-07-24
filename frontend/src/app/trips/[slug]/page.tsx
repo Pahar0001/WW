@@ -7,7 +7,6 @@ import { SpendEstimator } from '@/components/trip/SpendEstimator';
 import { PlanLink } from '@/components/trip/PlanLink';
 import { EditTripLink } from '@/components/trip/EditTripLink';
 import { CopyTripLink } from '@/components/trip/CopyTripLink';
-import { TripRouteMap, type MapPoint } from '@/components/trip/TripRouteMap';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { Reveal } from '@/components/ui/Reveal';
 import { Card } from '@/components/ui/Card';
@@ -30,23 +29,6 @@ export default async function TripPage({ params }: { params: { slug: string } })
         { label: 'Нагрузка', value: trip.scores.load },
       ]
     : [];
-
-  // Whole-route map points: attractions across the balanced variant + hotels.
-  const balanced = trip.variants.find((v) => v.pace === 'BALANCED') ?? trip.variants[0];
-  const seen = new Set<string>();
-  const routePlaces: MapPoint[] = [];
-  for (const d of balanced?.days ?? []) {
-    for (const dp of d.places) {
-      const p = dp.place;
-      if (p.lat != null && p.lng != null && !seen.has(p.name)) {
-        seen.add(p.name);
-        routePlaces.push({ name: p.name, lat: p.lat, lng: p.lng });
-      }
-    }
-  }
-  const hotelPoints: MapPoint[] = (trip.hotels ?? [])
-    .filter((h) => h.lat != null && h.lng != null)
-    .map((h) => ({ name: h.name, lat: h.lat as number, lng: h.lng as number }));
 
   return (
     <main className="relative min-h-screen pb-32">
@@ -215,20 +197,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
         </section>
       )}
 
-      {/* Whole-route map */}
-      {routePlaces.length > 0 && (
-        <section className="container-vela pb-16">
-          <Reveal>
-            <h2 className="mb-5 font-serif text-2xl tracking-tightest">Карта маршрута</h2>
-            <TripRouteMap places={routePlaces} hotels={hotelPoints} />
-            <p className="mt-3 text-sm text-paper-faint">
-              Достопримечательности соединены линией маршрута; 🏨 — отели (если заданы координаты).
-            </p>
-          </Reveal>
-        </section>
-      )}
-
-      {/* Interactive experience */}
+      {/* Interactive experience (карта по дням / весь маршрут внутри) */}
       <section className="container-vela">
         <TripExperience trip={trip} />
       </section>

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Trip, Pace, Place } from '@/lib/api';
 import { imageUrl } from '@/lib/api';
-import { TripMap } from '@/components/map/TripMap';
+import { TripMap, type MapPoint } from '@/components/map/TripMap';
 import { PlaceModal } from '@/components/trip/PlaceModal';
 import { HotelsSection } from '@/components/trip/HotelsSection';
 
@@ -43,12 +43,41 @@ export function TripExperience({ trip }: { trip: Trip }) {
     variant?.days.find((d) => d.places.length > 0)?.dayNumber ?? 1;
   const [dayNum, setDayNum] = useState(firstWithPlaces);
   const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [mapMode, setMapMode] = useState<'day' | 'route'>('day');
   const day = useMemo(
     () => variant?.days.find((d) => d.dayNumber === dayNum) ?? variant?.days[0],
     [variant, dayNum],
   );
 
+  // Точки всего маршрута (дедуп по названию) + отели — для режима «Весь маршрут».
+  const routePoints = useMemo<MapPoint[]>(() => {
+    const seen = new Set<string>();
+    const out: MapPoint[] = [];
+    for (const d of variant?.days ?? []) {
+      for (const dp of d.places) {
+        const p = dp.place;
+        if (p.lat != null && p.lng != null && !seen.has(p.name)) {
+          seen.add(p.name);
+          out.push({ name: p.name, nameLocal: p.nameLocal, lat: p.lat, lng: p.lng });
+        }
+      }
+    }
+    return out;
+  }, [variant]);
+  const routeHotels = useMemo<MapPoint[]>(
+    () =>
+      (trip.hotels ?? [])
+        .filter((h) => h.lat != null && h.lng != null)
+        .map((h) => ({ name: h.name, lat: h.lat as number, lng: h.lng as number })),
+    [trip.hotels],
+  );
+
   if (!variant || !day) return null;
+
+  const dayPoints: MapPoint[] = day.places
+    .map((dp) => dp.place)
+    .filter((p) => p.lat != null && p.lng != null)
+    .map((p) => ({ name: p.name, nameLocal: p.nameLocal, lat: p.lat as number, lng: p.lng as number }));
 
   return (
     <div className="space-y-16">
@@ -82,7 +111,10 @@ export function TripExperience({ trip }: { trip: Trip }) {
               <button
                 key={d.id}
                 data-cursor="hover"
-                onClick={() => setDayNum(d.dayNumber)}
+                onClick={() => {
+                  setDayNum(d.dayNumber);
+                  setMapMode('day');
+                }}
                 className={`h-9 w-9 rounded-lg text-sm transition-colors ${
                   d.dayNumber === dayNum
                     ? 'bg-paper text-ink'
@@ -189,8 +221,37 @@ export function TripExperience({ trip }: { trip: Trip }) {
         </div>
 
         <div className="order-1 lg:order-2">
-          <div className="sticky top-6 h-[460px]">
-            <TripMap day={day} />
+          <div className="sticky top-6">
+            <div className="mb-3 inline-flex rounded-full border border-ink-line bg-ink-soft/50 p-1 text-sm">
+              <button
+                onClick={() => setMapMode('day')}
+                className={`rounded-full px-4 py-1.5 transition-colors ${
+                  mapMode === 'day' ? 'bg-aurora text-aurora-fg' : 'text-paper-dim hover:text-paper'
+                }`}
+              >
+                По дням
+              </button>
+              <button
+                onClick={() => setMapMode('route')}
+                className={`rounded-full px-4 py-1.5 transition-colors ${
+                  mapMode === 'route' ? 'bg-aurora text-aurora-fg' : 'text-paper-dim hover:text-paper'
+                }`}
+              >
+                Весь маршрут
+              </button>
+            </div>
+            <div className="h-[460px]">
+              <TripMap
+                points={mapMode === 'route' ? routePoints : dayPoints}
+                hotels={mapMode === 'route' ? routeHotels : []}
+                emptyNote={
+                  mapMode === 'route'
+                    ? 'Координаты маршрута уточняются.'
+                    : 'День отдыха / переезд — без фиксированных точек.'
+                }
+                fitKey={mapMode === 'route' ? 'route' : `day-${day.id}`}
+              />
+            </div>
           </div>
         </div>
       </div>

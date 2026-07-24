@@ -40,7 +40,9 @@ export function SiteHeader() {
   }, []);
 
   return (
-    <header className="relative z-30">
+    // Десктоп-навигация переехала в нижнюю «пилюлю» (FloatingNav);
+    // здесь остаётся только мобильная шапка.
+    <header className="relative z-30 md:hidden">
       <div className="container-vela flex items-center justify-between py-6">
         <Link href="/" className="flex items-center gap-2 font-serif text-xl tracking-tightest" data-magnetic>
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-aurora/40 text-[12px] leading-none text-aurora">和</span>

@@ -33,7 +33,7 @@ export function Card({
   const cls = cn('rounded-2xl', variantClass[variant], className);
   if (href) {
     return (
-      <Link href={href} className={cn('block', cls)} data-magnetic>
+      <Link href={href} className={cn('block', cls)}>
         {children}
       </Link>
     );

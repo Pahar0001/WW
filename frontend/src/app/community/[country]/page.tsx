@@ -7,6 +7,7 @@ import { community, type CommunityRoomData, type CommunityMessage, type Communit
 import { Avatar } from '@/components/social/Avatar';
 import { toast } from '@/components/ui/Toaster';
 import { EntryRequirements } from '@/components/community/EntryRequirements';
+import { CountryIntro } from '@/components/community/CountryIntro';
 
 const fmt = (s: string) => new Date(s).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -52,6 +53,9 @@ export default function CommunityRoomPage({ params }: { params: { country: strin
           <p className="text-sm text-paper-dim">Опыт по визам и документам · вопросы и ответы</p>
         </div>
       </header>
+
+      {/* Ознакомительный гид по стране */}
+      {data && <CountryIntro code={country} countryName={data.country.name} flag={data.country.flag} />}
 
       {/* Требования и ограничения по въезду/выезду (справочно) */}
       {data && <EntryRequirements code={country} countryName={data.country.name} />}

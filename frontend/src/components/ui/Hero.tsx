@@ -96,7 +96,7 @@ export function Hero({ featured, tripCount }: { featured: Trip | null; tripCount
         initial={{ opacity: 0, scale: 1.03 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 1.1, ease: EASE, delay: 0.2 }}
-        className="relative z-10 mx-auto w-full max-w-md lg:max-w-none"
+        className="relative z-10 mx-auto w-full max-w-md lg:max-w-none lg:pl-10 xl:pl-20"
       >
         <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] shadow-soft-lg ring-1 ring-ink-line/60">
           {hero ? (
@@ -114,8 +114,7 @@ export function Hero({ featured, tripCount }: { featured: Trip | null; tripCount
           {featured && (
             <Link
               href={`/trips/${featured.slug}`}
-              data-magnetic
-              className="group absolute inset-x-5 bottom-5 flex items-center justify-between gap-4 rounded-2xl glass p-4 shadow-soft"
+              className="group absolute inset-x-5 bottom-5 flex items-center justify-between gap-4 rounded-2xl glass p-4 shadow-soft transition-colors duration-500 hover:border-aurora/30"
             >
               <div className="min-w-0">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-paper-faint">
@@ -140,17 +139,6 @@ export function Hero({ featured, tripCount }: { featured: Trip | null; tripCount
         </div>
       </motion.div>
 
-      {/* Scroll cue */}
-      <div className="pointer-events-none absolute bottom-4 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 lg:flex">
-        <span className="text-[10px] uppercase tracking-[0.3em] text-paper-faint">Листайте</span>
-        <span className="relative h-9 w-px overflow-hidden bg-ink-line">
-          <motion.span
-            className="absolute inset-x-0 top-0 h-3.5 bg-aurora"
-            animate={{ y: [-14, 36] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        </span>
-      </div>
     </section>
   );
 }

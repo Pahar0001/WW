@@ -43,30 +43,37 @@ export function Atmosphere() {
     if (!fine || reduce) return;
 
     let active: HTMLElement | null = null;
-    const reset = (el: HTMLElement) => {
+    // Gentle pull + soft cap so it never darts around.
+    const STRENGTH = 0.14;
+    const MAX = 10; // px
+    const clamp = (v: number) => Math.max(-MAX, Math.min(MAX, v));
+    const release = (el: HTMLElement) => {
+      // Smooth spring-back on leave.
+      el.style.transition = 'transform 0.5s cubic-bezier(0.22,1,0.36,1)';
       el.style.transform = '';
     };
     const onMove = (e: MouseEvent) => {
       const el = (e.target as HTMLElement)?.closest?.('[data-magnetic]') as HTMLElement | null;
       if (el !== active) {
-        if (active) reset(active);
+        if (active) release(active);
         active = el;
         if (el) {
-          el.style.transition = 'transform 0.35s cubic-bezier(0.22,1,0.36,1)';
           el.style.willChange = 'transform';
+          // Near-instant follow while tracking → no laggy wobble.
+          el.style.transition = 'transform 0.08s linear';
         }
       }
       if (el) {
         const r = el.getBoundingClientRect();
-        const mx = e.clientX - (r.left + r.width / 2);
-        const my = e.clientY - (r.top + r.height / 2);
-        el.style.transform = `translate(${mx * 0.22}px, ${my * 0.22}px)`;
+        const mx = clamp((e.clientX - (r.left + r.width / 2)) * STRENGTH);
+        const my = clamp((e.clientY - (r.top + r.height / 2)) * STRENGTH);
+        el.style.transform = `translate(${mx}px, ${my}px)`;
       }
     };
     window.addEventListener('mousemove', onMove, { passive: true });
     return () => {
       window.removeEventListener('mousemove', onMove);
-      if (active) reset(active);
+      if (active) release(active);
     };
   }, []);
 
