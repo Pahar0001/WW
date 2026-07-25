@@ -7,6 +7,8 @@ import { Marquee } from '@/components/ui/Marquee';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { HeroImmersive } from '@/components/ui/HeroImmersive';
+import { HeroVideo } from '@/components/hero/HeroVideo';
+import { getHeroMedia } from '@/lib/hero-media';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { TripCollection } from '@/components/ui/TripCollection';
@@ -15,6 +17,9 @@ import { pluralize } from '@/lib/plural';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
+  // Кино-hero (видео, управляемое скроллом), если медиа задано;
+  // фолбэк — интерактивный 3D-глобус (NEXT_PUBLIC_HERO_MEDIA_URL=none).
+  const heroMedia = getHeroMedia();
 
   return (
     <main className="relative min-h-screen">
@@ -26,8 +31,12 @@ export default async function HomePage() {
       {/* Бегущая строка с ключевой информацией */}
       <Marquee />
 
-      {/* Заглавный экран — иммерсивный 3D-герой */}
-      <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} trips={trips} />
+      {/* Заглавный экран: кинематографический полёт или 3D-глобус */}
+      {heroMedia.kind === 'video' ? (
+        <HeroVideo src={heroMedia.src} poster={heroMedia.poster} />
+      ) : (
+        <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} trips={trips} />
+      )}
 
       {/* Быстрое меню по разделам */}
       <HomeMenu />

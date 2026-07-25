@@ -278,7 +278,9 @@ export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
     typeof window !== 'undefined' && window.innerWidth < 768 ? 1300 : 2600;
 
   const aim = useRef<AimState>({ pointer: null, hovered: null, dragging: false, dragDx: 0 });
-  const drag = useRef({ active: false, moved: 0, lastX: 0 });
+  // moved — МАКСИМАЛЬНОЕ смещение от точки нажатия (не накопленный путь!):
+  // дрожащий палец/мышь при обычном клике не должны превращать его в драг.
+  const drag = useRef({ active: false, moved: 0, lastX: 0, startX: 0, startY: 0 });
   const [hoveredName, setHoveredName] = useState<string | null>(null);
 
   // Перф: пауза рендера, когда герой вне вьюпорта (кадры не жгут батарею).
@@ -313,23 +315,28 @@ export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
     <div
       ref={wrap}
       className="h-full w-full touch-pan-y select-none"
+      onPointerEnter={(e) => {
+        aim.current.pointer = toNdc(e); // наведение работает сразу, без движения
+      }}
       onPointerMove={(e) => {
         aim.current.pointer = toNdc(e);
-        if (process.env.NODE_ENV !== 'production') (window as any).__aim = aim.current;
         if (drag.current.active) {
           const dx = e.clientX - drag.current.lastX;
           drag.current.lastX = e.clientX;
-          drag.current.moved += Math.abs(dx);
+          drag.current.moved = Math.max(
+            drag.current.moved,
+            Math.hypot(e.clientX - drag.current.startX, e.clientY - drag.current.startY),
+          );
           aim.current.dragDx += dx * 0.004; // вращение глобуса рукой
-          aim.current.dragging = drag.current.moved > 6;
+          aim.current.dragging = drag.current.moved > 10;
         }
       }}
       onPointerDown={(e) => {
-        drag.current = { active: true, moved: 0, lastX: e.clientX };
+        drag.current = { active: true, moved: 0, lastX: e.clientX, startX: e.clientX, startY: e.clientY };
         aim.current.pointer = toNdc(e);
       }}
       onPointerUp={() => {
-        const wasDrag = drag.current.moved > 6;
+        const wasDrag = drag.current.moved > 10;
         drag.current.active = false;
         aim.current.dragging = false;
         // Клик (не перетаскивание) → открываем примагниченную страну.

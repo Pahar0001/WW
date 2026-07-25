@@ -17,12 +17,17 @@ export type HeroMedia =
   | { kind: 'image'; src: string }
   | { kind: 'video'; src: string; poster?: string };
 
-// Пока Higgsfield не подключён (нет подписки/API у владельца) — 'none'.
-// Когда появится: заменить на вызов бэкенда/MCP, сохранив тип HeroMedia.
+// Дефолт — локальное видео полёта (public/hero/flight.mp4): кинематографический
+// скролл-hero. NEXT_PUBLIC_HERO_MEDIA_URL переопределяет источник (Higgsfield
+// в будущем), значение 'none' отключает видео → фолбэк на 3D-глобус.
 export function getHeroMedia(): HeroMedia {
-  const src = process.env.NEXT_PUBLIC_HERO_MEDIA_URL;
-  if (!src) return { kind: 'none' };
+  const src = process.env.NEXT_PUBLIC_HERO_MEDIA_URL ?? '/hero/flight.mp4';
+  if (!src || src === 'none') return { kind: 'none' };
   return /\.(mp4|webm)(\?|$)/.test(src)
-    ? { kind: 'video', src, poster: process.env.NEXT_PUBLIC_HERO_MEDIA_POSTER }
+    ? {
+        kind: 'video',
+        src,
+        poster: process.env.NEXT_PUBLIC_HERO_MEDIA_POSTER ?? '/hero/flight-poster.jpg',
+      }
     : { kind: 'image', src };
 }
