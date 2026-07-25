@@ -6,6 +6,7 @@ import { adminListTrips, deleteTrip, imageUrl, type Trip } from '@/lib/api';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 import { toast } from '@/components/ui/Toaster';
 import { TripForm } from '@/components/trips/TripForm';
+import { AdminDashboard } from '@/components/admin/AdminDashboard';
 
 export default function AdminPage() {
   // RBAC guard: only ADMIN / SUPER_ADMIN may use the panel.
@@ -60,10 +61,12 @@ export default function AdminPage() {
       </p>
       <h1 className="font-serif display-2">Панель управления</h1>
       <p className="mt-4 max-w-2xl text-lg text-paper-dim">
-        Добавляйте и удаляйте путешествия прямо здесь — без редактирования файлов.
-        Координаты мест вводятся из проверенного источника (Google Maps / OSM) и
-        сохраняются как оценочные. Бюджет рассчитается автоматически из указанного диапазона.
+        Живые метрики платформы, динамика за месяц, статусы систем — и управление
+        путешествиями ниже.
       </p>
+
+      {/* Метрики, графики, мониторинг */}
+      <AdminDashboard />
 
       {/* Управление существующими путешествиями */}
       <section className="mt-10 rounded-2xl border border-ink-line bg-ink-soft/50 p-6 shadow-soft sm:p-8">

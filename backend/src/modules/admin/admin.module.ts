@@ -21,8 +21,32 @@ import { Roles, CurrentUser, AuthUser } from '../auth/auth.decorators';
 
 const SAFE_USER = {
   id: true, email: true, name: true, role: true, status: true,
-  emailVerified: true, createdAt: true,
+  emailVerified: true, createdAt: true, lastSeenAt: true,
 } satisfies Prisma.UserSelect;
+
+// Дневной временной ряд за N дней: [{day: 'YYYY-MM-DD', count}] — для графиков.
+type DayRow = { day: string; count: number };
+async function dailySeries(
+  prisma: PrismaService,
+  table: 'User' | 'Trip' | 'TripOrder' | 'TripRating' | 'Post',
+  days = 30,
+): Promise<DayRow[]> {
+  // Динамическое имя таблицы безопасно: значения ограничены литеральным типом.
+  const rows = await prisma.$queryRawUnsafe<{ day: Date; count: bigint }[]>(
+    `SELECT date_trunc('day', "createdAt") AS day, count(*)::bigint AS count
+     FROM "${table}"
+     WHERE "createdAt" > now() - interval '${days} days'
+     GROUP BY 1 ORDER BY 1`,
+  );
+  // Плотный ряд: дни без событий = 0, чтобы графики не «рвались».
+  const byDay = new Map(rows.map((r) => [r.day.toISOString().slice(0, 10), Number(r.count)]));
+  const out: DayRow[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    out.push({ day: d, count: byDay.get(d) ?? 0 });
+  }
+  return out;
+}
 
 // All admin routes require ADMIN (SUPER_ADMIN passes via RolesGuard).
 @Controller('admin')
@@ -34,16 +58,81 @@ class AdminController {
     private readonly audit: AuditService,
   ) {}
 
+  // Дашборд: суммарные метрики + онлайн + временные ряды + статус систем.
   @Get('stats')
   async stats() {
-    const [users, trips, published, members, recent] = await Promise.all([
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const dayAgo = new Date(Date.now() - 24 * 3600 * 1000);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+
+    const [
+      users, online, activeDay, newWeek,
+      trips, published, privateTrips, members,
+      ordersNew, ordersInProgress, ordersDone,
+      ratingsAgg, posts, comments, supportMsgs, uploadsAgg,
+      recent, series,
+    ] = await Promise.all([
       this.prisma.user.count(),
+      this.prisma.user.count({ where: { lastSeenAt: { gte: fiveMinAgo } } }),
+      this.prisma.user.count({ where: { lastSeenAt: { gte: dayAgo } } }),
+      this.prisma.user.count({ where: { createdAt: { gte: weekAgo } } }),
       this.prisma.trip.count(),
-      this.prisma.trip.count({ where: { status: 'PUBLISHED' } }),
+      this.prisma.trip.count({ where: { status: 'PUBLISHED', visibility: 'PUBLIC' } }),
+      this.prisma.trip.count({ where: { visibility: 'PRIVATE' } }),
       this.prisma.tripMember.count(),
-      this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: 5, select: SAFE_USER }),
+      this.prisma.tripOrder.count({ where: { status: 'NEW' } }),
+      this.prisma.tripOrder.count({ where: { status: 'IN_PROGRESS' } }),
+      this.prisma.tripOrder.count({ where: { status: 'DONE' } }),
+      this.prisma.tripRating.aggregate({ _count: true, _avg: { stars: true } }),
+      this.prisma.post.count(),
+      this.prisma.comment.count(),
+      this.prisma.supportMessage.count(),
+      this.prisma.upload.aggregate({ _count: true, _sum: { size: true } }),
+      this.prisma.user.findMany({ orderBy: { createdAt: 'desc' }, take: 6, select: SAFE_USER }),
+      Promise.all([
+        dailySeries(this.prisma, 'User'),
+        dailySeries(this.prisma, 'Trip'),
+        dailySeries(this.prisma, 'TripOrder'),
+        dailySeries(this.prisma, 'TripRating'),
+        dailySeries(this.prisma, 'Post'),
+      ]),
     ]);
-    return { users, trips, publishedTrips: published, memberships: members, recentUsers: recent };
+
+    const mem = process.memoryUsage();
+    return {
+      users: { total: users, online, activeDay, newWeek },
+      trips: { total: trips, published, private: privateTrips, memberships: members },
+      orders: { new: ordersNew, inProgress: ordersInProgress, done: ordersDone },
+      social: {
+        posts,
+        comments,
+        ratings: ratingsAgg._count,
+        ratingAvg: ratingsAgg._avg.stars ? Number(ratingsAgg._avg.stars.toFixed(2)) : null,
+        supportMessages: supportMsgs,
+      },
+      uploads: { count: uploadsAgg._count, bytes: uploadsAgg._sum.size ?? 0 },
+      series: {
+        registrations: series[0],
+        trips: series[1],
+        orders: series[2],
+        ratings: series[3],
+        posts: series[4],
+      },
+      system: {
+        uptimeSec: Math.round(process.uptime()),
+        node: process.version,
+        rssMb: Math.round(mem.rss / 1024 / 1024),
+        heapMb: Math.round(mem.heapUsed / 1024 / 1024),
+        integrations: {
+          groq: Boolean(process.env.GROQ_API_KEY),
+          travelpayouts: Boolean(process.env.TRAVELPAYOUTS_TOKEN),
+          marker: Boolean(process.env.TRAVELPAYOUTS_MARKER),
+          resend: Boolean(process.env.RESEND_API_KEY),
+          s3: Boolean(process.env.S3_BUCKET),
+        },
+      },
+      recentUsers: recent,
+    };
   }
 
   // All trips (incl. PRIVATE / archived) for the admin panel, with filters.

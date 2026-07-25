@@ -8,6 +8,7 @@ import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { HeroImmersive } from '@/components/ui/HeroImmersive';
 import { HeroVideo } from '@/components/hero/HeroVideo';
+import { GlobeSection } from '@/components/ui/GlobeSection';
 import { getHeroMedia } from '@/lib/hero-media';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
@@ -43,6 +44,9 @@ export default async function HomePage() {
 
       {/* Мои поездки (видно только вошедшим, у кого есть поездки) */}
       <MyTrips />
+
+      {/* Планета Vela: интерактивный глобус со странами каталога */}
+      <GlobeSection trips={trips} />
 
       {/* Путешествия */}
       <section id="dream-trips" className="container-vela py-24">

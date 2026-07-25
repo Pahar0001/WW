@@ -38,8 +38,9 @@ export const COUNTRY_COORDS: Record<string, { lat: number; lng: number }> = {
 };
 
 export interface GlobeMarker {
-  slug: string; // slug поездки, куда ведёт клик
+  slug: string; // slug поездки, куда ведёт клик (первый маршрут страны)
   name: string; // название страны для подписи
+  countrySlug?: string; // slug страны — для группировки нескольких маршрутов
   lat: number;
   lng: number;
 }

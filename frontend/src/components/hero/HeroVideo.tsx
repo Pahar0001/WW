@@ -32,7 +32,6 @@ import { ScrollController } from './ScrollController';
 import { VideoScrubber } from './VideoScrubber';
 import { computeMotion, phase, CHAPTER_WINDOWS } from './MotionController';
 import { buildGradeSvg, GRADE_FILTER_ID } from './ColorGrading';
-import { HalftoneOverlay } from './HalftoneOverlay';
 import { PaperNoise } from './PaperNoise';
 import { pluralize } from '@/lib/plural';
 
@@ -200,8 +199,8 @@ export function HeroVideo({
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-[#0d0b08]/95 via-[#0d0b08]/45 to-transparent" />
         <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-3/5 bg-gradient-to-r from-[#0d0b08]/60 to-transparent md:block" />
 
-        {/* Типографская фактура: растр из квадратов + живое зерно бумаги */}
-        <HalftoneOverlay />
+        {/* Фактура: живое зерно бумаги (halftone-растр убран по решению
+            владельца — компонент HalftoneOverlay остаётся в кодовой базе). */}
         <PaperNoise />
 
         {/* ── Глава 0: титул + CTA ── */}

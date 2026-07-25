@@ -329,6 +329,52 @@ export async function listMyOrders(): Promise<TripOrder[]> {
   }
 }
 
+// ── Админ-дашборд: метрики платформы ──
+
+export interface AdminStats {
+  users: { total: number; online: number; activeDay: number; newWeek: number };
+  trips: { total: number; published: number; private: number; memberships: number };
+  orders: { new: number; inProgress: number; done: number };
+  social: {
+    posts: number;
+    comments: number;
+    ratings: number;
+    ratingAvg: number | null;
+    supportMessages: number;
+  };
+  uploads: { count: number; bytes: number };
+  series: Record<
+    'registrations' | 'trips' | 'orders' | 'ratings' | 'posts',
+    { day: string; count: number }[]
+  >;
+  system: {
+    uptimeSec: number;
+    node: string;
+    rssMb: number;
+    heapMb: number;
+    integrations: Record<'groq' | 'travelpayouts' | 'marker' | 'resend' | 's3', boolean>;
+  };
+  recentUsers: {
+    id: string;
+    email: string;
+    name?: string | null;
+    role: string;
+    createdAt: string;
+    lastSeenAt?: string | null;
+  }[];
+}
+
+/** Метрики платформы для админ-дашборда. Browser-only. */
+export async function adminStats(): Promise<AdminStats | null> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/admin/stats`, { headers: authHeader(), cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as AdminStats;
+  } catch {
+    return null;
+  }
+}
+
 /** Все заявки (админка). */
 export async function adminListOrders(): Promise<TripOrder[]> {
   try {

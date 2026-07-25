@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { auth, isAdminRole, logout, type AuthUser, type Role } from '@/lib/auth';
 import { admin, type AdminUser, type AdminStats, type AuditRow } from '@/lib/admin';
+import { isOnline, timeAgo } from '@/components/admin/AdminDashboard';
 import { toast } from '@/components/ui/Toaster';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -103,7 +104,7 @@ export default function AdminUsersPage() {
             <thead className="text-paper-faint">
               <tr className="border-b border-ink-line text-left">
                 <th className="p-3">Email</th><th className="p-3">Имя</th><th className="p-3">Роль</th>
-                <th className="p-3">Статус</th><th className="p-3">Email ✓</th><th className="p-3">Действия</th>
+                <th className="p-3">Статус</th><th className="p-3">В сети</th><th className="p-3">Email ✓</th><th className="p-3">Действия</th>
               </tr>
             </thead>
             <tbody>
@@ -121,6 +122,14 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="p-3">
                     <span className={u.status === 'BLOCKED' ? 'text-red-300' : 'text-emerald-300'}>{u.status}</span>
+                  </td>
+                  <td className="p-3 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${isOnline((u as any).lastSeenAt) ? 'bg-emerald-400' : 'bg-ink-line'}`} />
+                      <span className={isOnline((u as any).lastSeenAt) ? 'text-emerald-300' : 'text-paper-faint'}>
+                        {timeAgo((u as any).lastSeenAt)}
+                      </span>
+                    </span>
                   </td>
                   <td className="p-3">{u.emailVerified ? '✓' : '—'}</td>
                   <td className="p-3">

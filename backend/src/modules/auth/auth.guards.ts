@@ -39,10 +39,19 @@ export class JwtAuthGuard implements CanActivate {
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, role: true, status: true },
+      select: { id: true, email: true, role: true, status: true, lastSeenAt: true },
     });
     if (!user) throw new UnauthorizedException('Пользователь не найден');
     if (user.status === 'BLOCKED') throw new ForbiddenException('Аккаунт заблокирован');
+
+    // «Время в сети»: отмечаем активность fire-and-forget, не чаще раза в
+    // 5 минут — ноль влияния на латентность и на нагрузку БД.
+    const FIVE_MIN = 5 * 60 * 1000;
+    if (!user.lastSeenAt || Date.now() - user.lastSeenAt.getTime() > FIVE_MIN) {
+      this.prisma.user
+        .update({ where: { id: user.id }, data: { lastSeenAt: new Date() } })
+        .catch(() => {});
+    }
 
     req.user = user;
     return true;

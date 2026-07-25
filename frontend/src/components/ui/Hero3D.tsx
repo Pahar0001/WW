@@ -101,7 +101,6 @@ function Globe({
   }, [markerPoints]);
 
   const world = useMemo(() => new THREE.Vector3(), []);
-  const camDir = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state, dt) => {
     if (!group.current) return;
@@ -123,13 +122,16 @@ function Globe({
     let best: MarkerPoint | null = null;
     if (p && !aim.current.dragging) {
       const { width, height } = state.size;
-      state.camera.getWorldDirection(camDir);
+      // Видимость: маркер на ПЕРЕДНЕЙ (обращённой к камере) половине сферы,
+      // если он БЛИЖЕ к камере, чем центр глобуса. Прежний тест по нормали
+      // с порогом браковал приполярные страны (вся Европа на «макушке»
+      // сферы видима, но её нормаль почти перпендикулярна взгляду) —
+      // из-за этого наведение «не работало».
+      const camDist = state.camera.position.length();
       let bestD = SNAP_PX;
       for (const m of markerPoints) {
         world.copy(m.pos).applyMatrix4(group.current.matrixWorld);
-        // Только лицевая сторона сферы (нормаль к камере).
-        const facing = world.clone().normalize().dot(camDir) < -0.12;
-        if (!facing) continue;
+        if (world.distanceTo(state.camera.position) > camDist) continue; // за сферой
         world.project(state.camera);
         const dx = (world.x - p.x) * (width / 2);
         const dy = (world.y - p.y) * (height / 2);
@@ -268,7 +270,14 @@ function Rig({ aim }: { aim: React.MutableRefObject<AimState> }) {
   return null;
 }
 
-export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
+export function Hero3D({
+  markers = [],
+  onSelect,
+}: {
+  markers?: GlobeMarker[];
+  /** Обработчик клика по стране. Без него — переход на маршрут (поведение hero). */
+  onSelect?: (marker: GlobeMarker) => void;
+}) {
   const router = useRouter();
   const reduced =
     typeof window !== 'undefined' &&
@@ -320,6 +329,7 @@ export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
       }}
       onPointerMove={(e) => {
         aim.current.pointer = toNdc(e);
+        if (process.env.NODE_ENV !== 'production') (window as any).__aim = aim.current;
         if (drag.current.active) {
           const dx = e.clientX - drag.current.lastX;
           drag.current.lastX = e.clientX;
@@ -339,9 +349,11 @@ export function Hero3D({ markers = [] }: { markers?: GlobeMarker[] }) {
         const wasDrag = drag.current.moved > 10;
         drag.current.active = false;
         aim.current.dragging = false;
-        // Клик (не перетаскивание) → открываем примагниченную страну.
+        // Клик (не перетаскивание) → примагниченная страна.
         if (!wasDrag && aim.current.hovered) {
-          router.push(`/trips/${aim.current.hovered.slug}`);
+          const m = aim.current.hovered;
+          if (onSelect) onSelect(m);
+          else router.push(`/trips/${m.slug}`);
         }
       }}
       onPointerLeave={() => {
