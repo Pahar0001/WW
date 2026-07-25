@@ -1,22 +1,136 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+/**
+ * ИИ-консьерж Vela (Groq) — премиум-виджет.
+ *
+ * Дизайн: стеклянная панель с золотой каймой в фирменном стиле, пульсирующая
+ * «искра»-аватар, плавные появления сообщений (framer-motion), типинг-индикатор,
+ * ответ «печатается» по буквам, режим «на весь экран».
+ *
+ * Информативность: подсказки зависят от страницы (на маршруте — вопросы про
+ * поездку, в сообществе — про визы), лёгкое форматирование ответов
+ * (**жирный**, списки) без сторонних markdown-библиотек.
+ */
+
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
 import { getToken } from '@/lib/auth';
 import { assistant, type AssistantMessage } from '@/lib/assistant';
 
-/**
- * Floating AI travel consultant (Groq-backed). Bottom-left so it doesn't collide
- * with the support widget. Opens on its own button or the `vela:open-assistant`
- * event dispatched from the home-page menu.
- */
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+/** Подсказки по контексту страницы — виджет «понимает», где вы находитесь. */
+function suggestionsFor(path: string): string[] {
+  if (path.startsWith('/trips/')) {
+    return [
+      'Что взять с собой в эту поездку?',
+      'Какие документы и виза нужны для этого маршрута?',
+      'Как лучше передвигаться между городами маршрута?',
+    ];
+  }
+  if (path.startsWith('/community')) {
+    return [
+      'Какие документы нужны для визы в эту страну?',
+      'Что важно знать о въезде и выезде?',
+      'Какой сезон лучший для поездки сюда?',
+    ];
+  }
+  if (path.startsWith('/order')) {
+    return [
+      'Помоги сформулировать пожелание к поездке',
+      'Какой бюджет заложить на неделю на море?',
+      'Куда поехать в отпуск в октябре?',
+    ];
+  }
+  return [
+    'Какие документы нужны для визы в Грузию?',
+    'Составь план на 5 дней по Стамбулу',
+    'Что взять в поездку на Бали в сезон дождей?',
+  ];
+}
+
+/** Мини-разметка ответа: **жирный**, строки-списки («- », «• », «1. »). */
+function renderRich(text: string): ReactNode {
+  const bold = (s: string, keyBase: string): ReactNode[] =>
+    s.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+      i % 2 === 1 ? (
+        <strong key={`${keyBase}-b${i}`} className="font-semibold text-aurora">
+          {part}
+        </strong>
+      ) : (
+        part
+      ),
+    );
+  return text.split('\n').map((line, i) => {
+    const m = line.match(/^\s*(?:[-•]|\d+\.)\s+(.*)$/);
+    if (m) {
+      return (
+        <span key={i} className="flex gap-2">
+          <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-aurora/80" />
+          <span>{bold(m[1], String(i))}</span>
+        </span>
+      );
+    }
+    return (
+      <span key={i} className="block min-h-[0.5em]">
+        {bold(line, String(i))}
+      </span>
+    );
+  });
+}
+
+/** «Печать по буквам» для последнего ответа ассистента. */
+function Typewriter({ text, onDone }: { text: string; onDone: () => void }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setN(text.length);
+      onDone();
+      return;
+    }
+    let i = 0;
+    const id = setInterval(() => {
+      i = Math.min(text.length, i + 3); // ~180 зн/с — живо, но читаемо
+      setN(i);
+      if (i >= text.length) {
+        clearInterval(id);
+        onDone();
+      }
+    }, 16);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+  return <>{renderRich(text.slice(0, n))}</>;
+}
+
+/** Пульсирующая «искра» — аватар консьержа. */
+function Spark({ size = 34, thinking = false }: { size?: number; thinking?: boolean }) {
+  return (
+    <span className="relative inline-grid shrink-0 place-items-center" style={{ width: size, height: size }}>
+      <span className={`absolute inset-0 rounded-full bg-aurora/25 ${thinking ? 'animate-ping' : ''}`} />
+      <span className="relative grid h-full w-full place-items-center rounded-full border border-aurora/50 bg-gradient-to-br from-aurora/30 to-aurora/10 text-aurora">
+        <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
+        </svg>
+      </span>
+    </span>
+  );
+}
+
 export function AssistantWidget() {
+  const path = usePathname() || '/';
   const [open, setOpen] = useState(false);
+  const [wide, setWide] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  // Индекс последнего ответа, который ещё «печатается».
+  const [typingIdx, setTypingIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const suggestions = useMemo(() => suggestionsFor(path), [path]);
 
   useEffect(() => {
     setLoggedIn(!!getToken());
@@ -27,10 +141,10 @@ export function AssistantWidget() {
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, open]);
+  }, [messages, open, busy, typingIdx]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(preset?: string) {
+    const text = (preset ?? input).trim();
     if (!text || busy) return;
     const next = [...messages, { role: 'user' as const, content: text }];
     setMessages(next);
@@ -38,7 +152,10 @@ export function AssistantWidget() {
     setBusy(true);
     try {
       const r = await assistant.chat(next);
-      setMessages((m) => [...m, { role: 'assistant', content: r.reply }]);
+      setMessages((m) => {
+        setTypingIdx(m.length); // новый ответ печатается по буквам
+        return [...m, { role: 'assistant', content: r.reply }];
+      });
     } catch (e) {
       setMessages((m) => [...m, { role: 'assistant', content: `⚠️ ${(e as Error).message}` }]);
     } finally {
@@ -48,106 +165,180 @@ export function AssistantWidget() {
 
   return (
     <>
-      {!open && (
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="ИИ-консультант"
-          className="fixed bottom-20 left-4 z-[8500] flex h-14 w-14 items-center justify-center rounded-full border border-aurora/40 bg-aurora text-aurora-fg shadow-xl transition-transform hover:scale-105 md:bottom-6"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 3a7 7 0 017 7c0 3-2 5-2 7H7c0-2-2-4-2-7a7 7 0 017-7zM9 21h6M10 10h.01M14 10h.01" />
-          </svg>
-        </button>
-      )}
+      {/* Кнопка-лончер: искра + подпись при наведении */}
+      <AnimatePresence>
+        {!open && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.3, ease: EASE }}
+            onClick={() => setOpen(true)}
+            aria-label="ИИ-консьерж"
+            className="glow-gold group fixed bottom-20 left-4 z-[8500] flex h-14 items-center gap-0 rounded-full border border-aurora/50 bg-[#171310]/90 pl-2.5 pr-2.5 text-aurora shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all duration-500 hover:pr-5 md:bottom-6"
+          >
+            <Spark size={36} />
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium text-white/90 transition-all duration-500 group-hover:ml-2.5 group-hover:max-w-[130px]">
+              Спросить ИИ
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
-      {open && (
-        <div className="fixed bottom-20 left-4 z-[8500] flex h-[70vh] max-h-[560px] w-[min(92vw,380px)] flex-col overflow-hidden rounded-2xl border border-ink-line bg-ink-soft shadow-2xl md:bottom-6">
-          <div className="flex items-center justify-between border-b border-ink-line px-4 py-3">
-            <div className="flex items-center gap-2">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-aurora/15 text-aurora">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a7 7 0 017 7c0 3-2 5-2 7H7c0-2-2-4-2-7a7 7 0 017-7zM9 21h6" /></svg>
-              </span>
-              <div>
-                <div className="text-sm text-paper">ИИ-консультант</div>
-                <div className="text-[11px] text-paper-faint">Маршруты, визы, документы</div>
-              </div>
-            </div>
-            <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-paper-faint hover:text-paper">✕</button>
-          </div>
-
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            {!loggedIn ? (
-              <p className="text-sm text-paper-dim">
-                Чтобы задать вопрос ассистенту,{' '}
-                <Link href="/login" className="text-aurora hover:underline">войдите</Link>.
-              </p>
-            ) : messages.length === 0 ? (
-              <div className="text-sm text-paper-dim">
-                <p>Привет! Спросите про маршрут, визу или документы. Например:</p>
-                <div className="mt-3 space-y-2">
-                  {[
-                    'Какие документы нужны для визы в Грузию?',
-                    'Составь план на 5 дней по Стамбулу',
-                    'Что взять в поездку на Бали в сезон дождей?',
-                  ].map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setInput(s)}
-                      className="block w-full rounded-lg border border-ink-line px-3 py-2 text-left text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              messages.map((m, i) => (
-                <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                  <div
-                    className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3.5 py-2 text-sm ${
-                      m.role === 'user' ? 'bg-aurora text-aurora-fg' : 'border border-ink-line bg-ink text-paper'
-                    }`}
-                  >
-                    {m.content}
+      {/* Панель консьержа */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ duration: 0.35, ease: EASE }}
+            className={`fixed z-[8500] flex flex-col overflow-hidden rounded-3xl border border-aurora/25 bg-[#14100c]/95 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)] backdrop-blur-xl ${
+              wide
+                ? 'inset-4 md:inset-x-auto md:left-1/2 md:w-[min(94vw,720px)] md:-translate-x-1/2'
+                : 'bottom-20 left-4 h-[70vh] max-h-[600px] w-[min(92vw,400px)] md:bottom-6'
+            }`}
+          >
+            {/* Шапка */}
+            <div className="relative flex items-center justify-between border-b border-white/10 px-4 py-3.5">
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-aurora/10 to-transparent" />
+              <div className="relative flex items-center gap-3">
+                <Spark thinking={busy} />
+                <div>
+                  <div className="font-serif text-base tracking-tightest">Консьерж Vela</div>
+                  <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                    {busy ? 'печатает…' : 'маршруты · визы · документы'}
                   </div>
                 </div>
-              ))
-            )}
-            {busy && <div className="text-sm text-paper-faint">Думаю…</div>}
-            <div ref={bottomRef} />
-          </div>
-
-          {loggedIn && (
-            <div className="border-t border-ink-line p-3">
-              <div className="flex items-end gap-2">
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      send();
-                    }
-                  }}
-                  rows={1}
-                  placeholder="Ваш вопрос…"
-                  className="max-h-28 min-h-[40px] flex-1 resize-none rounded-lg border border-ink-line bg-ink px-3 py-2 text-sm text-paper placeholder:text-paper-faint outline-none focus:border-aurora/60"
-                />
+              </div>
+              <div className="relative flex items-center gap-1">
                 <button
-                  onClick={send}
-                  disabled={busy || !input.trim()}
-                  className="rounded-lg bg-aurora px-4 py-2 text-sm font-medium text-aurora-fg disabled:opacity-50"
+                  onClick={() => setWide((w) => !w)}
+                  aria-label={wide ? 'Свернуть' : 'На весь экран'}
+                  className="hidden rounded-lg p-2 text-white/50 transition-colors hover:text-white md:block"
                 >
-                  →
+                  {wide ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" /></svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>
+                  )}
+                </button>
+                <button onClick={() => setOpen(false)} aria-label="Закрыть" className="rounded-lg p-2 text-white/50 transition-colors hover:text-white">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                 </button>
               </div>
-              <p className="mt-2 text-[11px] text-paper-faint">
-                Ответы ИИ могут содержать неточности — проверяйте визовые правила на официальных источниках.
-              </p>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Лента сообщений */}
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+              {!loggedIn ? (
+                <p className="text-sm text-white/70">
+                  Чтобы задать вопрос консьержу,{' '}
+                  <Link href="/login" className="text-aurora hover:underline">войдите</Link>.
+                </p>
+              ) : messages.length === 0 ? (
+                <div className="text-sm text-white/70">
+                  <p className="leading-relaxed">
+                    Здравствуйте! Я помогу с маршрутом, визами и сборами. С чего начнём?
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {suggestions.map((s, i) => (
+                      <motion.button
+                        key={s}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.08 * i, duration: 0.35, ease: EASE }}
+                        onClick={() => send(s)}
+                        className="block w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-left text-white/75 transition-colors hover:border-aurora/40 hover:bg-aurora/5 hover:text-white"
+                      >
+                        {s}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                messages.map((m, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: EASE }}
+                    className={m.role === 'user' ? 'flex justify-end' : 'flex items-start gap-2.5'}
+                  >
+                    {m.role === 'assistant' && <Spark size={26} />}
+                    <div
+                      className={`max-w-[85%] whitespace-pre-wrap break-words text-sm leading-relaxed ${
+                        m.role === 'user'
+                          ? 'rounded-2xl rounded-br-md bg-aurora px-4 py-2.5 text-aurora-fg'
+                          : 'rounded-2xl rounded-tl-md border border-white/10 bg-white/[0.04] px-4 py-2.5 text-white/90'
+                      }`}
+                    >
+                      {m.role === 'assistant' ? (
+                        i === typingIdx ? (
+                          <Typewriter text={m.content} onDone={() => setTypingIdx(null)} />
+                        ) : (
+                          renderRich(m.content)
+                        )
+                      ) : (
+                        m.content
+                      )}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+
+              {/* Типинг-индикатор */}
+              {busy && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2.5">
+                  <Spark size={26} thinking />
+                  <div className="flex gap-1.5 rounded-2xl rounded-tl-md border border-white/10 bg-white/[0.04] px-4 py-3">
+                    {[0, 1, 2].map((i) => (
+                      <span
+                        key={i}
+                        className="h-1.5 w-1.5 animate-bounce rounded-full bg-aurora/80"
+                        style={{ animationDelay: `${i * 0.15}s` }}
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Ввод */}
+            {loggedIn && (
+              <div className="border-t border-white/10 p-3">
+                <div className="flex items-end gap-2">
+                  <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        send();
+                      }
+                    }}
+                    rows={1}
+                    placeholder="Спросите о путешествии…"
+                    className="max-h-28 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-white placeholder:text-white/35 outline-none transition-colors focus:border-aurora/50"
+                  />
+                  <button
+                    onClick={() => send()}
+                    disabled={busy || !input.trim()}
+                    aria-label="Отправить"
+                    className="glow-gold grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-aurora text-aurora-fg transition-transform hover:-translate-y-0.5 disabled:opacity-40"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-white/35">
+                  Ответы ИИ могут содержать неточности — визовые правила проверяйте на официальных источниках.
+                </p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

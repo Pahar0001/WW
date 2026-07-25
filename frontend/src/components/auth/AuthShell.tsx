@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { AuthScenery } from '@/components/auth/AuthScenery';
+import { buildGradeSvg, GRADE_FILTER_ID } from '@/components/hero/ColorGrading';
 
 // Shared field + button styles (used by all auth pages).
 export const inp =
@@ -9,9 +11,11 @@ export const inp =
 export const btn =
   'sheen relative w-full overflow-hidden rounded-full bg-aurora px-6 py-3.5 text-sm font-medium text-aurora-fg shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:brightness-[1.04] active:translate-y-0 disabled:pointer-events-none disabled:opacity-50';
 
-// Reused cinematic visual (the featured shan-shui route).
-const AUTH_IMG =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/1_tianzishan_wulingyuan_zhangjiajie_2012.jpg/3840px-1_tianzishan_wulingyuan_zhangjiajie_2012.jpg';
+// Кино-фон — то же видео Таиланда, что и на главной (единый кино-язык бренда):
+// замедленный бесшовный цикл с фирменным грейдингом. Постер — мгновенный кадр
+// до загрузки видео и фолбэк для reduced-motion.
+const AUTH_VIDEO = '/hero/thailand.mp4';
+const AUTH_POSTER = '/hero/thailand-poster.jpg';
 
 const POINTS = [
   'Готовые маршруты и конструктор по дням',
@@ -28,16 +32,42 @@ export function AuthShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
+  // Замедляем видео до «созерцательного» темпа; reduced-motion — пауза на постере.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      v.pause();
+      return;
+    }
+    v.playbackRate = 0.55;
+    v.play().catch(() => {}); // автоплей может быть запрещён — остаёмся на постере
+  }, []);
+
   return (
     <main className="relative grid min-h-screen lg:grid-cols-2">
       <AuthScenery />
+      {/* SVG-фильтр фирменного грейдинга для видео */}
+      <span aria-hidden dangerouslySetInnerHTML={{ __html: buildGradeSvg() }} />
 
       {/* ── Left cinematic brand panel (desktop) ── */}
       <div className="relative hidden overflow-hidden lg:block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={AUTH_IMG} alt="" className="absolute inset-0 h-full w-full object-cover" />
-        {/* Explicit dark overlay + light text — independent of theme (image is always dark). */}
+        <video
+          ref={videoRef}
+          src={AUTH_VIDEO}
+          poster={AUTH_POSTER}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: `url(#${GRADE_FILTER_ID})` }}
+        />
+        {/* Explicit dark overlay + light text — independent of theme (video is graded dark). */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/25" />
+        <div className="absolute inset-0 bg-[radial-gradient(90%_70%_at_20%_85%,rgba(0,0,0,0.5),transparent_70%)]" />
         <div className="relative z-10 flex h-full flex-col justify-between p-12 xl:p-16">
           <Link href="/" className="flex w-fit items-center gap-2 font-serif text-2xl tracking-tightest text-white">
             <span className="grid h-8 w-8 place-items-center rounded-full border border-aurora/60 text-[14px] text-aurora">和</span>
