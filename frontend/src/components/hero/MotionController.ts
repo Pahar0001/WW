@@ -4,25 +4,29 @@
  * на выходе. Ни DOM, ни состояния — легко тестировать и настраивать.
  *
  * Хронология таймлайна (доли прогресса — «ручки» дизайнера):
- *   0.00–0.10  титры входят (двигаются вверх, проявляются)
- *   0.10–0.78  чистый полёт: интерфейс почти прозрачен, работает видео
- *   0.78–0.92  титры уходят, появляется подпись следующей главы
- *   0.90–1.00  «выход»: кадр плавно растворяется в фон следующей секции —
- *              переход ощущается продолжением путешествия, а не обрывом.
+ *   0.00–0.20  заглавный блок + CTA
+ *   0.24–0.86  ГЛАВЫ: по ходу полёта сменяются информационные блоки
+ *              (что такое Vela) — скролл рассказывает историю, а не пустует
+ *   0.88–0.985 оутро «путешествие продолжается ниже»
+ *   0.93–1.00  «выход»: кадр растворяется в фон следующей секции.
  */
 
+export interface PhaseState {
+  opacity: number;
+  y: number; // px сдвиг (входит снизу, уходит вверх)
+}
+
 export interface HeroMotion {
-  /** Прозрачность и сдвиг заглавного блока. */
-  titleOpacity: number;
-  titleY: number; // px
+  /** Заглавный блок (титул + CTA). */
+  title: PhaseState;
   /** Подсказка «листайте» — видна только в самом начале. */
   hintOpacity: number;
   /** Лёгкий «дыхательный» масштаб видео: 1.06 → 1.0 за весь полёт. */
   videoScale: number;
   /** Слой-занавес перехода к следующей секции (0 — нет, 1 — полностью). */
   exitOpacity: number;
-  /** Подпись финала («полёт продолжается ниже»). */
-  outroOpacity: number;
+  /** Подпись финала. */
+  outro: PhaseState;
   /** Тонкая линия-прогресс таймлайна. */
   timeline: number;
 }
@@ -33,18 +37,38 @@ const span = (p: number, a: number, b: number) => clamp01((p - a) / (b - a));
 /** Кубический ease-in-out — «дорогая» кривая без резких стартов. */
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-export function computeMotion(p: number): HeroMotion {
-  const enter = ease(span(p, 0, 0.1)); // вход титров
-  const leave = ease(span(p, 0.78, 0.92)); // уход титров
-  const exit = ease(span(p, 0.9, 1)); // растворение кадра
-
+/**
+ * Состояние «фазы» (главы) с окном жизни [from..to]:
+ * плавный вход на первых fade долях окна и уход на последних.
+ */
+export function phase(p: number, from: number, to: number, fade = 0.22): PhaseState {
+  const len = to - from;
+  const enter = ease(span(p, from, from + len * fade));
+  const leave = ease(span(p, to - len * fade, to));
   return {
-    titleOpacity: enter * (1 - leave),
-    titleY: (1 - enter) * 28 + leave * -36,
-    hintOpacity: (1 - ease(span(p, 0.04, 0.14))) * enter,
+    opacity: enter * (1 - leave),
+    y: (1 - enter) * 26 + leave * -30,
+  };
+}
+
+/** Окна жизни глав — правится дизайнером в одном месте. */
+export const TITLE_WINDOW: [number, number] = [0, 0.22];
+export const CHAPTER_WINDOWS: [number, number][] = [
+  [0.24, 0.46],
+  [0.5, 0.7],
+  [0.73, 0.88],
+];
+export const OUTRO_WINDOW: [number, number] = [0.89, 0.985];
+
+export function computeMotion(p: number): HeroMotion {
+  // Титул виден с самого нуля (окно [0..x] → enter уже завершён на p=0).
+  const t = phase(p, -0.12, TITLE_WINDOW[1], 0.3);
+  return {
+    title: p < 0.001 ? { opacity: 1, y: 0 } : t,
+    hintOpacity: 1 - ease(span(p, 0.02, 0.1)),
     videoScale: 1.06 - 0.06 * ease(span(p, 0, 1)),
-    exitOpacity: exit,
-    outroOpacity: ease(span(p, 0.84, 0.94)) * (1 - ease(span(p, 0.97, 1))),
+    exitOpacity: ease(span(p, 0.93, 1)),
+    outro: phase(p, OUTRO_WINDOW[0], OUTRO_WINDOW[1], 0.3),
     timeline: p,
   };
 }

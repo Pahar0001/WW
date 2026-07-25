@@ -33,7 +33,7 @@ export default async function HomePage() {
 
       {/* Заглавный экран: кинематографический полёт или 3D-глобус */}
       {heroMedia.kind === 'video' ? (
-        <HeroVideo src={heroMedia.src} poster={heroMedia.poster} />
+        <HeroVideo src={heroMedia.src} poster={heroMedia.poster} tripCount={trips.length} />
       ) : (
         <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} trips={trips} />
       )}
