@@ -68,13 +68,20 @@ export function FloatingNav() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
-  // Прячем «пилюлю», когда докрутили почти до низа (чтобы не закрывать футер).
+  // Прячем «пилюлю»: 1) пока идёт кино-hero (видео, управляемое скроллом) —
+  // навигация появляется вместе с остальным сайтом на «занавесе» выхода;
+  // 2) когда докрутили почти до низа (чтобы не закрывать футер).
   useEffect(() => {
     let raf = 0;
     const check = () => {
       const nearBottom =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 120;
-      setHidden(nearBottom);
+      const cinema = document.querySelector<HTMLElement>('[data-hero-cinema]');
+      // Порог = начало «занавеса» (~93% таймлайна): низ hero минус пол-экрана.
+      const inCinema = cinema
+        ? window.scrollY < cinema.offsetHeight - window.innerHeight * 1.35
+        : false;
+      setHidden(nearBottom || inCinema);
       raf = 0;
     };
     const onScroll = () => {

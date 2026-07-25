@@ -172,6 +172,8 @@ export function HeroVideo({
   return (
     <section
       ref={section}
+      // data-hero-cinema: FloatingNav прячется, пока идёт кино (см. FloatingNav).
+      data-hero-cinema={reduced ? undefined : ''}
       className="relative bg-[#0d0b08]"
       style={{ height: reduced ? '100svh' : `${SCROLL_VH}vh` }}
     >
