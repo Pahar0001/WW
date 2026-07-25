@@ -30,12 +30,32 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ScrollController } from './ScrollController';
 import { VideoScrubber } from './VideoScrubber';
-import { computeMotion, phase, CHAPTER_WINDOWS } from './MotionController';
+import { computeMotion, phase, chainProgress, CHAPTER_WINDOWS, CHAIN_NODES } from './MotionController';
 import { buildGradeSvg, GRADE_FILTER_ID } from './ColorGrading';
 import { PaperNoise } from './PaperNoise';
 import { pluralize } from '@/lib/plural';
 
 const SCROLL_VH = 420; // «длина плёнки» в vh — главная ручка темпа
+
+/**
+ * «Нить маршрута»: главы разбросаны по экрану (desktop) и связаны золотой
+ * линией, которая прорисовывается по мере полёта — как трек на карте.
+ * Координаты — проценты вьюпорта: SVG (viewBox 100×100, preserveAspectRatio
+ * none) и div-узлы используют одну систему, поэтому совпадают точно.
+ */
+const CHAIN_PATH =
+  'M 10 96 C 4 86 6 78 12 72 C 20 62 44 56 58 48 C 70 41 76 34 74 26 C 71 17 50 14 34 18 C 26 20 18 22 16 26';
+const NODE_POS = [
+  { left: '12%', top: '72%' },
+  { left: '74%', top: '26%' },
+  { left: '16%', top: '26%' },
+];
+/** Tailwind-позиции текстов глав (md+); на мобиле все — снизу. */
+const CH_CLASS = [
+  'md:left-[5%] md:top-[46%]',
+  'md:right-[5%] md:top-[30%]',
+  'md:left-[7%] md:top-[30%]',
+];
 
 /** «Дымка» под текстом: тёмное blur-пятно с растворяющимися краями. */
 function Mist() {
@@ -86,6 +106,9 @@ export function HeroVideo({
   const lineEl = useRef<HTMLDivElement>(null);
   const chapterEls = useRef<(HTMLDivElement | null)[]>([]);
   const chapterMarks = useRef<(HTMLSpanElement | null)[]>([]);
+  const chainPath = useRef<SVGPathElement>(null);
+  const chainGlow = useRef<SVGPathElement>(null);
+  const nodeEls = useRef<(HTMLDivElement | null)[]>([]);
   const [reduced, setReduced] = useState(false);
 
   // Главы повествования. Числа — реальные (кол-во маршрутов приходит из БД).
@@ -148,6 +171,18 @@ export function HeroVideo({
       if (exitEl.current) exitEl.current.style.opacity = String(m.exitOpacity);
       if (lineEl.current) lineEl.current.style.transform = `scaleX(${m.timeline})`;
       vid.style.transform = `scale(${m.videoScale})`;
+
+      // «Нить маршрута»: прорисовка линии + вспышка узлов, до которых дошли.
+      const cp = chainProgress(progress);
+      if (chainPath.current) chainPath.current.style.strokeDashoffset = String(1 - cp);
+      if (chainGlow.current) chainGlow.current.style.strokeDashoffset = String(1 - cp);
+      CHAIN_NODES.forEach((t, i) => {
+        const n = nodeEls.current[i];
+        if (!n) return;
+        const reached = cp >= t;
+        n.style.opacity = reached ? '1' : '0.18';
+        n.style.transform = `translate(-50%, -50%) scale(${reached ? 1 : 0.6})`;
+      });
     });
 
     return () => {
@@ -157,11 +192,26 @@ export function HeroVideo({
     };
   }, [reduced]);
 
-  /** Общая обёртка текстового блока: колонка слева-снизу + дымка. */
-  const Block = ({ children, blockRef }: { children: ReactNode; blockRef: (el: HTMLDivElement | null) => void }) => (
-    <div className="pointer-events-none absolute inset-0 z-10 flex items-end">
-      <div className="container-vela w-full pb-24 md:pb-28">
-        <div ref={blockRef} className="relative max-w-2xl" style={{ opacity: 0 }}>
+  /**
+   * Блок главы: на мобиле — снизу (как титры), на десктопе — своя точка
+   * экрана (узел «нити маршрута»), дымка под текстом для читаемости.
+   */
+  const Block = ({
+    children,
+    posClass,
+    blockRef,
+  }: {
+    children: ReactNode;
+    posClass: string;
+    blockRef: (el: HTMLDivElement | null) => void;
+  }) => (
+    <div className="pointer-events-none absolute inset-0 z-10">
+      <div
+        ref={blockRef}
+        className={`absolute inset-x-5 bottom-24 md:inset-x-auto md:bottom-auto md:w-[min(38vw,520px)] ${posClass}`}
+        style={{ opacity: 0 }}
+      >
+        <div className="relative">
           <Mist />
           {children}
         </div>
@@ -245,11 +295,70 @@ export function HeroVideo({
           </div>
         </div>
 
+        {/* ── «Нить маршрута»: линия между главами + узлы (desktop) ── */}
+        {!reduced && (
+          <>
+            <svg
+              aria-hidden
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 z-[9] hidden h-full w-full md:block"
+            >
+              {/* Свечение под линией */}
+              <path
+                ref={chainGlow}
+                d={CHAIN_PATH}
+                pathLength={1}
+                fill="none"
+                stroke="#d8b878"
+                strokeOpacity="0.18"
+                strokeWidth="6"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="1"
+                strokeDashoffset="1"
+              />
+              {/* Сама нить */}
+              <path
+                ref={chainPath}
+                d={CHAIN_PATH}
+                pathLength={1}
+                fill="none"
+                stroke="#d8b878"
+                strokeOpacity="0.85"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+                strokeDasharray="1"
+                strokeDashoffset="1"
+              />
+            </svg>
+            {NODE_POS.map((pos, i) => (
+              <div
+                key={i}
+                ref={(el) => {
+                  nodeEls.current[i] = el;
+                }}
+                aria-hidden
+                className="pointer-events-none absolute z-[9] hidden md:block"
+                style={{ ...pos, opacity: 0.18, transform: 'translate(-50%, -50%) scale(0.6)', transition: 'opacity 0.6s ease, transform 0.6s cubic-bezier(0.22,1,0.36,1)' }}
+              >
+                <span className="relative grid h-4 w-4 place-items-center">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-aurora/40" style={{ animationDuration: '2.6s' }} />
+                  <span className="relative h-2.5 w-2.5 rounded-full border border-aurora/80 bg-[#0d0b08]" />
+                  <span className="absolute h-1 w-1 rounded-full bg-aurora" />
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+
         {/* ── Главы 1..3: повествование по ходу полёта ── */}
         {!reduced &&
           chapters.map((c, i) => (
             <Block
               key={c.index}
+              posClass={CH_CLASS[i]}
               blockRef={(el) => {
                 chapterEls.current[i] = el;
               }}

@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { AuthShell, btn } from '@/components/auth/AuthShell';
+import { AuthShell, AuthCurtain, btn } from '@/components/auth/AuthShell';
 import { AuthField, PasswordField, emailLooksValid } from '@/components/auth/fields';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Живая подсказка — только когда пользователь уже что-то ввёл.
@@ -21,16 +22,21 @@ export default function LoginPage() {
     setBusy(true);
     try {
       const user = await auth.login(email, password);
-      window.location.href = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' ? '/admin' : '/';
+      // Плавный «занавес» — следующая страница появляется как продолжение сцены.
+      setLeaving(true);
+      const to = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' ? '/admin' : '/';
+      setTimeout(() => {
+        window.location.href = to;
+      }, 900);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(false);
     }
   }
 
   return (
     <AuthShell title="Вход" subtitle="Рады видеть снова.">
+      <AuthCurtain show={leaving} note="С возвращением" />
       <form onSubmit={submit} className="space-y-4">
         <AuthField
           label="Email"

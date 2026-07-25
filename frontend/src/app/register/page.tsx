@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { AuthShell, btn } from '@/components/auth/AuthShell';
+import { AuthShell, AuthCurtain, btn } from '@/components/auth/AuthShell';
 import { AuthField, PasswordField, emailLooksValid, passwordScore } from '@/components/auth/fields';
 
 export default function RegisterPage() {
@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Живая валидация до отправки: подсказки, пока пользователь печатает.
@@ -23,16 +24,20 @@ export default function RegisterPage() {
     setBusy(true);
     try {
       await auth.register(email, password, name || undefined);
-      window.location.href = `/verify-email?email=${encodeURIComponent(email)}`;
+      // Плавный «занавес» перед подтверждением email — без резкого скачка.
+      setLeaving(true);
+      setTimeout(() => {
+        window.location.href = `/verify-email?email=${encodeURIComponent(email)}`;
+      }, 900);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
       setBusy(false);
     }
   }
 
   return (
     <AuthShell title="Регистрация" subtitle="Создайте аккаунт, чтобы планировать поездки.">
+      <AuthCurtain show={leaving} note="Добро пожаловать" />
       <form onSubmit={submit} className="space-y-4">
         <AuthField label="Имя" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
         <AuthField

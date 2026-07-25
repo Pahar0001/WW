@@ -60,6 +60,17 @@ export const CHAPTER_WINDOWS: [number, number][] = [
 ];
 export const OUTRO_WINDOW: [number, number] = [0.89, 0.985];
 
+/**
+ * Прогресс прорисовки «нити маршрута» (0..1): линия начинает тянуться чуть
+ * раньше первой главы и дорисовывается к последней — главы как узлы на пути.
+ */
+export function chainProgress(p: number): number {
+  return ease(span(p, 0.14, 0.82));
+}
+
+/** Доли длины нити, на которых стоят узлы-главы (подобраны под путь). */
+export const CHAIN_NODES = [0.22, 0.72, 0.97];
+
 export function computeMotion(p: number): HeroMotion {
   // Титул виден с самого нуля (окно [0..x] → enter уже завершён на p=0).
   const t = phase(p, -0.12, TITLE_WINDOW[1], 0.3);

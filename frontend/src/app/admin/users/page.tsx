@@ -71,15 +71,15 @@ export default function AdminUsersPage() {
       </p>
       <h1 className="font-serif display-2">Администрирование</h1>
 
-      {/* Dashboard */}
+      {/* Сводка (новый формат /admin/stats: вложенные объекты) */}
       <div className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
         {stats
           ? (
             <>
-              <Stat label="Пользователи" value={stats.users} />
-              <Stat label="Поездки" value={stats.trips} />
-              <Stat label="Опубликовано" value={stats.publishedTrips} />
-              <Stat label="Участий в поездках" value={stats.memberships} />
+              <Stat label="Пользователи" value={stats.users.total} />
+              <Stat label="Онлайн сейчас" value={stats.users.online} />
+              <Stat label="Поездки" value={stats.trips.total} />
+              <Stat label="Публичных" value={stats.trips.published} />
             </>
           )
           : Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}

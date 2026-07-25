@@ -11,13 +11,9 @@ export interface AdminUser {
   emailVerified: boolean;
   createdAt: string;
 }
-export interface AdminStats {
-  users: number;
-  trips: number;
-  publishedTrips: number;
-  memberships: number;
-  recentUsers: AdminUser[];
-}
+// Формат /admin/stats расширен (дашборд) — единый тип живёт в lib/api.ts.
+import type { AdminStats } from './api';
+export type { AdminStats };
 export interface AuditRow {
   id: string;
   action: string;

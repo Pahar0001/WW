@@ -69,7 +69,7 @@ export default function AdminPage() {
       <AdminDashboard />
 
       {/* Управление существующими путешествиями */}
-      <section className="mt-10 rounded-2xl border border-ink-line bg-ink-soft/50 p-6 shadow-soft sm:p-8">
+      <section id="trips-manage" className="mt-10 rounded-2xl border border-ink-line bg-ink-soft/50 p-6 shadow-soft sm:p-8">
         <h2 className="font-serif text-2xl tracking-tightest">Существующие путешествия</h2>
         {trips.length === 0 ? (
           <p className="mt-3 text-sm text-paper-faint">Пока ничего нет.</p>
