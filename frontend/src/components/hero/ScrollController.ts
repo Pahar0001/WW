@@ -97,6 +97,16 @@ export class ScrollController {
         raw: this.raw,
         velocity: this.progress - prev,
       };
+      if (process.env.NODE_ENV !== 'production') {
+        (window as any).__scroll = {
+          raw: this.raw.toFixed(3),
+          progress: this.progress.toFixed(3),
+          top: this.sectionTop,
+          range: this.scrollRange,
+          listeners: this.listeners.size,
+          ticks: (((window as any).__scroll?.ticks ?? 0) + 1) % 100000,
+        };
+      }
       this.listeners.forEach((l) => l(frame));
       this.rafId = requestAnimationFrame(tick);
     };

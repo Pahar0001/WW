@@ -42,7 +42,7 @@ function Mist() {
   return (
     <div
       aria-hidden
-      className="absolute -inset-x-10 -inset-y-8 -z-10 rounded-[48px] bg-[#0d0b08]/45 backdrop-blur-md"
+      className="absolute -inset-x-10 -inset-y-8 -z-10 rounded-[48px] bg-[#0d0b08]/55 backdrop-blur-md"
       style={{
         WebkitMaskImage:
           'radial-gradient(85% 90% at 35% 55%, #000 45%, transparent 98%)',

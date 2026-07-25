@@ -17,17 +17,17 @@ export type HeroMedia =
   | { kind: 'image'; src: string }
   | { kind: 'video'; src: string; poster?: string };
 
-// Дефолт — локальное видео полёта (public/hero/flight.mp4): кинематографический
-// скролл-hero. NEXT_PUBLIC_HERO_MEDIA_URL переопределяет источник (Higgsfield
-// в будущем), значение 'none' отключает видео → фолбэк на 3D-глобус.
+// Дефолт — полёт над Кхао Сок, Таиланд (public/hero/thailand.mp4, 1080p):
+// кинематографический скролл-hero. NEXT_PUBLIC_HERO_MEDIA_URL переопределяет
+// источник (Higgsfield в будущем), 'none' отключает видео → фолбэк на 3D-глобус.
 export function getHeroMedia(): HeroMedia {
-  const src = process.env.NEXT_PUBLIC_HERO_MEDIA_URL ?? '/hero/flight.mp4';
+  const src = process.env.NEXT_PUBLIC_HERO_MEDIA_URL ?? '/hero/thailand.mp4';
   if (!src || src === 'none') return { kind: 'none' };
   return /\.(mp4|webm)(\?|$)/.test(src)
     ? {
         kind: 'video',
         src,
-        poster: process.env.NEXT_PUBLIC_HERO_MEDIA_POSTER ?? '/hero/flight-poster.jpg',
+        poster: process.env.NEXT_PUBLIC_HERO_MEDIA_POSTER ?? '/hero/thailand-poster.jpg',
       }
     : { kind: 'image', src };
 }
