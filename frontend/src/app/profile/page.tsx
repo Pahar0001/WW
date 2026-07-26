@@ -11,6 +11,7 @@ import { Avatar } from '@/components/social/Avatar';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { VisitedMap } from '@/components/profile/VisitedMap';
+import { DigestToggle } from '@/components/profile/DigestToggle';
 import { toast } from '@/components/ui/Toaster';
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { dateStyle: 'long' });
@@ -277,6 +278,7 @@ export default function ProfilePage() {
                 <span className="text-sm text-paper">Тема оформления</span>
                 <ThemeToggle />
               </div>
+              <DigestToggle />
               <button
                 onClick={() => logout()}
                 className="mt-2 w-full rounded-full border border-ink-line px-4 py-2.5 text-sm text-paper-dim transition-colors hover:border-red-400/50 hover:text-paper"

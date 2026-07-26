@@ -563,6 +563,8 @@ model User {
   // Последняя активность (обновляется guard'ом не чаще раза в 5 минут) —
   // «онлайн» в админке = lastSeenAt моложе 5 минут.
   lastSeenAt          DateTime?
+  // Отказ от воскресного email-дайджеста (ссылка «отписаться» в письме).
+  digestOptOut        Boolean    @default(false)
   saved               SavedTrip[]
   memberships         TripMember[]
   auditLogs           AuditLog[]
@@ -866,4 +868,11 @@ model VisitedCountry {
   createdAt DateTime @default(now())
   @@unique([userId, code])
   @@index([userId])
+}
+
+// Служебные пары ключ-значение (метка последней отправки дайджеста и т.п.).
+model SystemState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
