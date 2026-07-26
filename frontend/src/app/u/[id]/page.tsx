@@ -7,6 +7,7 @@ import { network, type ProfileView, type Relationship } from '@/lib/network';
 import { chat } from '@/lib/chat';
 import { SocialTabs } from '@/components/social/SocialTabs';
 import { Avatar } from '@/components/social/Avatar';
+import { VisitedMap } from '@/components/profile/VisitedMap';
 
 const fmt = (s: string) => new Date(s).toLocaleDateString('ru-RU', { dateStyle: 'medium' });
 
@@ -67,6 +68,9 @@ export default function PublicProfilePage() {
           )}
         </div>
       </div>
+
+      {/* Карта путешествий пользователя (если есть отметки) */}
+      <VisitedMap userId={id} />
 
       <h2 className="mt-8 font-serif text-2xl tracking-tightest">Посты</h2>
       <div className="mt-4 space-y-4">

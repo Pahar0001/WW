@@ -98,6 +98,25 @@ class TripsController {
     return this.trips.copyTrip(slug, user.id);
   }
 
+  // ── Приглашение в поездку по ссылке ──
+  // Объявлены до ":slug"-маршрутов, чтобы "invite" не съедался как slug.
+  @Get('invite/:token')
+  inviteInfo(@Param('token') token: string) {
+    return this.trips.inviteInfo(token);
+  }
+
+  @Post('invite/:token/accept')
+  @UseGuards(JwtAuthGuard)
+  acceptInvite(@Param('token') token: string, @CurrentUser() user: AuthUser) {
+    return this.trips.acceptInvite(token, user.id);
+  }
+
+  @Post(':slug/invite')
+  @UseGuards(JwtAuthGuard)
+  createInvite(@Param('slug') slug: string, @CurrentUser() user: AuthUser) {
+    return this.trips.createInvite(slug, { id: user.id, role: user.role });
+  }
+
   // Маячок просмотра (публичный, авторизация опциональна) — аналитика админки.
   @Post(':slug/view')
   view(

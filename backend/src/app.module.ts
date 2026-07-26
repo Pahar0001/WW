@@ -19,6 +19,8 @@ import { TravelModule } from './modules/travel/travel.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { ChatsModule } from './modules/chats/chats.module';
 import { NewsModule } from './modules/news/news.module';
+import { WeatherModule } from './modules/weather/weather.module';
+import { CurrencyModule } from './modules/currency/currency.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { NewsModule } from './modules/news/news.module';
     OrdersModule,
     ChatsModule,
     NewsModule,
+    WeatherModule,
+    CurrencyModule,
   ],
 })
 export class AppModule {}

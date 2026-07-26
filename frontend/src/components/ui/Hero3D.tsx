@@ -6,6 +6,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import type { GlobeMarker } from '@/lib/country-coords';
+import GEO from '@/data/globe-geo.json';
 
 const GOLD = '#d8b878';
 const R = 2.2;
@@ -62,17 +63,66 @@ function Globe({
   const group = useRef<THREE.Group>(null);
   const hoveredRef = useRef<MarkerPoint | null>(null);
 
-  const positions = useMemo(() => {
-    const N = particleCount;
-    const arr = new Float32Array(N * 3);
-    for (let i = 0; i < N; i++) {
-      const p = spherePoint(i, N, R);
-      arr[i * 3] = p.x;
-      arr[i * 3 + 1] = p.y;
-      arr[i * 3 + 2] = p.z;
+  // Реальная география: точки суши (материки читаются) + линии границ.
+  // Данные предвычислены из Natural Earth 110m (public domain) —
+  // см. frontend/src/data/globe-geo.json (lat/lng × 100).
+  const landPositions = useMemo(() => {
+    const src = GEO.dots as number[];
+    const scale = GEO.scale as number;
+    // На мобильных прореживаем: каждая вторая точка (перф WebGL).
+    const stride = particleCount < 2000 ? 2 : 1;
+    const count = Math.floor(src.length / 2 / stride);
+    const arr = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const lat = src[i * 2 * stride] / scale;
+      const lng = src[i * 2 * stride + 1] / scale;
+      const v = latLngToVector3(lat, lng, R * 1.004);
+      arr[i * 3] = v.x;
+      arr[i * 3 + 1] = v.y;
+      arr[i * 3 + 2] = v.z;
     }
     return arr;
   }, [particleCount]);
+
+  // Сетка меридианов/параллелей: сфера читается цельной и над океаном.
+  const graticulePositions = useMemo(() => {
+    const pts: number[] = [];
+    const seg = 72;
+    const push = (a: THREE.Vector3, b: THREE.Vector3) => pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+    for (let lat = -60; lat <= 60; lat += 20) {
+      for (let i = 0; i < seg; i++) {
+        push(
+          latLngToVector3(lat, (i / seg) * 360 - 180, R * 1.001),
+          latLngToVector3(lat, ((i + 1) / seg) * 360 - 180, R * 1.001),
+        );
+      }
+    }
+    for (let lng = -180; lng < 180; lng += 20) {
+      for (let i = 0; i < seg; i++) {
+        push(
+          latLngToVector3((i / seg) * 180 - 90, lng, R * 1.001),
+          latLngToVector3(((i + 1) / seg) * 180 - 90, lng, R * 1.001),
+        );
+      }
+    }
+    return new Float32Array(pts);
+  }, []);
+
+  // Границы стран одним LineSegments (один draw call на все кольца).
+  const borderPositions = useMemo(() => {
+    const scale = GEO.scale as number;
+    const rings = GEO.borders as number[][];
+    const pts: number[] = [];
+    for (const ring of rings) {
+      const n = ring.length / 2;
+      for (let i = 0; i < n - 1; i++) {
+        const a = latLngToVector3(ring[i * 2] / scale, ring[i * 2 + 1] / scale, R * 1.006);
+        const b = latLngToVector3(ring[(i + 1) * 2] / scale, ring[(i + 1) * 2 + 1] / scale, R * 1.006);
+        pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    return new Float32Array(pts);
+  }, []);
 
   const markerPoints = useMemo<MarkerPoint[]>(
     () => markers.map((m) => ({ ...m, pos: latLngToVector3(m.lat, m.lng) })),
@@ -153,26 +203,52 @@ function Globe({
 
   return (
     <group ref={group}>
-      {/* Wireframe shell for structure */}
+      {/* Непрозрачный «океан»: цельная сфера — задняя сторона не просвечивает.
+          Чуть светлее фона секции, чтобы диск читался и над водой. */}
       <mesh>
-        <icosahedronGeometry args={[R, 3]} />
-        <meshBasicMaterial color={GOLD} wireframe transparent opacity={0.05} />
+        <sphereGeometry args={[R * 0.996, 64, 64]} />
+        <meshStandardMaterial color="#221c14" roughness={0.92} metalness={0.12} />
       </mesh>
-      {/* Particle surface */}
+      {/* Тёплый ободок-атмосфера по краю диска */}
+      <mesh>
+        <sphereGeometry args={[R * 1.03, 64, 64]} />
+        <meshBasicMaterial
+          color={GOLD}
+          transparent
+          opacity={0.1}
+          side={THREE.BackSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* Сетка меридианов и параллелей — очень тихая, «картографическая» */}
+      <lineSegments>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[graticulePositions, 3]} />
+        </bufferGeometry>
+        <lineBasicMaterial color="#c9b489" transparent opacity={0.1} depthWrite={false} />
+      </lineSegments>
+      {/* Материки: россыпь точек по реальной суше (Natural Earth) */}
       <points>
         <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+          <bufferAttribute attach="attributes-position" args={[landPositions, 3]} />
         </bufferGeometry>
         <pointsMaterial
-          size={0.022}
-          color={GOLD}
+          size={0.033}
+          color="#e2c78e"
           sizeAttenuation
           transparent
-          opacity={0.9}
+          opacity={0.95}
           depthWrite={false}
-          blending={THREE.AdditiveBlending}
         />
       </points>
+      {/* Границы стран: единый LineSegments, чуть над поверхностью */}
+      <lineSegments>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[borderPositions, 3]} />
+        </bufferGeometry>
+        <lineBasicMaterial color={GOLD} transparent opacity={0.32} depthWrite={false} />
+      </lineSegments>
       {/* Glowing arcs */}
       {arcs.map((pts, i) => (
         <Line
@@ -218,11 +294,11 @@ function CountryDot({ marker, hovered }: { marker: MarkerPoint; hovered: boolean
       {/* Подпись «примагниченной» страны — крупная, кликабельная */}
       {hovered && (
         <Html position={[0, 0.16, 0]} center distanceFactor={6.5} zIndexRange={[30, 0]}>
-          <div className="pointer-events-none flex flex-col items-center gap-1.5">
-            <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-[#d8b878]/50 bg-[#0d0b08]/90 px-5 py-2.5 text-sm text-white shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-md">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#d8b878]" />
+          <div className="pointer-events-none flex max-w-[240px] flex-col items-center gap-1.5">
+            <div className="flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-2xl border border-[#d8b878]/50 bg-[#0d0b08]/90 px-4 py-2 text-center text-sm text-white shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-md">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d8b878]" />
               <span className="font-medium">{marker.name}</span>
-              <span className="text-[#d8b878]">открыть маршрут →</span>
+              <span className="whitespace-nowrap text-[#d8b878]">открыть →</span>
             </div>
           </div>
         </Html>
@@ -371,7 +447,9 @@ export function Hero3D({
         events={undefined}
       >
         <fog attach="fog" args={['#0d0b08', 7, 13]} />
-        <ambientLight intensity={0.6} />
+        <ambientLight intensity={0.75} />
+        {/* Тёплый ключевой свет: объём цельной сферы */}
+        <directionalLight position={[4, 3, 5]} intensity={1.1} color="#f3e3c2" />
         <Globe
           reduced={reduced}
           markers={markers}

@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface Accessor { id: string; role: string }
@@ -610,6 +611,60 @@ export class TripsService {
       _count: true,
     });
     return { avg: agg._avg.stars ?? 0, count: agg._count, mine: stars };
+  }
+
+  // ── Приглашение в поездку по ссылке ──
+  // Токен создаёт участник поездки (или админ); /join/<token> показывает
+  // карточку и добавляет вошедшего пользователя участником MEMBER.
+
+  async createInvite(slug: string, me: { id: string; role: string }) {
+    const trip = await this.prisma.trip.findUnique({
+      where: { slug },
+      select: { id: true, inviteToken: true, members: { select: { userId: true } } },
+    });
+    if (!trip) throw new NotFoundException(`Trip "${slug}" not found`);
+    const isAdmin = me.role === 'ADMIN' || me.role === 'SUPER_ADMIN';
+    const isMember = trip.members.some((m) => m.userId === me.id);
+    if (!isAdmin && !isMember) {
+      throw new ForbiddenException('Приглашать могут участники поездки');
+    }
+    if (trip.inviteToken) return { token: trip.inviteToken };
+    const token = randomBytes(12).toString('base64url');
+    await this.prisma.trip.update({ where: { id: trip.id }, data: { inviteToken: token } });
+    return { token };
+  }
+
+  /** Карточка приглашения: что за поездка, сколько участников. */
+  async inviteInfo(token: string) {
+    const trip = await this.prisma.trip.findUnique({
+      where: { inviteToken: token },
+      select: {
+        slug: true,
+        title: true,
+        heroImage: true,
+        durationDays: true,
+        seasonLabel: true,
+        country: { select: { name: true } },
+        _count: { select: { members: true } },
+      },
+    });
+    if (!trip) throw new NotFoundException('Приглашение не найдено или отозвано');
+    return trip;
+  }
+
+  /** Принять приглашение: стать участником поездки. */
+  async acceptInvite(token: string, userId: string) {
+    const trip = await this.prisma.trip.findUnique({
+      where: { inviteToken: token },
+      select: { id: true, slug: true },
+    });
+    if (!trip) throw new NotFoundException('Приглашение не найдено или отозвано');
+    await this.prisma.tripMember.upsert({
+      where: { tripId_userId: { tripId: trip.id, userId } },
+      update: {},
+      create: { tripId: trip.id, userId, role: 'MEMBER' },
+    });
+    return { slug: trip.slug };
   }
 
   /**

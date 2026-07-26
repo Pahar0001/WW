@@ -21,8 +21,10 @@ import { StorageService, UPLOAD_DIR } from './storage.service';
 
 export { UPLOAD_DIR };
 
-// Images (gallery/hero) + PDFs (tickets/documents for Phase 1).
-const ALLOWED = /^(image\/(png|jpe?g|webp|gif|avif)|application\/pdf)$/;
+// Images (gallery/hero) + PDFs (tickets/documents) + аудио/видео мессенджера
+// (голосовые и кружки: webm/ogg/mp4 от MediaRecorder разных браузеров).
+const ALLOWED =
+  /^(image\/(png|jpe?g|webp|gif|avif)|application\/pdf|audio\/(webm|ogg|mp4|mpeg|aac)(;.*)?|video\/(webm|mp4)(;.*)?)$/;
 
 interface UploadedBuffer {
   buffer: Buffer;
@@ -45,7 +47,7 @@ class UploadsController {
   )
   async upload(@UploadedFile() file: UploadedBuffer | undefined) {
     if (!file?.buffer) {
-      throw new BadRequestException('Файл не получен или тип не поддерживается (изображение или PDF).');
+      throw new BadRequestException('Файл не получен или тип не поддерживается (изображение, PDF, аудио или видео).');
     }
     const path = await this.storage.save(file.buffer, file.originalname, file.mimetype);
     return { path };

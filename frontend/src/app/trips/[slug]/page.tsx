@@ -10,7 +10,9 @@ import { CopyTripLink } from '@/components/trip/CopyTripLink';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { TripRating } from '@/components/trip/TripRating';
 import { TripViewBeacon } from '@/components/trip/TripViewBeacon';
+import { TripWeather } from '@/components/trip/TripWeather';
 import { SaveOfflineButton } from '@/components/trip/SaveOfflineButton';
+import { InviteTripLink } from '@/components/trip/InviteTripLink';
 import { Reveal } from '@/components/ui/Reveal';
 import { Card } from '@/components/ui/Card';
 import { pluralize } from '@/lib/plural';
@@ -77,6 +79,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
         </Link>
         <div className="flex items-center gap-4">
           <CopyTripLink slug={params.slug} visibility={trip.visibility} />
+          <InviteTripLink slug={params.slug} visibility={trip.visibility} />
           <EditTripLink slug={params.slug} />
           <PlanLink slug={params.slug} />
           <Link
@@ -171,6 +174,9 @@ export default async function TripPage({ params }: { params: { slug: string } })
         </Reveal>
       </section>
 
+      {/* Погода по городам маршрута (Open-Meteo, VERIFIED) */}
+      <TripWeather slug={params.slug} />
+
       {/* Оценки пользователей (звёзды) */}
       <section className="container-vela pb-16">
         <Reveal>
@@ -262,7 +268,7 @@ export default async function TripPage({ params }: { params: { slug: string } })
 
       {/* Перелёт под даты (реальные цены Aviasales) + полный расчёт трат */}
       <section className="container-vela mt-16">
-        <TripCosts slug={params.slug} durationDays={trip.durationDays} />
+        <TripCosts slug={params.slug} durationDays={trip.durationDays} countrySlug={trip.country.slug} />
       </section>
 
       {/* Honest opinions */}

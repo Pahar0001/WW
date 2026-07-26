@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -82,6 +83,21 @@ class NetworkController {
   @Patch('profile')
   updateProfile(@Body() body: unknown, @CurrentUser() u: AuthUser) {
     return this.svc.updateProfile(u.id, parse(ProfileIn, body));
+  }
+
+  // ── «Где я был»: посещённые страны ──
+  @Get('profile/visited')
+  visited(@CurrentUser() u: AuthUser) {
+    return this.svc.visited(u.id);
+  }
+  @Put('profile/visited')
+  setVisited(@CurrentUser() u: AuthUser, @Body() body: { codes?: string[] }) {
+    return this.svc.setVisited(u.id, body?.codes ?? []);
+  }
+  // Публично в рамках соцсети: витрина в профиле пользователя.
+  @Get('users/:id/visited')
+  userVisited(@Param('id') id: string) {
+    return this.svc.visited(id);
   }
 }
 

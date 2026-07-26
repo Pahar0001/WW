@@ -87,8 +87,11 @@ export const chat = {
     const suffix = qs.toString() ? `?${qs}` : '';
     return req<ChatMessage[]>(`/chats/${id}/messages${suffix}`);
   },
-  send: (id: string, text: string) =>
-    req<ChatMessage>(`/chats/${id}/messages`, { method: 'POST', body: JSON.stringify({ text }) }),
+  send: (id: string, text: string, media?: { kind: 'VOICE' | 'VIDEO_NOTE'; uploadId: string }) =>
+    req<ChatMessage>(`/chats/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text, ...(media ?? {}) }),
+    }),
   markRead: (id: string) => req<{ ok: boolean }>(`/chats/${id}/read`, { method: 'PATCH' }),
   rename: (id: string, title: string) =>
     req<{ ok: boolean; title: string }>(`/chats/${id}`, { method: 'PATCH', body: JSON.stringify({ title }) }),

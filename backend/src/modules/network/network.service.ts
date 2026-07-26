@@ -131,4 +131,34 @@ export class NetworkService {
       select: { ...PUB, role: true },
     });
   }
+
+  // ── «Где я был»: посещённые страны ──
+  // Коды ISO-2 из фикс-списка на фронте (lib/world-countries.ts);
+  // сервер валидирует только формат и потолок количества.
+  async visited(userId: string) {
+    const rows = await this.prisma.visitedCountry.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: { code: true, createdAt: true },
+    });
+    return { codes: rows.map((r) => r.code), count: rows.length };
+  }
+
+  async setVisited(meId: string, codes: string[]) {
+    const clean = Array.from(
+      new Set(
+        (codes ?? [])
+          .map((c) => String(c).toLowerCase().trim())
+          .filter((c) => /^[a-z]{2}$/.test(c)),
+      ),
+    ).slice(0, 250);
+    // Полная замена набора: диф не нужен, объём крошечный.
+    await this.prisma.$transaction([
+      this.prisma.visitedCountry.deleteMany({ where: { userId: meId } }),
+      this.prisma.visitedCountry.createMany({
+        data: clean.map((code) => ({ userId: meId, code })),
+      }),
+    ]);
+    return { codes: clean, count: clean.length };
+  }
 }

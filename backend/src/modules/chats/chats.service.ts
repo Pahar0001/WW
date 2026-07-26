@@ -183,14 +183,37 @@ export class ChatsService {
     return rows.reverse();
   }
 
-  /** Отправить текстовое сообщение. */
-  async send(meId: string, id: string, text: string) {
+  /**
+   * Отправить сообщение: текст, голосовое (VOICE) или кружок (VIDEO_NOTE).
+   * Для медиа uploadId — файл в Upload (кладётся через POST /uploads), text —
+   * необязательная подпись.
+   */
+  async send(
+    meId: string,
+    id: string,
+    text: string,
+    media?: { kind: 'VOICE' | 'VIDEO_NOTE'; uploadId: string } | null,
+  ) {
     const body = String(text ?? '').trim().slice(0, 4000);
-    if (!body) throw new BadRequestException('Пустое сообщение');
+    if (!body && !media) throw new BadRequestException('Пустое сообщение');
     await this.assertMember(meId, id);
+    if (media) {
+      // uploadId должен существовать: битые ссылки на файл в чате хуже ошибки.
+      const up = await this.prisma.upload.findUnique({
+        where: { id: media.uploadId },
+        select: { id: true },
+      });
+      if (!up) throw new BadRequestException('Файл сообщения не найден');
+    }
     const [msg] = await this.prisma.$transaction([
       this.prisma.conversationMessage.create({
-        data: { conversationId: id, authorId: meId, kind: 'TEXT', text: body },
+        data: {
+          conversationId: id,
+          authorId: meId,
+          kind: media?.kind ?? 'TEXT',
+          text: body || null,
+          uploadId: media?.uploadId ?? null,
+        },
         select: MESSAGE_SELECT,
       }),
       // Чат всплывает наверх списка; своё прочитано автоматически.

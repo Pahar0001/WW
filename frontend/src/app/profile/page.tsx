@@ -10,6 +10,7 @@ import { SocialTabs } from '@/components/social/SocialTabs';
 import { Avatar } from '@/components/social/Avatar';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { VisitedMap } from '@/components/profile/VisitedMap';
 import { toast } from '@/components/ui/Toaster';
 
 const fmtDate = (s: string) => new Date(s).toLocaleDateString('ru-RU', { dateStyle: 'long' });
@@ -286,6 +287,9 @@ export default function ProfilePage() {
           </aside>
         </div>
       )}
+
+      {/* «Где я был»: карта посещённых стран (мини-глобус + выбор) */}
+      <VisitedMap editable />
     </main>
   );
 }

@@ -27,6 +27,7 @@ import {
 import { Avatar } from '@/components/social/Avatar';
 import { SocialTabs } from '@/components/social/SocialTabs';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { toast } from '@/components/ui/Toaster';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -216,7 +217,9 @@ function ChatList({
               <div className="mt-0.5 flex items-center justify-between gap-2">
                 <span className="truncate text-sm text-paper-faint">
                   {last
-                    ? `${last.authorId === meId ? 'Вы: ' : c.isGroup && last.author ? `${last.author.name || last.author.email}: ` : ''}${last.text ?? ''}`
+                    ? `${last.authorId === meId ? 'Вы: ' : c.isGroup && last.author ? `${last.author.name || last.author.email}: ` : ''}${
+                        last.kind === 'VOICE' ? '🎤 Голосовое' : last.kind === 'VIDEO_NOTE' ? '⚪ Кружок' : (last.text ?? '')
+                      }`
                     : 'Нет сообщений'}
                 </span>
                 {c.unread > 0 && (
@@ -309,6 +312,20 @@ function ChatWindow({
       onChanged();
     } catch (e) {
       setInput(text);
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendVoice(uploadId: string) {
+    setBusy(true);
+    try {
+      const msg = await chat.send(chatId, '', { kind: 'VOICE', uploadId });
+      setMessages((m) => [...(m ?? []), msg]);
+      lastTs.current = msg.createdAt;
+      onChanged();
+    } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
@@ -472,7 +489,15 @@ function ChatWindow({
                           : 'rounded-bl-md border border-ink-line bg-ink text-paper'
                       }`}
                     >
-                      {m.text}
+                      {m.kind === 'VOICE' && m.uploadId ? (
+                        <span className="flex items-center gap-2">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-70"><path d="M12 2a3 3 0 013 3v6a3 3 0 01-6 0V5a3 3 0 013-3zM19 10v1a7 7 0 01-14 0v-1" /></svg>
+                          {/* preload=none: не тянем все дорожки при открытии чата */}
+                          <audio controls preload="none" src={`/api/uploads/${m.uploadId}`} className="h-9 w-52 max-w-full sm:w-64" />
+                        </span>
+                      ) : (
+                        m.text
+                      )}
                       <span className={`ml-2 align-baseline text-[10px] ${mine ? 'text-aurora-fg/60' : 'text-paper-faint'}`}>
                         {new Date(m.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -502,6 +527,7 @@ function ChatWindow({
             placeholder="Сообщение…"
             className="max-h-32 min-h-[44px] flex-1 resize-none rounded-xl border border-ink-line bg-ink px-3.5 py-2.5 text-paper placeholder:text-paper-faint outline-none focus:border-aurora/60"
           />
+          <VoiceRecorder disabled={busy} onRecorded={(id) => sendVoice(id)} onError={(m) => toast.error(m)} />
           <button
             onClick={send}
             disabled={busy || !input.trim()}

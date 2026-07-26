@@ -179,6 +179,8 @@ model Trip {
   // Editor-facing budget envelope (a stated target, not a computed price)
   budgetMinRub Int?
   budgetMaxRub Int?
+  // Приглашение в поездку по ссылке: /join/<inviteToken> добавляет участника.
+  inviteToken String?    @unique
   variants    RouteVariant[]
   scores      TripScore?
   opinions    TripOpinion[]
@@ -583,6 +585,7 @@ model User {
   tripOrders          TripOrder[]    @relation("UserTripOrders")
   conversations       ConversationMember[]  @relation("UserConversations")
   chatMessagesSent    ConversationMessage[] @relation("UserChatMessages")
+  visitedCountries    VisitedCountry[]      @relation("UserVisited")
   assistantThreads    AssistantThread[] @relation("UserAssistantThreads")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -851,4 +854,16 @@ model ConversationMessage {
   uploadId       String?                 // файл голосового/кружка (модель Upload)
   createdAt      DateTime                @default(now())
   @@index([conversationId, createdAt])
+}
+
+// «Где я был»: отметки посещённых стран в профиле (код ISO-2 из фикс-списка
+// на фронте — lib/world-countries.ts; названия там же, БД хранит только код).
+model VisitedCountry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation("UserVisited", fields: [userId], references: [id], onDelete: Cascade)
+  code      String   // ISO-2, напр. "th"
+  createdAt DateTime @default(now())
+  @@unique([userId, code])
+  @@index([userId])
 }

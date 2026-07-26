@@ -60,8 +60,16 @@ class ChatsController {
   }
 
   @Post(':id/messages')
-  send(@CurrentUser() me: AuthUser, @Param('id') id: string, @Body() body: { text?: string }) {
-    return this.chats.send(me.id, id, String(body?.text ?? ''));
+  send(
+    @CurrentUser() me: AuthUser,
+    @Param('id') id: string,
+    @Body() body: { text?: string; kind?: string; uploadId?: string },
+  ) {
+    const media =
+      (body?.kind === 'VOICE' || body?.kind === 'VIDEO_NOTE') && body?.uploadId
+        ? { kind: body.kind as 'VOICE' | 'VIDEO_NOTE', uploadId: String(body.uploadId) }
+        : null;
+    return this.chats.send(me.id, id, String(body?.text ?? ''), media);
   }
 
   @Patch(':id/read')
