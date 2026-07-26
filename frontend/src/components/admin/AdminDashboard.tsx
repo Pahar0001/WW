@@ -199,31 +199,8 @@ export function AdminDashboard() {
 
   return (
     <div className="mt-10 space-y-10">
-      {/* Быстрые действия */}
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/admin/orders"
-          className={`glow-gold inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition-transform hover:-translate-y-0.5 ${
-            newOrders > 0 ? 'bg-aurora text-aurora-fg' : 'border border-ink-line text-paper-dim hover:text-paper'
-          }`}
-        >
-          Заявки
-          {newOrders > 0 && (
-            <span className="inline-grid h-5 min-w-[20px] place-items-center rounded-full bg-ink/20 px-1 text-[11px] font-semibold">
-              {newOrders}
-            </span>
-          )}
-        </Link>
-        <Link href="/admin/users" className="inline-flex items-center rounded-full border border-ink-line px-5 py-2.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper">
-          Пользователи
-        </Link>
-        <Link href="/admin/support" className="inline-flex items-center rounded-full border border-ink-line px-5 py-2.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper">
-          Поддержка
-        </Link>
-        <a href="#trips-manage" className="inline-flex items-center rounded-full border border-ink-line px-5 py-2.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper">
-          Управление поездками ↓
-        </a>
-      </div>
+      {/* Навигация по админке одна — в шапке страницы (app/admin/page.tsx);
+          дублирующий ряд «пилюль» убран, счётчик новых заявок переехал туда же. */}
 
       {/* Сводные метрики */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

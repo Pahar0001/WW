@@ -8,7 +8,6 @@ import { FloatingNav } from '@/components/ui/FloatingNav';
 import { TermsGate } from '@/components/auth/TermsGate';
 import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
-import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { Toaster } from '@/components/ui/Toaster';
 
 // Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
@@ -78,7 +77,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <BottomNav />
         <FloatingNav />
         <TermsGate />
-        <OnboardingTour />
         <PwaProvider />
         <Toaster />
       </body>

@@ -28,7 +28,8 @@ export function BottomNav() {
     });
   }, [path]);
 
-  if (!loggedIn) return null;
+  // На экране знакомства (/welcome) вся обвязка сайта убрана — он самодостаточен.
+  if (!loggedIn || path === '/welcome') return null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-[8000] border-t border-ink-line bg-ink/95 backdrop-blur md:hidden">

@@ -34,6 +34,8 @@ export function AssistantWidget() {
   const [typingIdx, setTypingIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const suggestions = useMemo(() => suggestionsFor(path), [path]);
+  // Экран знакомства (/welcome) должен быть без посторонних элементов.
+  const hidden = path === '/welcome';
 
   useEffect(() => {
     setLoggedIn(!!getToken());
@@ -66,6 +68,8 @@ export function AssistantWidget() {
     }
   }
 
+  if (hidden) return null;
+
   return (
     <>
       {/* Кнопка-лончер: искра + подпись при наведении */}
@@ -78,7 +82,6 @@ export function AssistantWidget() {
             transition={{ duration: 0.3, ease: EASE }}
             onClick={() => setOpen(true)}
             aria-label="ИИ-консьерж"
-            data-tour="assistant"
             className="glow-gold group fixed bottom-20 left-4 z-[8500] flex h-14 items-center gap-0 rounded-full border border-aurora/50 bg-[#171310]/90 pl-2.5 pr-2.5 text-aurora shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all duration-500 hover:pr-5 md:bottom-6"
           >
             <Spark size={36} />

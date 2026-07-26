@@ -12,6 +12,7 @@ import { Avatar } from '@/components/social/Avatar';
 // (admin/auth) or a social page that already has its own top tab bar (SocialTabs).
 const HIDDEN_PREFIXES = [
   '/admin',
+  '/welcome',
   '/login',
   '/register',
   '/forgot-password',

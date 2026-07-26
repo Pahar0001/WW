@@ -7,6 +7,15 @@ import { auth, getToken } from '@/lib/auth';
 import { AuthShell, inp, btn } from '@/components/auth/AuthShell';
 import { toast } from '@/components/ui/Toaster';
 
+/** Знакомство (/welcome) уже пройдено на этом устройстве? */
+function welcomed(): boolean {
+  try {
+    return Boolean(localStorage.getItem('vela_welcomed'));
+  } catch {
+    return false;
+  }
+}
+
 function Verify() {
   const params = useSearchParams();
   const [email, setEmail] = useState(params.get('email') ?? '');
@@ -31,6 +40,13 @@ function Verify() {
       // Nudge the always-mounted terms gate to re-check (it will show the
       // acceptance modal now that the email is verified).
       window.dispatchEvent(new Event('vela:auth-changed'));
+      // Новый пользователь идёт на знакомство (/welcome) — один раз на устройство.
+      // Тот, кто просто подтверждает почту повторно, остаётся здесь.
+      if (!r.alreadyVerified && getToken() && !welcomed()) {
+        setTimeout(() => {
+          window.location.href = '/welcome';
+        }, 1200);
+      }
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -58,8 +74,12 @@ function Verify() {
     return (
       <p className="text-paper-dim">
         Email подтверждён ✓{' '}
-        <Link href="/login" className="text-paper hover:text-aurora">Войти</Link> ·{' '}
-        <Link href="/" className="text-paper hover:text-aurora">На главную</Link>
+        {getToken() && !welcomed() ? (
+          <Link href="/welcome" className="text-paper hover:text-aurora">Знакомство с Vela</Link>
+        ) : (
+          <Link href="/login" className="text-paper hover:text-aurora">Войти</Link>
+        )}{' '}
+        · <Link href="/" className="text-paper hover:text-aurora">На главную</Link>
       </p>
     );
   }

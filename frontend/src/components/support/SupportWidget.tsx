@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { auth, type AuthUser } from '@/lib/auth';
 import { support, type SupportMessage } from '@/lib/support';
 
@@ -9,6 +10,7 @@ import { support, type SupportMessage } from '@/lib/support';
  * Hidden for guests and for super admins themselves (they reply from /admin/support).
  */
 export function SupportWidget() {
+  const path = usePathname();
   const [me, setMe] = useState<AuthUser | null | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -43,7 +45,7 @@ export function SupportWidget() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, open]);
 
-  if (!me || me.role === 'SUPER_ADMIN') return null;
+  if (!me || me.role === 'SUPER_ADMIN' || path === '/welcome') return null;
 
   async function send(e: React.FormEvent) {
     e.preventDefault();

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminListTrips, deleteTrip, imageUrl, type Trip } from '@/lib/api';
+import { adminListTrips, adminNewOrdersCount, deleteTrip, imageUrl, type Trip } from '@/lib/api';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 import { toast } from '@/components/ui/Toaster';
 import { TripForm } from '@/components/trips/TripForm';
@@ -19,6 +19,12 @@ export default function AdminPage() {
         setMe(u);
       }
     });
+  }, []);
+
+  // Бейдж «сколько заявок ждут разбора» — в единственной навигации (шапке).
+  const [newOrders, setNewOrders] = useState(0);
+  useEffect(() => {
+    adminNewOrdersCount().then(setNewOrders);
   }, []);
 
   // Existing trips (for deletion).
@@ -48,7 +54,14 @@ export default function AdminPage() {
         <div className="flex items-center gap-5 text-sm">
           <Link href="/admin/users" data-cursor="hover" className="text-paper-dim hover:text-paper">Пользователи</Link>
           <Link href="/admin/support" data-cursor="hover" className="text-paper-dim hover:text-paper">Поддержка</Link>
-          <Link href="/admin/orders" data-cursor="hover" className="text-paper-dim hover:text-paper">Заявки</Link>
+          <Link href="/admin/orders" data-cursor="hover" className="inline-flex items-center gap-1.5 text-paper-dim hover:text-paper">
+            Заявки
+            {newOrders > 0 && (
+              <span className="inline-grid h-5 min-w-[20px] place-items-center rounded-full bg-aurora px-1 text-[11px] font-semibold text-aurora-fg">
+                {newOrders}
+              </span>
+            )}
+          </Link>
           <Link href="/admin/analytics" data-cursor="hover" className="text-paper-dim hover:text-paper">Аналитика</Link>
           <Link href="/" data-cursor="hover" className="text-paper-dim hover:text-paper">← На главную</Link>
           <span className="text-paper-faint">{me?.email}</span>
@@ -62,8 +75,11 @@ export default function AdminPage() {
       </p>
       <h1 className="font-serif display-2">Панель управления</h1>
       <p className="mt-4 max-w-2xl text-lg text-paper-dim">
-        Живые метрики платформы, динамика за месяц, статусы систем — и управление
-        путешествиями ниже.
+        Живые метрики платформы, динамика за месяц, статусы систем — и{' '}
+        <a href="#trips-manage" className="text-paper underline decoration-aurora/40 underline-offset-4 hover:text-aurora">
+          управление путешествиями
+        </a>{' '}
+        ниже.
       </p>
 
       {/* Метрики, графики, мониторинг */}

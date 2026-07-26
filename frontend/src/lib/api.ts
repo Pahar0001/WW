@@ -411,6 +411,18 @@ export async function adminListOrders(): Promise<TripOrder[]> {
   }
 }
 
+/** Сколько заявок ждут разбора — бейдж в шапке админки. */
+export async function adminNewOrdersCount(): Promise<number> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/orders/new-count`, { headers: authHeader(), cache: 'no-store' });
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { count?: number };
+    return data.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Обновить статус/комментарий заявки (админка). */
 export async function adminUpdateOrder(
   id: string,
