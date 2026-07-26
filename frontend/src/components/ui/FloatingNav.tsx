@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 import { network } from '@/lib/network';
+import { chat } from '@/lib/chat';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Avatar } from '@/components/social/Avatar';
 
@@ -24,6 +25,7 @@ const HIDDEN_PREFIXES = [
   '/network',
   '/notifications',
   '/profile',
+  '/messages',
 ];
 
 const publicLinks = [
@@ -36,6 +38,7 @@ const memberLinks = [
   { href: '/feed', label: 'Лента' },
   { href: '/news', label: 'Новости' },
   { href: '/network', label: 'Люди' },
+  { href: '/messages', label: 'Сообщения' },
 ];
 
 /**
@@ -47,6 +50,7 @@ export function FloatingNav() {
   const path = usePathname() || '/';
   const [user, setUser] = useState<AuthUser | null | undefined>(undefined);
   const [unread, setUnread] = useState(0);
+  const [unreadChats, setUnreadChats] = useState(0);
   const [menu, setMenu] = useState(false);
   const [hidden, setHidden] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -56,7 +60,10 @@ export function FloatingNav() {
       .me()
       .then((u) => {
         setUser(u);
-        if (u) network.notifications().then((n) => setUnread(n.unread)).catch(() => {});
+        if (u) {
+          network.notifications().then((n) => setUnread(n.unread)).catch(() => {});
+          chat.unreadCount().then((c) => setUnreadChats(c.unread)).catch(() => {});
+        }
       })
       .catch(() => setUser(null));
   }, [path]);
@@ -132,13 +139,18 @@ export function FloatingNav() {
             <Link
               key={l.href}
               href={l.href}
-              className={`shrink-0 rounded-xl px-3.5 py-2 text-sm transition-colors ${
+              className={`relative shrink-0 rounded-xl px-3.5 py-2 text-sm transition-colors ${
                 isActive(l.href)
                   ? 'bg-ink-line/60 text-paper'
                   : 'text-paper-dim hover:bg-ink-line/40 hover:text-paper'
               }`}
             >
               {l.label}
+              {l.href === '/messages' && unreadChats > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-grid h-4 min-w-[16px] place-items-center rounded-full bg-aurora px-1 text-[10px] font-semibold text-aurora-fg">
+                  {unreadChats}
+                </span>
+              )}
             </Link>
           ))}
         </div>

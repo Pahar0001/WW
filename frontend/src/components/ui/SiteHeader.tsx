@@ -17,6 +17,7 @@ const social = [
   { href: '/news', label: 'Новости' },
   { href: '/community', label: 'Сообщество' },
   { href: '/network', label: 'Люди' },
+  { href: '/messages', label: 'Сообщения' },
 ];
 
 /** Responsive site header: inline nav on desktop, a tidy menu sheet on mobile. */
