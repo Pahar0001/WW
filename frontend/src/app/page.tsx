@@ -10,6 +10,7 @@ import { HeroImmersive } from '@/components/ui/HeroImmersive';
 import { HeroVideo } from '@/components/hero/HeroVideo';
 import { GlobeSection } from '@/components/ui/GlobeSection';
 import { getHeroMedia } from '@/lib/hero-media';
+import { ScrollRail } from '@/components/ui/ScrollRail';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
 import { TripCollection } from '@/components/ui/TripCollection';
@@ -39,17 +40,24 @@ export default async function HomePage() {
         <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} trips={trips} />
       )}
 
+      {/* «Нить путешествия»: золотая линия слева (desktop) — заполняется по
+          мере прокрутки, секции с data-rail появляются и получают узлы. */}
+      <ScrollRail>
       {/* Быстрое меню по разделам */}
-      <HomeMenu />
+      <div data-rail="Разделы">
+        <HomeMenu />
+      </div>
 
       {/* Мои поездки (видно только вошедшим, у кого есть поездки) */}
       <MyTrips />
 
       {/* Планета Vela: интерактивный глобус со странами каталога */}
-      <GlobeSection trips={trips} />
+      <div data-rail="Планета">
+        <GlobeSection trips={trips} />
+      </div>
 
       {/* Путешествия */}
-      <section id="dream-trips" className="container-vela py-24">
+      <section id="dream-trips" data-rail="Коллекция" className="container-vela py-24">
         <FadeIn>
           <div className="mb-12 flex items-end justify-between gap-6 border-b border-ink-line pb-6">
             <div>
@@ -79,7 +87,7 @@ export default async function HomePage() {
       </section>
 
       {/* Честные данные — тизер со ссылкой на полную страницу */}
-      <section id="data" className="container-vela py-24">
+      <section id="data" data-rail="Честные данные" className="container-vela py-24">
         <FadeIn>
           <Card variant="lux" className="relative overflow-hidden p-10 md:p-14">
             <div className="ambient-glow -right-16 -top-16 h-64 w-64 opacity-80" />
@@ -104,6 +112,8 @@ export default async function HomePage() {
           </Card>
         </FadeIn>
       </section>
+
+      </ScrollRail>
 
       <footer className="container-vela border-t border-ink-line py-12 text-sm text-paper-faint">
         <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">

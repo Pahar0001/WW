@@ -76,7 +76,7 @@ export function SiteHeader() {
                   <Avatar user={user} size={32} />
                 </button>
                 {menu && (
-                  <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-ink-line bg-ink shadow-xl">
+                  <div className="pop-menu absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-ink-line bg-ink shadow-xl">
                     <div className="border-b border-ink-line px-4 py-3 text-xs text-paper-faint">{user.name || user.email}</div>
                     <Link href="/profile" onClick={() => setMenu(false)} className="block px-4 py-2.5 text-sm text-paper-dim hover:bg-ink-soft hover:text-paper">Профиль</Link>
                     <Link href="/feed" onClick={() => setMenu(false)} className="block px-4 py-2.5 text-sm text-paper-dim hover:bg-ink-soft hover:text-paper">Лента</Link>
@@ -108,7 +108,7 @@ export function SiteHeader() {
       {/* Mobile menu sheet */}
       {open && (
         <div className="container-vela md:hidden">
-          <div className="mb-3 overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/90 p-3 shadow-xl backdrop-blur-xl">
+          <div className="pop-down mb-3 overflow-hidden rounded-2xl border border-ink-line bg-ink-soft/90 p-3 shadow-xl backdrop-blur-xl">
             <div className="mb-2 flex items-center justify-between px-3 py-1">
               <span className="text-xs uppercase tracking-[0.2em] text-paper-faint">Тема</span>
               <ThemeToggle />

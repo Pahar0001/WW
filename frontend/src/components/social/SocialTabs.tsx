@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { network } from '@/lib/network';
+import { chat } from '@/lib/chat';
 
 const I = {
   feed: <path d="M4 6h16M4 12h16M4 18h10" />,
@@ -36,6 +37,7 @@ const I = {
     </>
   ),
   bell: <path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 6H4s2-1 2-6M10 21h4" />,
+  chat: <path d="M21 12a8 8 0 0 1-8 8H4l2.2-3.3A8 8 0 1 1 21 12z" />,
   user: (
     <>
       <circle cx="12" cy="8" r="4" />
@@ -66,22 +68,25 @@ const SOCIAL = [
   { href: '/feed', label: 'Лента', icon: I.feed },
   { href: '/news', label: 'Новости', icon: I.news },
   { href: '/network', label: 'Люди', icon: I.people },
+  { href: '/messages', label: 'Сообщения', icon: I.chat },
 ];
 
 export function SocialTabs() {
   const path = usePathname();
   const [unread, setUnread] = useState(0);
+  const [unreadChats, setUnreadChats] = useState(0);
   useEffect(() => {
     network.notifications().then((n) => setUnread(n.unread)).catch(() => {});
+    chat.unreadCount().then((c) => setUnreadChats(c.unread)).catch(() => {});
   }, [path]);
 
   const isActive = (href: string) => path === href || path.startsWith(href + '/');
 
-  const tab = (href: string, label: string, icon: ReactNode) => (
+  const tab = (href: string, label: string, icon: ReactNode, badge = 0) => (
     <Link
       key={href}
       href={href}
-      className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm transition-colors ${
+      className={`relative flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-sm transition-colors ${
         isActive(href)
           ? 'bg-paper text-ink'
           : 'text-paper-dim hover:bg-ink-line/40 hover:text-paper'
@@ -91,6 +96,11 @@ export function SocialTabs() {
         <Icon d={icon} />
       </span>
       {label}
+      {badge > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 inline-grid h-4 min-w-[16px] place-items-center rounded-full bg-aurora px-1 text-[10px] font-semibold text-aurora-fg">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 
@@ -110,7 +120,7 @@ export function SocialTabs() {
 
         {/* Социальные разделы (скроллятся на узких экранах) */}
         <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
-          {SOCIAL.map((t) => tab(t.href, t.label, t.icon))}
+          {SOCIAL.map((t) => tab(t.href, t.label, t.icon, t.href === '/messages' ? unreadChats : 0))}
           <span className="mx-0.5 h-6 w-px shrink-0 bg-ink-line" />
           {tab('/community', 'Сообщество', I.globe)}
         </div>

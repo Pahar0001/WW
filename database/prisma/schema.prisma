@@ -581,6 +581,8 @@ model User {
   friendshipsReceived Friendship[]   @relation("FriendAddressee")
   notifications       Notification[] @relation("UserNotifications")
   tripOrders          TripOrder[]    @relation("UserTripOrders")
+  conversations       ConversationMember[]  @relation("UserConversations")
+  chatMessagesSent    ConversationMessage[] @relation("UserChatMessages")
   assistantThreads    AssistantThread[] @relation("UserAssistantThreads")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -801,4 +803,52 @@ model TripView {
   createdAt DateTime @default(now())
   @@index([tripId, createdAt])
   @@index([createdAt])
+}
+
+// ── Мессенджер: личные и групповые чаты ──
+// kind у сообщения — задел под кружки и голосовые: TEXT сейчас,
+// VOICE/VIDEO_NOTE добавятся без миграции структуры (файл — в Upload).
+enum ConversationMessageKind {
+  TEXT
+  VOICE
+  VIDEO_NOTE
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  isGroup   Boolean  @default(false)
+  title     String?  // только у групп; у 1:1 берётся имя собеседника
+  image     String?  // аватар группы (путь /uploads/…)
+  createdBy String?
+  members   ConversationMember[]
+  messages  ConversationMessage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("UserConversations", fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("MEMBER") // OWNER | MEMBER (группы)
+  lastReadAt     DateTime     @default(now())    // непрочитанные = сообщения новее
+  joinedAt       DateTime     @default(now())
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model ConversationMessage {
+  id             String                  @id @default(cuid())
+  conversationId String
+  conversation   Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  authorId       String?
+  author         User?                   @relation("UserChatMessages", fields: [authorId], references: [id], onDelete: SetNull)
+  kind           ConversationMessageKind @default(TEXT)
+  text           String?                 // TEXT: содержимое; VOICE/VIDEO_NOTE: подпись
+  uploadId       String?                 // файл голосового/кружка (модель Upload)
+  createdAt      DateTime                @default(now())
+  @@index([conversationId, createdAt])
 }

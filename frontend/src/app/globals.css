@@ -298,6 +298,30 @@
   100% { transform: translateX(-50%); }
 }
 
+/* ──────────────────────────────────────────────────────────────
+   Анимации выпадающих блоков.
+   .pop-menu   — дропдауны (меню профиля и т.п.): масштаб из угла + подъём.
+   .pop-sheet  — мобильные шторки/листы: выезд снизу с лёгкой пружиной.
+   .pop-down   — раскрытие вниз (мобильное меню шапки, аккордеоны).
+   ────────────────────────────────────────────────────────────── */
+@keyframes pop-menu {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.94); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.pop-menu {
+  transform-origin: var(--pop-origin, top right);
+  animation: pop-menu 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes pop-down {
+  0%   { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.pop-down {
+  transform-origin: top center;
+  animation: pop-down 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Respect reduced-motion. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

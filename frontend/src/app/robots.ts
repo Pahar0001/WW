@@ -32,6 +32,7 @@ export default function robots(): MetadataRoute.Robots {
           '/trips/*/print',
           '/trips/*/edit',
           '/assistant',
+          '/messages',
         ],
       },
     ],

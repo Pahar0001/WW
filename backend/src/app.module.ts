@@ -17,6 +17,8 @@ import { CommunityModule } from './modules/community/community.module';
 import { AssistantModule } from './modules/assistant/assistant.module';
 import { TravelModule } from './modules/travel/travel.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { ChatsModule } from './modules/chats/chats.module';
+import { NewsModule } from './modules/news/news.module';
 
 @Module({
   imports: [
@@ -38,6 +40,8 @@ import { OrdersModule } from './modules/orders/orders.module';
     UploadsModule,
     TravelModule,
     OrdersModule,
+    ChatsModule,
+    NewsModule,
   ],
 })
 export class AppModule {}

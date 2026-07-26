@@ -185,7 +185,7 @@ export function FloatingNav() {
                 <Avatar user={user} size={34} />
               </button>
               {menu && (
-                <div className="absolute bottom-12 right-0 w-48 overflow-hidden rounded-xl border border-ink-line bg-ink shadow-xl">
+                <div className="pop-menu absolute bottom-12 right-0 w-48 overflow-hidden rounded-xl border border-ink-line bg-ink shadow-xl" style={{ ['--pop-origin' as string]: 'bottom right' }}>
                   <div className="border-b border-ink-line px-4 py-3 text-xs text-paper-faint">{user.name || user.email}</div>
                   <Link href="/profile" onClick={() => setMenu(false)} className="block px-4 py-2.5 text-sm text-paper-dim hover:bg-ink-soft hover:text-paper">Профиль</Link>
                   {isAdminRole(user.role) && (

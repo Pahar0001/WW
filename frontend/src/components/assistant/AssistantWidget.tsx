@@ -82,7 +82,7 @@ export function AssistantWidget() {
             transition={{ duration: 0.3, ease: EASE }}
             onClick={() => setOpen(true)}
             aria-label="ИИ-консьерж"
-            className="glow-gold group fixed bottom-20 left-4 z-[8500] flex h-14 items-center gap-0 rounded-full border border-aurora/50 bg-[#171310]/90 pl-2.5 pr-2.5 text-aurora shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all duration-500 hover:pr-5 md:bottom-6"
+            className="glow-gold group fixed bottom-6 left-4 z-[8500] hidden h-14 items-center gap-0 rounded-full border border-aurora/50 bg-[#171310]/90 pl-2.5 pr-2.5 text-aurora shadow-[0_12px_40px_rgba(0,0,0,0.45)] backdrop-blur-md transition-all duration-500 hover:pr-5 md:flex"
           >
             <Spark size={36} />
             <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium text-white/90 transition-all duration-500 group-hover:ml-2.5 group-hover:max-w-[130px]">
@@ -103,7 +103,7 @@ export function AssistantWidget() {
             className={`fixed z-[8500] flex flex-col overflow-hidden rounded-3xl border border-aurora/25 bg-[#14100c]/95 text-white shadow-[0_30px_90px_rgba(0,0,0,0.6)] backdrop-blur-xl ${
               wide
                 ? 'inset-4 md:inset-x-auto md:left-1/2 md:w-[min(94vw,720px)] md:-translate-x-1/2'
-                : 'bottom-20 left-4 h-[70vh] max-h-[600px] w-[min(92vw,400px)] md:bottom-6'
+                : 'bottom-5 left-4 h-[70vh] max-h-[600px] w-[min(92vw,400px)] md:bottom-6'
             }`}
           >
             {/* Шапка */}

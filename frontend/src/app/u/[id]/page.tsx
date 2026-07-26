@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { auth, type AuthUser } from '@/lib/auth';
 import { network, type ProfileView, type Relationship } from '@/lib/network';
+import { chat } from '@/lib/chat';
 import { SocialTabs } from '@/components/social/SocialTabs';
 import { Avatar } from '@/components/social/Avatar';
 
@@ -42,7 +43,22 @@ export default function PublicProfilePage() {
             <div className="mt-1 text-xs text-paper-faint">Друзей: {data.friendCount} · с {fmt(data.user.createdAt)}</div>
           </div>
           {rel !== 'self' && (
-            <div className="shrink-0">
+            <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    const r = await chat.direct(id);
+                    window.location.href = `/messages?chat=${r.id}`;
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                className="rounded-full border border-aurora/50 px-4 py-2 text-sm font-medium text-aurora transition-colors hover:bg-aurora/10 disabled:opacity-50"
+              >
+                Написать
+              </button>
               {rel === 'none' && <button disabled={busy} onClick={() => act(() => network.request(id))} className="rounded-full bg-aurora px-4 py-2 text-sm font-medium text-aurora-fg disabled:opacity-50">+ В друзья</button>}
               {rel === 'outgoing' && <button disabled={busy} onClick={() => act(() => network.remove(id))} className="rounded-full border border-ink-line px-4 py-2 text-sm text-paper-dim">Отменить заявку</button>}
               {rel === 'incoming' && <button disabled={busy} onClick={() => act(() => network.accept(id))} className="rounded-full bg-aurora px-4 py-2 text-sm font-medium text-aurora-fg disabled:opacity-50">Принять заявку</button>}

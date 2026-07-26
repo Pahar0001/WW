@@ -110,6 +110,9 @@ export function HeroVideo({
   const chainGlow = useRef<SVGPathElement>(null);
   const nodeEls = useRef<(HTMLDivElement | null)[]>([]);
   const [reduced, setReduced] = useState(false);
+  // Мобильные: скраб 16-МБ видео по скроллу тормозит и конфликтует с инерцией
+  // тач-скролла — там hero статичный, с фото (постером) вместо видео.
+  const [mobile, setMobile] = useState(false);
 
   // Главы повествования. Числа — реальные (кол-во маршрутов приходит из БД).
   const chapters: Chapter[] = [
@@ -137,10 +140,18 @@ export function HeroVideo({
 
   useEffect(() => {
     setReduced(window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const mq = window.matchMedia('(max-width: 767px)');
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
   }, []);
 
+  // Статичный режим: reduced-motion ИЛИ мобильный экран.
+  const isStatic = reduced || mobile;
+
   useEffect(() => {
-    if (reduced) return;
+    if (isStatic) return;
     const sec = section.current;
     const vid = video.current;
     if (!sec || !vid) return;
@@ -190,7 +201,7 @@ export function HeroVideo({
       controller.destroy();
       scrubber.destroy();
     };
-  }, [reduced]);
+  }, [isStatic]);
 
   /**
    * Блок главы: на мобиле — снизу (как титры), на десктопе — своя точка
@@ -223,27 +234,39 @@ export function HeroVideo({
     <section
       ref={section}
       // data-hero-cinema: FloatingNav прячется, пока идёт кино (см. FloatingNav).
-      data-hero-cinema={reduced ? undefined : ''}
+      data-hero-cinema={isStatic ? undefined : ''}
       className="relative bg-[#0d0b08]"
-      style={{ height: reduced ? '100svh' : `${SCROLL_VH}vh` }}
+      style={{ height: isStatic ? '100svh' : `${SCROLL_VH}vh` }}
     >
       {/* SVG-фильтр цветокоррекции (см. ColorGrading.ts) */}
       <span aria-hidden dangerouslySetInnerHTML={{ __html: buildGradeSvg() }} />
 
       {/* Приклеенный кино-вьюпорт */}
       <div className="sticky top-0 h-[100svh] w-full overflow-hidden">
-        {/* Кадр. preload=auto: faststart-mp4 качается прогрессивно,
-            скраб доступен по мере буферизации. */}
-        <video
-          ref={video}
-          src={src}
-          poster={poster}
-          muted
-          playsInline
-          preload="auto"
-          className="absolute inset-0 h-full w-full object-cover will-change-transform"
-          style={{ filter: `url(#${GRADE_FILTER_ID})`, transform: 'scale(1.06)' }}
-        />
+        {/* Кадр: на десктопе — видео со скрабом, в статичном режиме — фото
+            (постер): мгновенная загрузка и ноль работы на скролле. */}
+        {isStatic ? (
+          poster ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={poster}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ filter: `url(#${GRADE_FILTER_ID})` }}
+            />
+          ) : null
+        ) : (
+          <video
+            ref={video}
+            src={src}
+            poster={poster}
+            muted
+            playsInline
+            preload="auto"
+            className="absolute inset-0 h-full w-full object-cover will-change-transform"
+            style={{ filter: `url(#${GRADE_FILTER_ID})`, transform: 'scale(1.06)' }}
+          />
+        )}
 
         {/* Виньетка + постоянные скримы читаемости: нижний и левый.
             Текст всегда живёт в левом нижнем квадранте — там всегда темно. */}
@@ -270,7 +293,9 @@ export function HeroVideo({
                 <span className="text-gold-gradient [text-shadow:none]">{titleAccent}</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-white/90 [text-shadow:0_1px_10px_rgba(0,0,0,0.85)]">
-                {subtitle}
+                {isStatic
+                  ? 'Готовые маршруты по дням, честные цены и путешествия под ключ.'
+                  : subtitle}
               </p>
               <div className="pointer-events-auto mt-9 flex flex-wrap items-center gap-4">
                 <Link
@@ -296,7 +321,7 @@ export function HeroVideo({
         </div>
 
         {/* ── «Нить маршрута»: линия между главами + узлы (desktop) ── */}
-        {!reduced && (
+        {!isStatic && (
           <>
             <svg
               aria-hidden
@@ -354,7 +379,7 @@ export function HeroVideo({
         )}
 
         {/* ── Главы 1..3: повествование по ходу полёта ── */}
-        {!reduced &&
+        {!isStatic &&
           chapters.map((c, i) => (
             <Block
               key={c.index}
@@ -387,7 +412,7 @@ export function HeroVideo({
           ))}
 
         {/* Подсказка «полёт листается» — исчезает после первого движения */}
-        {!reduced && (
+        {!isStatic && (
           <div
             ref={hintEl}
             className="pointer-events-none absolute inset-x-0 bottom-7 z-10 flex flex-col items-center gap-2 text-white/60"
@@ -424,7 +449,7 @@ export function HeroVideo({
         />
 
         {/* Таймлайн: линия прогресса + метки глав */}
-        {!reduced && (
+        {!isStatic && (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
             <div className="mb-2 hidden justify-center gap-8 md:flex">
               {chapters.map((c, i) => (
