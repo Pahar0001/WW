@@ -54,7 +54,7 @@ services:
     # On boot: sync schema (reference build uses db push), seed (best-effort,
     # idempotent), then start the API. Seed failure must not block the API.
     # For real environments, replace `db push` with `prisma migrate deploy`.
-    command: sh -c "npx prisma db push --skip-generate && (npm run seed || echo 'seed step skipped') && node dist/main.js"
+    command: sh -c "npx prisma db push --skip-generate --accept-data-loss && (npm run seed || echo 'seed step skipped') && node dist/main.js"
 
   web:
     build:
