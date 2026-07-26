@@ -76,7 +76,8 @@ interface AimState {
   pointer: { x: number; y: number } | null; // NDC курсора (null — вне канваса)
   hovered: MarkerPoint | null; // «примагниченная» страна
   dragging: boolean;
-  dragDx: number; // накопленный поворот от перетаскивания
+  dragDx: number; // накопленный поворот от перетаскивания (по долготе)
+  dragDy: number; // и по вертикали (наклон оси)
 }
 
 /**
@@ -148,16 +149,20 @@ function Globe({
     if (!group.current) return;
     const aiming = aim.current.pointer !== null;
 
-    // Перетаскивание вращает глобус руками; авто-вращение замирает, пока
-    // пользователь целится (курсор над канвасом) — цели не убегают.
-    if (aim.current.dragDx !== 0) {
+    // Перетаскивание вращает глобус руками (по горизонтали и вертикали);
+    // авто-вращение замирает, пока пользователь целится — цели не убегают.
+    if (aim.current.dragDx !== 0 || aim.current.dragDy !== 0) {
       group.current.rotation.y += aim.current.dragDx;
+      // Наклон ограничен ±72°: полюс не «переворачивается» вверх ногами.
+      group.current.rotation.x = Math.max(
+        -1.25,
+        Math.min(1.25, group.current.rotation.x + aim.current.dragDy),
+      );
       aim.current.dragDx = 0;
+      aim.current.dragDy = 0;
     } else if (!reduced && !aiming) {
       group.current.rotation.y += dt * 0.05;
     }
-    // Никакого параллакса позиции группы: цели не смещаются под курсором.
-    group.current.rotation.x += (0 - group.current.rotation.x) * 0.04;
 
     // ── Магнитный подбор ближайшей страны ──
     const p = aim.current.pointer;
@@ -319,10 +324,10 @@ export function Hero3D({
   const particleCount =
     typeof window !== 'undefined' && window.innerWidth < 768 ? 1300 : 2600;
 
-  const aim = useRef<AimState>({ pointer: null, hovered: null, dragging: false, dragDx: 0 });
+  const aim = useRef<AimState>({ pointer: null, hovered: null, dragging: false, dragDx: 0, dragDy: 0 });
   // moved — МАКСИМАЛЬНОЕ смещение от точки нажатия (не накопленный путь!):
   // дрожащий палец/мышь при обычном клике не должны превращать его в драг.
-  const drag = useRef({ active: false, moved: 0, lastX: 0, startX: 0, startY: 0 });
+  const drag = useRef({ active: false, moved: 0, lastX: 0, lastY: 0, startX: 0, startY: 0 });
   const [hoveredName, setHoveredName] = useState<string | null>(null);
 
   // Перф: пауза рендера, когда герой вне вьюпорта (кадры не жгут батарею).
@@ -365,17 +370,20 @@ export function Hero3D({
         if (process.env.NODE_ENV !== 'production') (window as any).__aim = aim.current;
         if (drag.current.active) {
           const dx = e.clientX - drag.current.lastX;
+          const dy = e.clientY - drag.current.lastY;
           drag.current.lastX = e.clientX;
+          drag.current.lastY = e.clientY;
           drag.current.moved = Math.max(
             drag.current.moved,
             Math.hypot(e.clientX - drag.current.startX, e.clientY - drag.current.startY),
           );
-          aim.current.dragDx += dx * 0.004; // вращение глобуса рукой
+          aim.current.dragDx += dx * 0.004; // вращение по долготе
+          aim.current.dragDy += dy * 0.004; // наклон по вертикали
           aim.current.dragging = drag.current.moved > 10;
         }
       }}
       onPointerDown={(e) => {
-        drag.current = { active: true, moved: 0, lastX: e.clientX, startX: e.clientX, startY: e.clientY };
+        drag.current = { active: true, moved: 0, lastX: e.clientX, lastY: e.clientY, startX: e.clientX, startY: e.clientY };
         aim.current.pointer = toNdc(e);
       }}
       onPointerUp={() => {
