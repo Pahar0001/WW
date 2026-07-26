@@ -9,6 +9,11 @@ RUN npm install
 COPY prisma ./prisma
 RUN npx prisma generate
 COPY tsconfig.json tsconfig.seed.json nest-cli.json ./
+# Сброс кэша сборки: билдер Render переиспользовал слой COPY src со старым
+# кодом (деплой «зелёный», а новых модулей в образе нет). Смена значения ниже
+# принудительно инвалидирует этот и все последующие слои. Менять при каждом
+# случае «задеплоилось, но код старый».
+ENV BUILD_REV=2026-07-26-r2
 COPY src ./src
 RUN npm run build          # -> dist/          (the API)
 RUN npm run build:seed     # -> dist-seed/      (compiled seed, no ts-node at runtime)
