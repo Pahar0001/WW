@@ -60,7 +60,7 @@ function TrendBadge({ delta }: { delta: number }) {
  * Сглаженный area-график: кривая Catmull-Rom → Bezier, золотой градиент,
  * сетка, точка последнего дня. Чистый SVG — в фирменном стиле, без библиотек.
  */
-function AreaChart({ data, label }: { data: Series; label: string }) {
+export function AreaChart({ data, label }: { data: Series; label: string }) {
   const W = 320;
   const H = 96;
   const PAD = 6;

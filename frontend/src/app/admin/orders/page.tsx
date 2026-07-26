@@ -72,6 +72,7 @@ export default function AdminOrdersPage() {
     <main className="container-vela min-h-screen py-10">
       <header className="mb-8 flex items-center justify-between text-sm">
         <Link href="/admin" className="text-paper-dim hover:text-paper">← Админка</Link>
+        <Link href="/admin/analytics" className="text-paper-dim hover:text-paper">Аналитика</Link>
         <span className="text-paper-faint">{me?.email}</span>
       </header>
 

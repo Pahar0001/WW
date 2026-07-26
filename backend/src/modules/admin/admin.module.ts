@@ -28,7 +28,7 @@ const SAFE_USER = {
 type DayRow = { day: string; count: number };
 async function dailySeries(
   prisma: PrismaService,
-  table: 'User' | 'Trip' | 'TripOrder' | 'TripRating' | 'Post',
+  table: 'User' | 'Trip' | 'TripOrder' | 'TripRating' | 'Post' | 'TripView',
   days = 30,
 ): Promise<DayRow[]> {
   // Динамическое имя таблицы безопасно: значения ограничены литеральным типом.
@@ -132,6 +132,82 @@ class AdminController {
         },
       },
       recentUsers: recent,
+    };
+  }
+
+  // Аналитика посещений: сколько смотрят маршруты, какие страны популярнее.
+  // ?days=7|30|90 — окно для «топов» (ряд всегда за 30 дней).
+  @Get('analytics')
+  async analytics(@Query('days') daysRaw?: string) {
+    const days = Math.min(Math.max(Number(daysRaw) || 30, 1), 365);
+    const since = new Date(Date.now() - days * 86400000);
+    const dayAgo = new Date(Date.now() - 86400000);
+    const weekAgo = new Date(Date.now() - 7 * 86400000);
+
+    const [total, today, week, uniques, series, topTrips, topCountries, referrers] =
+      await Promise.all([
+        this.prisma.tripView.count(),
+        this.prisma.tripView.count({ where: { createdAt: { gte: dayAgo } } }),
+        this.prisma.tripView.count({ where: { createdAt: { gte: weekAgo } } }),
+        this.prisma.tripView
+          .findMany({
+            where: { createdAt: { gte: since } },
+            distinct: ['visitorId'],
+            select: { visitorId: true },
+          })
+          .then((rows) => rows.filter((r) => r.visitorId).length),
+        dailySeries(this.prisma, 'TripView'),
+        this.prisma.$queryRaw<
+          { slug: string; title: string; country: string; views: bigint; visitors: bigint }[]
+        >`
+          SELECT t."slug", t."title", c."name" AS country,
+                 count(v.*)::bigint AS views,
+                 count(DISTINCT coalesce(v."visitorId", v."userId", v."id"))::bigint AS visitors
+          FROM "TripView" v
+          JOIN "Trip" t ON t."id" = v."tripId"
+          JOIN "Country" c ON c."id" = t."countryId"
+          WHERE v."createdAt" >= ${since}
+          GROUP BY t."slug", t."title", c."name"
+          ORDER BY views DESC
+          LIMIT 12`,
+        this.prisma.$queryRaw<{ country: string; views: bigint; trips: bigint }[]>`
+          SELECT c."name" AS country,
+                 count(v.*)::bigint AS views,
+                 count(DISTINCT t."id")::bigint AS trips
+          FROM "TripView" v
+          JOIN "Trip" t ON t."id" = v."tripId"
+          JOIN "Country" c ON c."id" = t."countryId"
+          WHERE v."createdAt" >= ${since}
+          GROUP BY c."name"
+          ORDER BY views DESC
+          LIMIT 12`,
+        this.prisma.$queryRaw<{ referrer: string | null; views: bigint }[]>`
+          SELECT v."referrer", count(*)::bigint AS views
+          FROM "TripView" v
+          WHERE v."createdAt" >= ${since} AND v."referrer" IS NOT NULL
+          GROUP BY v."referrer"
+          ORDER BY views DESC
+          LIMIT 8`,
+      ]);
+
+    const num = (v: bigint) => Number(v);
+    return {
+      days,
+      totals: { all: total, today, week, uniqueVisitors: uniques },
+      series,
+      topTrips: topTrips.map((r) => ({
+        slug: r.slug,
+        title: r.title,
+        country: r.country,
+        views: num(r.views),
+        visitors: num(r.visitors),
+      })),
+      topCountries: topCountries.map((r) => ({
+        country: r.country,
+        views: num(r.views),
+        trips: num(r.trips),
+      })),
+      referrers: referrers.map((r) => ({ source: r.referrer ?? '—', views: num(r.views) })),
     };
   }
 

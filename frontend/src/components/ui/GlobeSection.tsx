@@ -64,7 +64,7 @@ export function GlobeSection({ trips }: { trips: Trip[] }) {
   if (markers.length === 0) return null;
 
   return (
-    <section className="relative overflow-hidden bg-[#0d0b08] py-20 text-white">
+    <section data-tour="globe" className="relative overflow-hidden bg-[#0d0b08] py-20 text-white">
       {/* Мягкое золотое свечение фона */}
       <div className="ambient-glow left-1/2 top-0 h-72 w-72 -translate-x-1/2 opacity-60" />
 

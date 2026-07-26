@@ -375,6 +375,31 @@ export async function adminStats(): Promise<AdminStats | null> {
   }
 }
 
+// ── Аналитика посещений маршрутов (админка) ──
+
+export interface TripAnalytics {
+  days: number;
+  totals: { all: number; today: number; week: number; uniqueVisitors: number };
+  series: { day: string; count: number }[];
+  topTrips: { slug: string; title: string; country: string; views: number; visitors: number }[];
+  topCountries: { country: string; views: number; trips: number }[];
+  referrers: { source: string; views: number }[];
+}
+
+/** Просмотры маршрутов: динамика, топ маршрутов и стран. Browser-only. */
+export async function adminAnalytics(days = 30): Promise<TripAnalytics | null> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/admin/analytics?days=${days}`, {
+      headers: authHeader(),
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as TripAnalytics;
+  } catch {
+    return null;
+  }
+}
+
 /** Все заявки (админка). */
 export async function adminListOrders(): Promise<TripOrder[]> {
   try {

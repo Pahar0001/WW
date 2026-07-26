@@ -613,6 +613,54 @@ export class TripsService {
   }
 
   /**
+   * Отметить просмотр маршрута (аналитика в админке).
+   * Дедуп: один и тот же посетитель не засчитывается чаще раза в 30 минут —
+   * перезагрузки и переходы «назад» не раздувают статистику. Никогда не бросает
+   * ошибку наружу: маячок не должен ломать страницу.
+   */
+  async recordView(
+    slug: string,
+    ctx: { userId?: string | null; visitorId?: string | null; referrer?: string | null },
+  ): Promise<{ ok: boolean }> {
+    try {
+      const trip = await this.prisma.trip.findUnique({ where: { slug }, select: { id: true } });
+      if (!trip) return { ok: false };
+
+      const visitorId = ctx.visitorId ? String(ctx.visitorId).slice(0, 64) : null;
+      const userId = ctx.userId ?? null;
+      const since = new Date(Date.now() - 30 * 60 * 1000);
+      if (visitorId || userId) {
+        const recent = await this.prisma.tripView.findFirst({
+          where: {
+            tripId: trip.id,
+            createdAt: { gte: since },
+            ...(visitorId ? { visitorId } : { userId }),
+          },
+          select: { id: true },
+        });
+        if (recent) return { ok: true };
+      }
+
+      // Из реферера храним только хост — без путей и query (никаких персональных данных).
+      let referrer: string | null = null;
+      if (ctx.referrer) {
+        try {
+          referrer = new URL(String(ctx.referrer)).host.slice(0, 120) || null;
+        } catch {
+          referrer = null;
+        }
+      }
+
+      await this.prisma.tripView.create({
+        data: { tripId: trip.id, userId, visitorId, referrer },
+      });
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
+  }
+
+  /**
    * Automatic ballpark spend estimate for a trip (see common/estimate.ts).
    * Pulls the minimal inputs straight from the trip — duration and the number of
    * distinct base cities on the balanced itinerary — so it works with zero manual

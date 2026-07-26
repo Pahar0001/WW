@@ -98,6 +98,21 @@ class TripsController {
     return this.trips.copyTrip(slug, user.id);
   }
 
+  // Маячок просмотра (публичный, авторизация опциональна) — аналитика админки.
+  @Post(':slug/view')
+  view(
+    @Param('slug') slug: string,
+    @Body() body: { visitorId?: string; referrer?: string },
+    @Req() req: any,
+  ) {
+    const me = optionalAccessor(req);
+    return this.trips.recordView(slug, {
+      userId: me?.id ?? null,
+      visitorId: body?.visitorId ?? null,
+      referrer: body?.referrer ?? null,
+    });
+  }
+
   // Star rating (1–5). One per user per trip; upserts.
   @Post(':slug/rate')
   @UseGuards(JwtAuthGuard)

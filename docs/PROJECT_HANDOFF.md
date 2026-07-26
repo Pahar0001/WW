@@ -2,7 +2,8 @@
 
 > Документ для продолжения работы в новом чате Claude Code **без доступа к истории переписки**.
 > Прочитай целиком, затем продолжай с раздела **«Открытые задачи»**.
-> Последнее обновление: **2026-07-26**. Ветка `main`; перед этим коммитом всё запушено
+> Последнее обновление: **2026-07-26** (вечер: онбординг-тур, `/assistant`, PDF, SEO,
+> аналитика, PWA — §9). Ветка `main`; перед этим коммитом всё запушено
 > (HEAD на момент написания = `cac12d9` + текущий коммит с этим документом).
 
 ---
@@ -101,7 +102,9 @@ fastSeek-только-в-буфере), `MotionController` (чистые фун�
 Каноничная схема: `backend/prisma/schema.prisma`; копия `database/prisma/schema.prisma`
 (синхронизировать `cp` после правок!).
 
-**Модели:** `Country → Region → City → Place` (+provenance), `SeasonInsight`;
+**Модели:** `AssistantThread → AssistantMessage` (история диалогов консьержа),
+`TripView` (просмотры маршрутов — аналитика);
+`Country → Region → City → Place` (+provenance), `SeasonInsight`;
 `Trip → RouteVariant(CALM/BALANCED/ACTIVE) → Day → DayPlace/TransportLeg`;
 `BudgetBreakdown→BudgetLine`; `TripScore`; `TripOpinion`; `Hotel`; `Ticket`, `TripDocument`,
 `CalendarEvent→Reminder`, `ChatMessage`, `Expense`; `Album→Photo`, `Memory`; `SupportMessage`;
@@ -123,7 +126,7 @@ fire-and-forget); «онлайн» = моложе 5 минут.
 
 **Формальных миграций НЕТ** — `prisma db push` на старте контейнера (Dockerfile CMD).
 Добавлено db push'ем за последние сессии: `TripRating`, `Upload`, `TripOrder` (+`priceRub`),
-`User.lastSeenAt`. Локально:
+`User.lastSeenAt`, **`AssistantThread`, `AssistantMessage`, `TripView`**. Локально:
 `DATABASE_URL='postgresql://vela:change_me_in_production@localhost:5432/vela?schema=public' npx prisma db push --skip-generate && npx prisma generate`
 ➡️ При стабилизации перейти на `prisma migrate` (baseline + deploy).
 
@@ -152,6 +155,11 @@ routes, **travel**, **orders**.
 | POST | `/api/trips/:slug/rate` | оценка 1-5 |
 | GET | `/api/trips/:slug/estimate?travelers&comfort&flightRub` | траты: БАЗА «эконом» × индекс (STANDARD 1.8 / COMFORT 3.2), FLIGHTS — только реальная котировка (VERIFIED), иначе PENDING (`common/estimate.ts`) |
 | GET | `/api/uploads/:id` | файл из БД |
+| GET/POST | `/api/assistant/threads` | список диалогов / создать (авторизация) |
+| GET/PATCH/DELETE | `/api/assistant/threads/:id` | диалог с историей / переименовать / удалить (только свой) |
+| POST | `/api/assistant/threads/:id/messages` | реплика → ответ Groq; обе сохраняются, заголовок = первый вопрос |
+| POST | `/api/trips/:slug/view` | маячок просмотра (публичный, опц. Bearer; дедуп 30 мин по visitorId) |
+| GET | `/api/admin/analytics?days=` | просмотры: totals, ряд за 30 дней, топ маршрутов/стран, источники |
 
 Карта направлений перелётов: `travel/destinations.ts` (страна → IATA + fallback).
 
@@ -160,8 +168,9 @@ routes, **travel**, **orders**.
 **Страницы:** `/` (кино-hero + HomeMenu + GlobeSection + коллекция + данные), `/order`
 (заказ под ключ: пожелание → ИИ-бриф → отправка; «Мои заявки» со статусами/ценой), `/login`,
 `/register` (видео-фон, плавающие лейблы, глаз пароля, шкала надёжности, живая валидация,
-занавес-переход AuthCurtain), `/trips/[slug]` (+`/edit`,`/plan`,`/new`), `/admin`
-(+`/users`,`/support`,`/orders`), соц-страницы, `/community(/[country])`, `/data` и пр.
+занавес-переход AuthCurtain), `/trips/[slug]` (+`/edit`,`/plan`,`/print`,`/new`), `/admin`
+(+`/users`,`/support`,`/orders`,`/analytics`), **`/assistant`** (чат с историей),
+**`/offline`** (заглушка PWA), соц-страницы, `/community(/[country])`, `/data` и пр.
 
 **Ключевые компоненты:**
 - `hero/*` — кино-hero (см. §3): титул+CTA → главы 01/02/03 в РАЗНЫХ точках экрана (desktop),
@@ -181,6 +190,17 @@ routes, **travel**, **orders**.
   скрыта пока идёт кино-hero (`[data-hero-cinema]`), скролл ссылок внутри (не клипует меню).
 - `trip/TravelPlanner.tsx` + `TripCosts.tsx` + `SpendEstimator.tsx` — перелёт по датам →
   реальная цена → в «Примерные траты».
+- `assistant/parts.tsx` — общие Spark/renderRich/Typewriter/suggestionsFor (виджет + раздел).
+- `ui/OnboardingTour.tsx` — тур первого визита: 4 подсказки с «прожектором» (вырез через
+  box-shadow), цели помечены `data-tour` (globe / trips / order / assistant). Флаг
+  `vela_tour_seen`; ручной запуск — `window.dispatchEvent(new Event('vela:start-tour'))`.
+  ⚠️ Позицию карточки считать в пикселях: framer-motion затирает inline `transform`.
+- `pwa/PwaProvider.tsx` — регистрация SW (только прод), предложение установки
+  (beforeinstallprompt, флаг `vela_install_dismissed`), плашка «нет соединения».
+- `trip/SaveOfflineButton.tsx` (кнопка «Офлайн» → SW кэширует страницу+PDF+фото),
+  `trip/TripViewBeacon.tsx` (маячок аналитики), `trip/PrintControls.tsx` (печать + `data-print`).
+- `lib/og.tsx` — шаблон OG-картинок (next/og). Шрифт Inter читается из `public/fonts`
+  (⚠️ встроенный в next/og шрифт — без кириллицы; satori не понимает `inset`, только стороны).
 - `lib/`: api.ts (типы+клиент), country-coords.ts, embassies.ts (**все ссылки проверены,
   русскоязычные приоритетно, пометки [ru]/[visa]/[bot]**), hero-media.ts, plural.ts и пр.
 
@@ -197,6 +217,22 @@ routes, **travel**, **orders**.
 - Дни маршрутов из Википедии для всех 28 интро-поездок.
 - Премиум ИИ-консьерж; auth на видео с занавесом; админ-дашборд v2 (тренды/area-графики/
   онлайн/мониторинг); glass соц-навигация; посольства → русскоязычные.
+
+**Сессия 26.07.2026 (шесть блоков — всё проверено локально):**
+1. **Онбординг-тур** первого визита (4 шага, прожектор, один раз на устройство).
+2. **Раздел `/assistant`** — чат с сохранением истории в БД: список диалогов, переименование,
+   удаление, автозаголовок из первого вопроса; виджет остаётся stateless, в его шапке — «История».
+3. **PDF-экспорт** `/trips/[slug]/print`: обложка, факты, план по дням (места, «как добраться»,
+   советы, переезды), отели, бюджет, чек-листы, поле для заметок. PDF = системная печать
+   (вектор, без библиотек). `data-print` на body прячет всю обвязку и форсирует светлые токены.
+4. **SEO-пакет:** `generateMetadata` для маршрутов (canonical, OG, twitter; PRIVATE → noindex),
+   динамические OG-картинки (`opengraph-image.tsx` для маршрута и главной), `sitemap.ts`
+   (64 URL: разделы + маршруты + страны), `robots.ts`, metadata для клиентских разделов.
+5. **Аналитика посещений** `/admin/analytics`: сводка, ряд за 30 дней, топ маршрутов и стран,
+   источники переходов; окна 7/30/90 дней.
+6. **PWA:** manifest + иконки (сгенерированы, `public/icons`), service worker (`public/sw.js`),
+   установка на телефон, кнопка «Офлайн» на маршруте (страница + PDF + фото в кэш),
+   заглушка `/offline` (через редирект — иначе Next падает при гидрации чужого URL).
 
 ## 10. Переменные окружения
 
@@ -265,9 +301,16 @@ Docker: `repository-db-1` (5432), `-backend-1` (4000), `-web-1` (3000). Для U
    живые цены отелей; модель Hotel готова.
 6. **Higgsfield:** задел `lib/hero-media.ts` — когда владелец даст API, генеративные
    фоны подставятся конфигом.
-7. Предложенные владельцу улучшения (ждут выбора): см. последнее сообщение сессии —
-   онбординг-тур, страница «/assistant», PDF-экспорт маршрута, PWA/офлайн, мультиязычность,
-   SEO (metadata/OG-картинки маршрутов), аналитика посещений в админке.
+7. ~~Онбординг-тур, `/assistant`, PDF-экспорт, SEO, аналитика, PWA~~ — **сделано 26.07.2026**
+   (см. §9). Из предложенного остаётся **мультиязычность** (i18n интерфейса).
+8. **Хвосты новых функций:**
+   - консьерж на проде отвечает заглушкой, пока не задан `GROQ_API_KEY` (история диалогов
+     при этом уже пишется в БД);
+   - `TripView` растёт без ограничения — при заметном трафике добавить чистку старше N месяцев;
+   - офлайн-кэш маршрута: клиентские переходы (RSC) без сети не работают, страница открывается
+     из кэша при полной перезагрузке — при желании прикрутить кэш RSC-запросов;
+   - OG-картинка маршрута с фото весит ~1.3 МБ (PNG от next/og) — если станет узким местом,
+     уменьшать входное фото.
 
 ## 15. Правила работы (важно)
 
@@ -278,5 +321,9 @@ Docker: `repository-db-1` (5432), `-backend-1` (4000), `-web-1` (3000). Для U
 - 3D: держать fiber@8. Видео: кодировать с `-g 10..12`.
 - Дизайн-токены: ink/paper/aurora; на фото/видео — явные white/dark + дымка Mist, не токены.
 - Проверяй визуально light+dark, desktop+mobile; после правок hero — все фазы скролла.
+- Service worker проверять только на прод-сборке (`next build && next start`) — в dev он
+  сознательно не регистрируется. Реальный офлайн проверяется остановкой сервера.
+- Правишь `public/sw.js` — помни: страницы под кэшем должны отдаваться по своему URL
+  (иначе Next падает при гидрации), а API и `/uploads` не кэшируются никогда.
 
 — Конец хендоффа —

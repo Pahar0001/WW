@@ -306,3 +306,60 @@
   }
   .grain-overlay { display: none; }
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Печатный документ маршрута (/trips/[slug]/print).
+   Клиентский компонент PrintMode ставит на <body> атрибут data-print,
+   и всё «приложение» вокруг документа (зерно, виджеты, навигация)
+   убирается — на экране это чистая страница-предпросмотр, а в печати
+   получается фирменный PDF.
+   ────────────────────────────────────────────────────────────── */
+body[data-print] > *:not(#print-root) {
+  display: none !important;
+}
+/* Документ всегда светлый, даже если на сайте включена тёмная тема:
+   переменные переопределяются на <body> и наследуются всем содержимым. */
+body[data-print] {
+  --bg: 0 0% 100%;
+  --bg-2: 42 34% 97.5%;
+  --line: 38 18% 82%;
+  --fg: 32 14% 16%;
+  --fg-2: 32 10% 33%;
+  --fg-3: 34 9% 47%;
+  --primary: 38 46% 40%;
+  --primary-fg: 36 40% 14%;
+  background: #fff;
+  color: hsl(var(--fg));
+}
+
+@media print {
+  /* Печатаем на белом с чёрным текстом — экономно и читаемо. */
+  body[data-print] {
+    background: #fff !important;
+    color: #14110d !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Фон/цвета карточек и золотых линий сохраняем: документ должен
+     остаться узнаваемо «фирменным». */
+  #print-root {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-page-break {
+    break-before: page;
+    page-break-before: always;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  a {
+    text-decoration: none;
+  }
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm;
+  }
+}

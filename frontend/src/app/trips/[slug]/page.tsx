@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
-import { notFound } from 'next/navigation';
-import { api, imageUrl } from '@/lib/api';
+import type { Metadata } from 'next';
+import { api, imageUrl, type Trip } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { TripCosts } from '@/components/trip/TripCosts';
 import { PlanLink } from '@/components/trip/PlanLink';
@@ -9,9 +9,44 @@ import { EditTripLink } from '@/components/trip/EditTripLink';
 import { CopyTripLink } from '@/components/trip/CopyTripLink';
 import { PrivateTripGate } from '@/components/trip/PrivateTripGate';
 import { TripRating } from '@/components/trip/TripRating';
+import { TripViewBeacon } from '@/components/trip/TripViewBeacon';
+import { SaveOfflineButton } from '@/components/trip/SaveOfflineButton';
 import { Reveal } from '@/components/ui/Reveal';
 import { Card } from '@/components/ui/Card';
 import { pluralize } from '@/lib/plural';
+
+/**
+ * SEO: заголовок, описание и карточка для соцсетей строятся из самого маршрута.
+ * Картинка ссылки генерируется в opengraph-image.tsx (фирменная карточка со
+ * страной, длительностью и фото маршрута). Приватные маршруты из индекса
+ * исключаются.
+ */
+export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+  const trip = await api.getTrip(params.slug);
+  if (!trip) {
+    return { title: 'Маршрут — Vela', robots: { index: false, follow: false } };
+  }
+  const title = `${trip.title} — маршрут по ${trip.country.name}`;
+  const description =
+    trip.summary?.trim() ||
+    `Маршрут на ${pluralize(trip.durationDays, 'день', 'дня', 'дней')} по стране ${trip.country.name}: план по дням, места, карта и честные данные о тратах.`;
+  const isPrivate = trip.visibility === 'PRIVATE';
+  return {
+    title,
+    description,
+    alternates: { canonical: `/trips/${trip.slug}` },
+    robots: isPrivate ? { index: false, follow: false } : undefined,
+    openGraph: {
+      type: 'article',
+      title,
+      description,
+      url: `/trips/${trip.slug}`,
+      siteName: 'Vela',
+      locale: 'ru_RU',
+    },
+    twitter: { card: 'summary_large_image', title, description },
+  };
+}
 
 export default async function TripPage({ params }: { params: { slug: string } }) {
   const token = cookies().get('vela_token')?.value;
@@ -34,6 +69,8 @@ export default async function TripPage({ params }: { params: { slug: string } })
 
   return (
     <main className="relative min-h-screen pb-32">
+      {/* Аналитика посещений (анонимно, дедуп на бэкенде) */}
+      <TripViewBeacon slug={params.slug} />
       <header className="container-vela flex items-center justify-between py-7">
         <Link href="/" data-magnetic className="font-serif text-xl tracking-tightest">
           Vela
@@ -42,6 +79,15 @@ export default async function TripPage({ params }: { params: { slug: string } })
           <CopyTripLink slug={params.slug} visibility={trip.visibility} />
           <EditTripLink slug={params.slug} />
           <PlanLink slug={params.slug} />
+          <Link
+            href={`/trips/${params.slug}/print`}
+            data-cursor="hover"
+            title="Печатный документ поездки (PDF)"
+            className="text-sm text-paper-dim hover:text-paper"
+          >
+            PDF
+          </Link>
+          <SaveOfflineButton slug={params.slug} assets={offlineAssets(trip)} />
           <Link href="/" data-cursor="hover" className="text-sm text-paper-dim hover:text-paper">
             ← Все маршруты
           </Link>
@@ -265,4 +311,24 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('ru-RU').format(n);
+}
+
+/**
+ * Картинки маршрута для офлайн-кэша: обложка и фото мест. Ограничиваем список,
+ * чтобы «Сохранить офлайн» не тянуло десятки мегабайт на мобильном интернете.
+ */
+function offlineAssets(trip: Trip): string[] {
+  const urls: string[] = [];
+  const push = (v?: string | null) => {
+    const u = imageUrl(v);
+    if (u && !urls.includes(u)) urls.push(u);
+  };
+  push(trip.heroImage);
+  for (const variant of trip.variants) {
+    for (const day of variant.days) {
+      for (const dp of day.places) push(dp.place.photoUrl);
+    }
+  }
+  for (const h of trip.hotels ?? []) push(h.photoUrl);
+  return urls.slice(0, 40);
 }

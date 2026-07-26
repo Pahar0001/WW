@@ -192,6 +192,7 @@ model Trip {
   memories    Memory[]
   expenses    Expense[]
   reposts     Repost[]
+  views       TripView[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 }
@@ -580,6 +581,7 @@ model User {
   friendshipsReceived Friendship[]   @relation("FriendAddressee")
   notifications       Notification[] @relation("UserNotifications")
   tripOrders          TripOrder[]    @relation("UserTripOrders")
+  assistantThreads    AssistantThread[] @relation("UserAssistantThreads")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }
@@ -761,4 +763,42 @@ model Upload {
   data      Bytes
   size      Int
   createdAt DateTime @default(now())
+}
+
+// ── ИИ-консьерж: сохранённые диалоги (страница /assistant) ──
+// Виджет в углу остаётся «без памяти» (POST /assistant/chat), а полноценный
+// раздел чата хранит переписку в БД: список диалогов слева, история справа.
+model AssistantThread {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation("UserAssistantThreads", fields: [userId], references: [id], onDelete: Cascade)
+  title     String             @default("Новый диалог")
+  messages  AssistantMessage[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  @@index([userId, updatedAt])
+}
+
+model AssistantMessage {
+  id        String          @id @default(cuid())
+  threadId  String
+  thread    AssistantThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String          // 'user' | 'assistant'
+  content   String
+  createdAt DateTime        @default(now())
+  @@index([threadId, createdAt])
+}
+
+// Просмотр страницы маршрута — сырьё для аналитики в админке.
+// Пишется по факту открытия страницы (маячок), дедуп по visitorId за 30 мин.
+model TripView {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  userId    String?  // если посетитель залогинен
+  visitorId String?  // анонимный id из localStorage (не привязан к личности)
+  referrer  String?  // откуда пришли (хост)
+  createdAt DateTime @default(now())
+  @@index([tripId, createdAt])
+  @@index([createdAt])
 }
