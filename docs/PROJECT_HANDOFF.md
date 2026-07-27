@@ -542,10 +542,27 @@ Postgres-unique не конфликтуют). **Любая будущая схе
 ### 16.1. Новые зависимости
 
 ```
-postprocessing@6.35.6              @react-three/postprocessing@2.16.3
+postprocessing 6.35.6              @react-three/postprocessing 2.16.3
 ```
 Версии подобраны под жёсткое ограничение проекта (`fiber@8` + React 18) —
 `@react-three/postprocessing@3.x` требует fiber 9 и React 19, ставить нельзя.
+
+⚠️ **Обе записаны БЕЗ каретки — это обязательно, и вот почему.**
+`frontend/Dockerfile` копирует только `package.json` и делает `npm install`,
+то есть **package-lock.json при сборке образа игнорируется** и зависимости
+разрешаются заново. С `^6.35.6` на Render подтягивался свежий
+`postprocessing@6.39.x`, который требует `three >= 0.168`, — при нашем
+зафиксированном `three@0.160` это конфликт пиров, `npm install` падает с
+кодом 1, деплой `vela-web` красный (Dockerfile:11). Локально всё собиралось,
+потому что там лок-файл есть.
+
+**Правило: любую новую зависимость, у которой есть peer на `three`, `react`
+или `@react-three/fiber`, писать точной версией.** Проверить перед пушем можно
+ровно так, как это делает Render:
+```bash
+mkdir -p /tmp/npmcheck && cp frontend/package.json /tmp/npmcheck/
+cd /tmp/npmcheck && npm install --no-audit --no-fund   # должно завершиться кодом 0
+```
 
 ### 16.2. Моушн-фундамент (`lib/motion.ts`)
 
