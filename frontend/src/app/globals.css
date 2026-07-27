@@ -26,6 +26,24 @@
   --glass-line: hsl(34 14% 23% / 0.08);
   --grain-opacity: 0.045;
   --shadow-lift: 0 6px 18px -8px hsl(28 15% 20% / 0.16), 0 30px 64px -28px hsl(28 15% 20% / 0.28);
+
+  /* ── Многослойная тень: чем дальше слой, тем шире и прозрачнее. Реальные
+     объекты не бросают одну тень — именно набор слоёв читается как «дорого». */
+  --shadow-depth:
+    0 1px 1px hsl(28 15% 20% / 0.04),
+    0 2px 4px hsl(28 15% 20% / 0.04),
+    0 8px 14px -6px hsl(28 15% 20% / 0.06),
+    0 22px 40px -18px hsl(28 15% 20% / 0.12),
+    0 48px 90px -40px hsl(28 15% 20% / 0.2);
+  --shadow-depth-hover:
+    0 1px 1px hsl(28 15% 20% / 0.05),
+    0 3px 6px hsl(28 15% 20% / 0.05),
+    0 12px 22px -8px hsl(28 15% 20% / 0.09),
+    0 34px 60px -22px hsl(28 15% 20% / 0.18),
+    0 70px 130px -50px hsl(28 15% 20% / 0.3);
+  /* Тёплый источник света / холодная тень — база кинематографичного грейда. */
+  --light-warm: 42 70% 72%;
+  --shade-cool: 214 26% 42%;
 }
 
 .dark {
@@ -45,6 +63,21 @@
   --glass-line: hsl(44 30% 91% / 0.08);
   --grain-opacity: 0.06;
   --shadow-lift: 0 8px 22px -8px hsl(0 0% 0% / 0.5), 0 34px 70px -26px hsl(0 0% 0% / 0.7);
+
+  --shadow-depth:
+    0 1px 1px hsl(0 0% 0% / 0.3),
+    0 2px 5px hsl(0 0% 0% / 0.24),
+    0 10px 18px -8px hsl(0 0% 0% / 0.34),
+    0 26px 48px -20px hsl(0 0% 0% / 0.5),
+    0 56px 100px -44px hsl(0 0% 0% / 0.66);
+  --shadow-depth-hover:
+    0 1px 2px hsl(0 0% 0% / 0.34),
+    0 4px 8px hsl(0 0% 0% / 0.3),
+    0 14px 26px -8px hsl(0 0% 0% / 0.42),
+    0 38px 68px -22px hsl(0 0% 0% / 0.58),
+    0 80px 140px -50px hsl(0 0% 0% / 0.76);
+  --light-warm: 40 66% 66%;
+  --shade-cool: 214 24% 28%;
 }
 
 @layer base {
@@ -99,15 +132,15 @@
     position: relative;
     border: 1px solid hsl(var(--line));
     background: hsl(var(--bg-2) / 0.55);
-    box-shadow: 0 1px 2px hsl(28 15% 20% / 0.04), 0 12px 32px -18px hsl(28 15% 20% / 0.16);
-    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1),
-      box-shadow 0.6s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.6s ease;
+    box-shadow: var(--shadow-depth);
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.7s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.6s ease;
     will-change: transform;
   }
   .card-lux:hover {
-    transform: translateY(-5px);
+    transform: translateY(-6px);
     border-color: hsl(var(--primary) / 0.4);
-    box-shadow: var(--shadow-lift);
+    box-shadow: var(--shadow-depth-hover);
   }
   .card-lux::after {
     content: '';
@@ -190,6 +223,111 @@
     pointer-events: none;
   }
   .sheen:hover::before { transform: translateX(120%); }
+
+  /* ── 3D-наклон. Углы пишет JS в переменные (компонент ui/Tilt.tsx), сам
+     transform живёт в CSS — так наклон композится на GPU и не конфликтует
+     с hover-подъёмом вложенной карточки. ── */
+  .tilt-3d {
+    transform: perspective(var(--tilt-perspective, 1100px))
+      rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg))
+      translate3d(0, var(--tilt-lift, 0px), 0);
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  /* Блик, следующий за курсором: имитация источника света над поверхностью.
+     Радиус и центр — из переменных, чтобы одна разметка работала и на
+     карточке 300px, и на секции во весь экран. */
+  .spotlight {
+    position: relative;
+    isolation: isolate;
+  }
+  .spotlight::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    /* z-index: -1 вместе с isolation на родителе кладёт блик НАД фоном
+       поверхности, но ПОД её содержимым: свет падает на карточку, а текст
+       остаётся чистым (при z-index: 0 позиционированный ::before рисуется
+       поверх контента и приглушает текст). */
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      var(--spot-size, 260px) circle at var(--spot-x, 50%) var(--spot-y, 0%),
+      hsl(var(--light-warm) / var(--spot-strength, 0.16)),
+      transparent 62%
+    );
+    opacity: var(--spot-opacity, 0);
+    transition: opacity 0.5s ease;
+  }
+  .spotlight:hover::before { opacity: 1; }
+
+  /* Тонкая световая кромка сверху — как отблеск на фаске стекла. */
+  .edge-light::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, hsl(0 0% 100% / 0.12), transparent 20%);
+  }
+
+  .shadow-depth { box-shadow: var(--shadow-depth); }
+
+  /* Стекло навигации: сильнее размытие + внутренняя кромка + тёплый ореол. */
+  .glass-nav {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(28px) saturate(1.6);
+    backdrop-filter: blur(28px) saturate(1.6);
+    border: 1px solid var(--glass-line);
+    box-shadow:
+      inset 0 1px 0 hsl(0 0% 100% / 0.1),
+      inset 0 -1px 0 hsl(0 0% 0% / 0.05),
+      0 10px 30px -12px hsl(28 15% 20% / 0.24),
+      0 30px 70px -30px hsl(28 15% 20% / 0.34),
+      0 0 60px -20px hsl(var(--primary) / 0.18);
+  }
+
+  /* Бегущий блик по золотому градиенту — «живой» металл в заголовках. */
+  .text-gold-live {
+    background: linear-gradient(
+      100deg,
+      hsl(var(--primary)) 0%,
+      hsl(46 72% 74%) 38%,
+      hsl(var(--primary)) 62%,
+      hsl(38 52% 42%) 100%
+    );
+    background-size: 260% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: gold-sweep 9s ease-in-out infinite;
+  }
+
+  /* Вертикальный световой конус (volumetric light) — для героев и секций. */
+  .light-shaft {
+    position: absolute;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      hsl(var(--light-warm) / 0.22),
+      hsl(var(--light-warm) / 0.06) 45%,
+      transparent 78%
+    );
+    filter: blur(26px);
+    transform-origin: top center;
+    animation: shaft-breathe 11s ease-in-out infinite;
+  }
+}
+
+@keyframes gold-sweep {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+@keyframes shaft-breathe {
+  0%, 100% { opacity: 0.55; transform: scaleY(1) skewX(0deg); }
+  50% { opacity: 0.9; transform: scaleY(1.06) skewX(1.4deg); }
 }
 
 /* ── Film grain over the whole site — subtle "expensive" texture. ──
@@ -329,6 +467,8 @@
     transition-duration: 0.001ms !important;
   }
   .grain-overlay { display: none; }
+  /* Бесконечное «дыхание» световых конусов при reduced-motion не нужно. */
+  .light-shaft { animation: none; }
 }
 
 /* ──────────────────────────────────────────────────────────────

@@ -49,7 +49,8 @@ export function SupportWidget() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, open]);
 
-  if (!me || me.role === 'SUPER_ADMIN' || path === '/welcome') return null;
+  // /welcome и /vela — самодостаточные полноэкранные сцены без обвязки.
+  if (!me || me.role === 'SUPER_ADMIN' || path === '/welcome' || path === '/vela') return null;
 
   async function send(e: React.FormEvent) {
     e.preventDefault();

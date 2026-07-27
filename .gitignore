@@ -12,3 +12,10 @@ prisma/*.db
 
 # local dev helpers
 .claude/
+
+# Артефакты сборки, которые не должны попадать в репозиторий
+# (правило было записано только в docs/PROJECT_HANDOFF.md §15 — теперь оно
+# ещё и здесь, чтобы файлы не приходилось обходить руками каждый раз).
+backend/dist-seed/
+backend/package-lock.json
+frontend/tsconfig.tsbuildinfo

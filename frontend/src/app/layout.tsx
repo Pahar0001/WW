@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import { Atmosphere } from '@/components/fx/Atmosphere';
+import { Ambience } from '@/components/fx/Ambience';
 import { SupportWidget } from '@/components/support/SupportWidget';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { FloatingNav } from '@/components/ui/FloatingNav';
@@ -70,6 +71,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
       <body>
+        {/* Фоновая атмосфера идёт ПЕРВОЙ в body: оба слоя позиционированы
+            без z-index, поэтому порядок рисования решает DOM — канвас
+            остаётся под всем контентом. */}
+        <Ambience />
         <Atmosphere />
         {children}
         <SupportWidget />

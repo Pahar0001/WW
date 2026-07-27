@@ -34,8 +34,8 @@ export function AssistantWidget() {
   const [typingIdx, setTypingIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const suggestions = useMemo(() => suggestionsFor(path), [path]);
-  // Экран знакомства (/welcome) должен быть без посторонних элементов.
-  const hidden = path === '/welcome';
+  // Знакомство (/welcome) и игровой мир (/vela) — без посторонних элементов.
+  const hidden = path === '/welcome' || path === '/vela';
 
   useEffect(() => {
     setLoggedIn(!!getToken());

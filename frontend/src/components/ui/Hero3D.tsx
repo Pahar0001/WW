@@ -3,10 +3,13 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Canvas, useFrame, useLoader, useThree } from '@react-three/fiber';
-import { Line } from '@react-three/drei';
+import { Environment, Lightformer, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import type { GlobeMarker } from '@/lib/country-coords';
 import GEO from '@/data/globe-geo.json';
+import { CinematicPost } from '@/components/fx/CinematicPost';
+import { DustField, LightShafts, SunGlow } from '@/components/fx/Volumetric';
+import { clamp, detectTier, type DeviceTier } from '@/lib/motion';
 
 const GOLD = '#d8b878';
 const R = 2.2;
@@ -45,7 +48,22 @@ function EarthSphere() {
   return (
     <mesh>
       <sphereGeometry args={[R * 0.998, 96, 96]} />
-      <meshStandardMaterial map={earthMap} roughness={0.9} metalness={0} />
+      {/*
+        Физический материал вместо standard: clearcoat даёт по океанам тонкий
+        лаковый отблеск от окружения (как влажная поверхность), из-за которого
+        планета перестаёт выглядеть наклеенной картой. Карта высот у нас нет,
+        поэтому рельеф читается именно через блик и терминатор.
+      */}
+      <meshPhysicalMaterial
+        map={earthMap}
+        roughness={0.78}
+        metalness={0.04}
+        clearcoat={0.45}
+        clearcoatRoughness={0.5}
+        envMapIntensity={0.55}
+        sheen={0.2}
+        sheenColor="#9fc4e8"
+      />
     </mesh>
   );
 }
@@ -269,40 +287,64 @@ function CountryDot({ marker, hovered }: { marker: MarkerPoint; hovered: boolean
   );
 }
 
-function Dust() {
-  const ref = useRef<THREE.Points>(null);
-  const positions = useMemo(() => {
-    const N = 380;
-    const arr = new Float32Array(N * 3);
-    for (let i = 0; i < N; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 16;
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 8 - 2;
-    }
-    return arr;
-  }, []);
-  useFrame((_, dt) => {
-    if (ref.current) ref.current.rotation.y += dt * 0.01;
-  });
+/**
+ * Студийное окружение из lightformer'ов — локальная замена HDRI.
+ *
+ * Готовый HDRI пришлось бы тянуть с CDN (несколько мегабайт и внешняя
+ * зависимость на каждой загрузке страницы). Здесь карта окружения печётся
+ * один раз в разрешении 128–256 из четырёх «софтбоксов»: тёплый key сбоку,
+ * холодный rim сзади, мягкий fill сверху и слабый отражатель снизу. Именно
+ * этот набор даёт физическому материалу дорогие протяжённые блики.
+ */
+function StudioEnvironment({ tier }: { tier: DeviceTier }) {
   return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial size={0.02} color="#e8dcc0" transparent opacity={0.35} depthWrite={false} />
-    </points>
+    <Environment resolution={tier === 'high' ? 256 : 128} frames={1}>
+      {/* Тёплый основной свет — «солнце» справа сверху */}
+      <Lightformer form="rect" intensity={3.2} color="#ffdfb0" position={[6, 4, 4]} scale={[8, 8, 1]} target={[0, 0, 0]} />
+      {/* Холодный контровой — отделяет планету от фона */}
+      <Lightformer form="rect" intensity={1.5} color="#9dc0ea" position={[-7, 1, -5]} scale={[10, 6, 1]} target={[0, 0, 0]} />
+      {/* Мягкий верхний fill */}
+      <Lightformer form="circle" intensity={1.1} color="#fff6e6" position={[0, 9, 1]} scale={[6, 6, 1]} target={[0, 0, 0]} />
+      {/* Слабый нижний отражатель — без него низ планеты проваливается в ноль */}
+      <Lightformer form="rect" intensity={0.5} color="#6f5a44" position={[0, -7, 2]} scale={[9, 5, 1]} target={[0, 0, 0]} />
+    </Environment>
   );
 }
 
-/** Плавный дрейф камеры — только пока пользователь НЕ целится в страну. */
-function Rig({ aim }: { aim: React.MutableRefObject<AimState> }) {
+/**
+ * Камера: параллакс по курсору + реакция на скролл.
+ *
+ * Скролл отъезжает камеру назад и слегка приподнимает её — планета «уходит»
+ * вглубь кадра по мере чтения страницы. scrollY читаем прямо в useFrame:
+ * это одно чтение свойства (не layout), дешевле подписки на события.
+ */
+function Rig({ aim, scrollReact }: { aim: React.MutableRefObject<AimState>; scrollReact: boolean }) {
   const { camera } = useThree();
-  useFrame((state) => {
+  const wrap = useRef<HTMLElement | null>(null);
+  const base = useRef(camera.position.z);
+
+  useFrame((state, dt) => {
     const idle = aim.current.pointer === null;
-    const tx = idle ? state.pointer.x * 0.5 : 0;
-    const ty = idle ? -state.pointer.y * 0.35 : 0;
-    camera.position.x += (tx - camera.position.x) * 0.02;
-    camera.position.y += (ty - camera.position.y) * 0.02;
+    const tx = idle ? state.pointer.x * 0.55 : 0;
+    const ty = idle ? -state.pointer.y * 0.4 : 0;
+    const k = Math.min(1, dt * 1.6);
+    camera.position.x += (tx - camera.position.x) * k;
+    camera.position.y += (ty - camera.position.y) * k;
+
+    if (scrollReact) {
+      if (!wrap.current) {
+        wrap.current = (state.gl.domElement.closest('[data-globe-wrap]') as HTMLElement) ?? null;
+      }
+      const el = wrap.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        // Прогресс прохождения секции через вьюпорт: 0 — она внизу экрана,
+        // 1 — ушла вверх.
+        const p = clamp((window.innerHeight - r.top) / (window.innerHeight + r.height));
+        const z = base.current + (p - 0.5) * 1.5;
+        camera.position.z += (z - camera.position.z) * k;
+      }
+    }
     camera.lookAt(0, 0, 0);
   });
   return null;
@@ -311,18 +353,24 @@ function Rig({ aim }: { aim: React.MutableRefObject<AimState> }) {
 export function Hero3D({
   markers = [],
   onSelect,
+  scrollReact = true,
 }: {
   markers?: GlobeMarker[];
   /** Обработчик клика по стране. Без него — переход на маршрут (поведение hero). */
   onSelect?: (marker: GlobeMarker) => void;
+  /** Отъезд камеры по мере прокрутки секции. Выключать во фиксированном hero. */
+  scrollReact?: boolean;
 }) {
   const router = useRouter();
   const reduced =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // Перф: на мобильных — вдвое меньше частиц (WebGL на low-end).
-  const particleCount =
-    typeof window !== 'undefined' && window.innerWidth < 768 ? 1300 : 2600;
+  // Класс устройства определяет и плотность пыли, и наличие пост-обработки:
+  // на слабом железе композер съедает больше, чем даёт.
+  const [tier, setTier] = useState<DeviceTier>('mid');
+  useEffect(() => setTier(detectTier()), []);
+  const dustCount = tier === 'low' ? 240 : tier === 'mid' ? 520 : 900;
+  const particleCount = tier === 'low' ? 1300 : 2600;
 
   const aim = useRef<AimState>({ pointer: null, hovered: null, dragging: false, dragDx: 0, dragDy: 0 });
   // moved — МАКСИМАЛЬНОЕ смещение от точки нажатия (не накопленный путь!):
@@ -361,6 +409,7 @@ export function Hero3D({
   return (
     <div
       ref={wrap}
+      data-globe-wrap
       className="relative h-full w-full touch-pan-y select-none"
       onPointerEnter={(e) => {
         aim.current.pointer = toNdc(e); // наведение работает сразу, без движения
@@ -416,27 +465,61 @@ export function Hero3D({
       )}
       <Canvas
         camera={{ position: [0, 0, 6.2], fov: 42 }}
-        dpr={[1, 2]}
+        dpr={[1, tier === 'low' ? 1.5 : 2]}
         frameloop={visible ? 'always' : 'never'}
-        gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+        gl={{ antialias: tier !== 'low', alpha: true, powerPreference: 'high-performance' }}
+        // ACES + экспозиция чуть выше единицы: тёплые света уходят в кремовый,
+        // а не в чистый белый. Кривая живёт на рендерере, а не в композере —
+        // иначе на low-тире (без композера) картинка была бы другой.
+        onCreated={({ gl }) => {
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.08;
+        }}
         // События обрабатываем на обёртке (магнитный снапинг), r3f-рейкаст не нужен.
         events={undefined}
       >
-        <fog attach="fog" args={['#0d0b08', 7, 13]} />
+        <fog attach="fog" args={['#0d0b08', 7, 14]} />
         {/* Свет: мягкий заполняющий + «солнце» сбоку — рельеф и день/ночь */}
-        <ambientLight intensity={0.85} />
-        <directionalLight position={[4, 2.5, 5]} intensity={1.35} color="#fff4dd" />
+        <ambientLight intensity={0.32} />
+        <directionalLight position={[4, 2.5, 5]} intensity={2.1} color="#fff4dd" />
+        {/* Холодный контровой: терминатор планеты перестаёт быть чёрным. */}
+        <directionalLight position={[-5, -1, -4]} intensity={0.5} color="#8fb4e0" />
+
         <Suspense fallback={null}>
-        <Globe
-          reduced={reduced}
-          markers={markers}
-          particleCount={particleCount}
-          aim={aim}
-          onHover={(m) => setHoveredName(m?.name ?? null)}
-        />
+          <StudioEnvironment tier={tier} />
+          <Globe
+            reduced={reduced}
+            markers={markers}
+            particleCount={particleCount}
+            aim={aim}
+            onHover={(m) => setHoveredName(m?.name ?? null)}
+          />
         </Suspense>
-        <Dust />
-        {!reduced && <Rig aim={aim} />}
+
+        {/* Объёмная атмосфера: солнце за планетой, лучи и пыль в воздухе. */}
+        <SunGlow position={[5.5, 3.2, -6]} scale={2.6} intensity={tier === 'low' ? 0.6 : 1} />
+        {tier !== 'low' && !reduced && (
+          <LightShafts
+            count={tier === 'high' ? 5 : 3}
+            origin={[5.5, 3.2, -6]}
+            target={[-0.6, -1.2, 1]}
+            length={16}
+            spread={1.6}
+            intensity={0.2}
+          />
+        )}
+        <DustField
+          count={dustCount}
+          radius={9}
+          height={8}
+          size={0.055}
+          opacity={0.45}
+          speed={reduced ? 0 : 0.14}
+          mouseInfluence={reduced ? 0 : 0.35}
+        />
+
+        {!reduced && <Rig aim={aim} scrollReact={scrollReact} />}
+        {!reduced && <CinematicPost tier={tier} bloom={0.7} bloomThreshold={0.62} dof={false} vignette={0.5} grain={0.028} />}
       </Canvas>
     </div>
   );

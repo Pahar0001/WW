@@ -3,17 +3,20 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 import { network } from '@/lib/network';
 import { chat } from '@/lib/chat';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Avatar } from '@/components/social/Avatar';
+import { EASE, clamp, damp, onFrame, prefersReducedMotion } from '@/lib/motion';
 
 // Routes where the floating nav should stay out of the way — their own chrome
 // (admin/auth) or a social page that already has its own top tab bar (SocialTabs).
 const HIDDEN_PREFIXES = [
   '/admin',
   '/welcome',
+  '/vela',
   '/login',
   '/register',
   '/forgot-password',
@@ -54,6 +57,7 @@ export function FloatingNav() {
   const [menu, setMenu] = useState(false);
   const [hidden, setHidden] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     auth
@@ -105,6 +109,35 @@ export function FloatingNav() {
     };
   }, []);
 
+  // «Пилюля» сжимается при прокрутке: у самого верха она полноразмерная и
+  // приглашающая, дальше уступает место контенту. Масштаб пишется напрямую в
+  // style из общего тикера — ни одного ре-рендера на скролле.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    if (prefersReducedMotion()) return;
+    let shrink = 0;
+    return onFrame(({ y, dt }) => {
+      // 0 → 1 на первых 260px прокрутки.
+      shrink = damp(shrink, clamp(y / 260), 8, dt);
+      el.style.transform = `scale(${(1 - shrink * 0.085).toFixed(4)})`;
+      el.style.setProperty('--nav-shrink', shrink.toFixed(3));
+    });
+  }, []);
+
+  // Свечение под курсором: источник света скользит по стеклу навигации.
+  const onNavPointer = (e: React.PointerEvent<HTMLElement>) => {
+    const el = navRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    el.style.setProperty('--spot-x', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`);
+    el.style.setProperty('--spot-y', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`);
+    el.style.setProperty('--spot-opacity', '1');
+  };
+  const onNavLeave = () => {
+    navRef.current?.style.setProperty('--spot-opacity', '0');
+  };
+
   if (HIDDEN_PREFIXES.some((p) => path === p || path.startsWith(p + '/'))) return null;
 
   const links = user ? [...publicLinks, ...memberLinks] : publicLinks;
@@ -121,38 +154,64 @@ export function FloatingNav() {
           На самой «пилюле» его быть не должно — любой overflow ≠ visible
           обрезает выпадающее меню профиля (absolute вверх), и клик по аватару
           «не работает»: меню открывается невидимым. */}
-      <nav className="glass pointer-events-auto flex max-w-[95vw] items-center gap-1.5 rounded-2xl px-2 py-2 shadow-soft-lg">
-        {/* Логотип */}
+      <motion.nav
+        ref={navRef}
+        initial={prefersReducedMotion() ? false : { y: 46, opacity: 0, filter: 'blur(12px)' }}
+        animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
+        transition={{ duration: 1.1, ease: EASE, delay: 0.25 }}
+        onPointerMove={onNavPointer}
+        onPointerLeave={onNavLeave}
+        className="glass-nav spotlight pointer-events-auto flex max-w-[95vw] items-center gap-1.5 rounded-2xl px-2 py-2 origin-bottom"
+        style={{ ['--spot-size' as string]: '340px', ['--spot-strength' as string]: '0.2' }}
+      >
+        {/* Логотип = вход в интерактивный мир Vela (маршрут /vela, тот же таб).
+            «Главная» осталась отдельным пунктом ниже — навигация домой не
+            потерялась. */}
         <Link
-          href="/"
+          href="/vela"
           data-magnetic
-          className="mr-1 flex shrink-0 items-center gap-2 rounded-xl bg-paper px-3.5 py-2 font-serif text-lg leading-none tracking-tightest text-ink"
-          aria-label="Vela — на главную"
+          className="group/logo relative mr-1 flex shrink-0 items-center gap-2 overflow-hidden rounded-xl bg-paper px-3.5 py-2 font-serif text-lg leading-none tracking-tightest text-ink"
+          aria-label="Vela Island — интерактивный мир"
+          title="Открыть Vela Island — интерактивный мир"
         >
-          <span className="text-[13px] text-aurora">和</span>
-          Vela
+          {/* Пробегающий блик: логотип единственный элемент навигации, который
+              ведёт в игру, и он должен звать. */}
+          <span className="pointer-events-none absolute inset-0 -translate-x-full bg-[linear-gradient(110deg,transparent_35%,hsl(var(--primary)/0.55)_50%,transparent_65%)] transition-transform duration-[1100ms] ease-smooth group-hover/logo:translate-x-full" />
+          <span className="relative text-[13px] text-aurora transition-transform duration-700 ease-smooth group-hover/logo:rotate-[24deg]">和</span>
+          <span className="relative">Vela</span>
         </Link>
 
         {/* Разделы — при нехватке места скроллятся внутри, не обрезая меню */}
         <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`relative shrink-0 rounded-xl px-3.5 py-2 text-sm transition-colors ${
-                isActive(l.href)
-                  ? 'bg-ink-line/60 text-paper'
-                  : 'text-paper-dim hover:bg-ink-line/40 hover:text-paper'
-              }`}
-            >
-              {l.label}
-              {l.href === '/messages' && unreadChats > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 inline-grid h-4 min-w-[16px] place-items-center rounded-full bg-aurora px-1 text-[10px] font-semibold text-aurora-fg">
-                  {unreadChats}
-                </span>
-              )}
-            </Link>
-          ))}
+          {links.map((l) => {
+            const active = isActive(l.href);
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`relative shrink-0 rounded-xl px-3.5 py-2 text-sm transition-colors duration-500 ${
+                  active ? 'text-paper' : 'text-paper-dim hover:text-paper'
+                }`}
+              >
+                {/* Подсветка активного раздела ПЕРЕЕЗЖАЕТ между пунктами
+                    (layoutId), а не появляется на новом месте — глаз следит за
+                    движением и понимает, куда попал. */}
+                {active && (
+                  <motion.span
+                    layoutId="nav-active"
+                    className="absolute inset-0 -z-10 rounded-xl bg-ink-line/55 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.08),0_0_22px_-8px_hsl(var(--primary)/0.6)]"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                )}
+                <span className="relative">{l.label}</span>
+                {l.href === '/messages' && unreadChats > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 inline-grid h-4 min-w-[16px] place-items-center rounded-full bg-aurora px-1 text-[10px] font-semibold text-aurora-fg">
+                    {unreadChats}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </div>
 
         <span className="mx-1 h-6 w-px shrink-0 bg-ink-line" />
@@ -209,7 +268,7 @@ export function FloatingNav() {
             </div>
           </>
         )}
-      </nav>
+      </motion.nav>
     </div>
   );
 }

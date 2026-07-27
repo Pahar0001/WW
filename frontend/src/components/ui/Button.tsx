@@ -5,8 +5,10 @@ import { cn } from '@/lib/cn';
 export type ButtonVariant = 'primary' | 'gold' | 'outline' | 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
+// active:scale — тактильный отклик на нажатие: кнопка «продавливается».
+// Без него магнитное притяжение делает клик неощутимым.
 const base =
-  'group relative inline-flex select-none items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium tracking-wide transition-[transform,color,background-color,border-color,box-shadow] duration-500 ease-smooth disabled:pointer-events-none disabled:opacity-50';
+  'group relative inline-flex select-none items-center justify-center gap-2.5 overflow-hidden rounded-full font-medium tracking-wide transition-[transform,color,background-color,border-color,box-shadow] duration-500 ease-smooth active:scale-[0.975] disabled:pointer-events-none disabled:opacity-50';
 
 const sizes: Record<ButtonSize, string> = {
   sm: 'px-4 py-2 text-sm',
@@ -15,13 +17,13 @@ const sizes: Record<ButtonSize, string> = {
 };
 
 const variants: Record<ButtonVariant, string> = {
-  // dark charcoal pill with cream text (primary CTA)
-  primary: 'sheen glow-gold bg-paper text-ink shadow-soft-lg hover:-translate-y-0.5',
-  // antique-gold fill
-  gold: 'sheen glow-gold bg-aurora text-aurora-fg shadow-soft hover:-translate-y-0.5',
-  // hairline outline
+  // тёмная угольная пилюля с кремовым текстом (главный CTA)
+  primary: 'sheen glow-gold edge-light bg-paper text-ink shadow-depth hover:-translate-y-0.5',
+  // антикварное золото
+  gold: 'sheen glow-gold edge-light bg-aurora text-aurora-fg shadow-depth hover:-translate-y-0.5',
+  // волосяной контур
   outline: 'glow-gold border border-ink-line text-paper hover:border-aurora/50 hover:-translate-y-0.5',
-  // text-only
+  // только текст
   ghost: 'px-1 text-paper-dim hover:text-paper',
 };
 
@@ -39,6 +41,7 @@ type CommonProps = {
   variant?: ButtonVariant;
   size?: ButtonSize;
   withArrow?: boolean;
+  /** Магнитное притяжение к курсору. По умолчанию включено везде, кроме ghost. */
   magnetic?: boolean;
   className?: string;
   children: ReactNode;
@@ -49,15 +52,16 @@ export function Button({
   variant = 'primary',
   size = 'md',
   withArrow = false,
-  magnetic = false,
+  magnetic,
   className,
   children,
   ...rest
 }: CommonProps & ButtonHTMLAttributes<HTMLButtonElement>) {
+  const pull = magnetic ?? variant !== 'ghost';
   return (
     <button
       className={cn(base, sizes[size], variants[variant], withArrow && 'pr-2', className)}
-      {...(magnetic ? { 'data-magnetic': '' } : {})}
+      {...(pull ? { 'data-magnetic': '' } : {})}
       {...rest}
     >
       <span className="relative">{children}</span>
@@ -72,15 +76,16 @@ export function ButtonLink({
   variant = 'primary',
   size = 'md',
   withArrow = false,
-  magnetic = false,
+  magnetic,
   className,
   children,
 }: CommonProps & { href: string }) {
+  const pull = magnetic ?? variant !== 'ghost';
   return (
     <Link
       href={href}
       className={cn(base, sizes[size], variants[variant], withArrow && 'pr-2', className)}
-      {...(magnetic ? { 'data-magnetic': '' } : {})}
+      {...(pull ? { 'data-magnetic': '' } : {})}
     >
       <span className="relative">{children}</span>
       {withArrow && <Arrow />}

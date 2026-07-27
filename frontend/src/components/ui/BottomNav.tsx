@@ -32,6 +32,8 @@ const I = {
   spark: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z',
   support: 'M4 5h16v11H7l-3 3V5z',
   login: 'M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3',
+  home: 'M4 11l8-7 8 7M6 10v10h12V10',
+  island: 'M2 19h20M5 19l4-8 3 5 2-3 5 6M9 11l1.5-3M12 4v2',
 };
 
 function Icon({ d, size = 19 }: { d: string; size?: number }) {
@@ -43,7 +45,7 @@ function Icon({ d, size = 19 }: { d: string; size?: number }) {
 }
 
 // Обвязку не показываем на самодостаточных экранах.
-const HIDDEN = ['/welcome'];
+const HIDDEN = ['/welcome', '/vela'];
 
 export function BottomNav() {
   const path = usePathname() || '/';
@@ -174,6 +176,10 @@ export function BottomNav() {
                   Разделы
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-2.5">
+                  {item('/', 'Главная', I.home)}
+                  {/* Логотип в шапке ведёт в игровой мир — здесь такой же вход
+                      явным пунктом, чтобы его не приходилось искать. */}
+                  {item('/vela', 'Vela Island', I.island)}
                   {item('/#dream-trips', 'Маршруты', I.routes)}
                   {item('/order', 'Заказать', I.order)}
                   {item('/community', 'Страны', I.globe)}
