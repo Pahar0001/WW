@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import type { DeviceTier } from '@/lib/motion';
 import { HeightField, RIVER, WORLD } from './terrain';
 import { ATMO } from './Sky';
-import { makeGlowTexture } from '@/components/fx/Volumetric';
+import { makeGlowTexture } from '@/components/fx/particles';
 
 /**
  * Вся вода острова: океан, озеро в кальдере, река и водопад.

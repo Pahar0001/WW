@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { AnimName, Character } from './controller';
 import { RUN_SPEED } from './controller';
-import { makeGlowTexture } from '@/components/fx/Volumetric';
+import { makeGlowTexture } from '@/components/fx/particles';
 
 /**
  * Путешественник Vela — персонаж с процедурной анимацией.

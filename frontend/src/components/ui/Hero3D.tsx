@@ -8,7 +8,6 @@ import * as THREE from 'three';
 import type { GlobeMarker } from '@/lib/country-coords';
 import GEO from '@/data/globe-geo.json';
 import { CinematicPost } from '@/components/fx/CinematicPost';
-import { DustField, LightShafts, SunGlow } from '@/components/fx/Volumetric';
 import { clamp, detectTier, type DeviceTier } from '@/lib/motion';
 
 const GOLD = '#d8b878';
@@ -36,53 +35,268 @@ function latLngToVector3(lat: number, lng: number, radius = R): THREE.Vector3 {
   );
 }
 
+/** Направление на Солнце для глобуса (совпадает с directionalLight сцены). */
+const SUN_DIR = new THREE.Vector3(4, 2.5, 5).normalize();
+
 /**
- * Земля с реальной текстурой (NASA Blue Marble, public domain) и слоем тонких
- * дымных облаков поверх: облака — серая карта, аддитивно (чёрное прозрачно),
- * вращаются чуть быстрее планеты, отчего выглядят живыми.
+ * Земля: реальная текстура NASA Blue Marble (public domain) на физическом
+ * материале с раздельной шероховатостью суши и океана.
+ *
+ * Главный приём реализма — «блик солнца по воде». Карты бликов у нас нет, но
+ * она и не нужна: на снимке Blue Marble океан — единственное, где синий канал
+ * заметно доминирует над красным и зелёным. По этой разнице прямо в шейдере
+ * строится маска воды, и внутри неё шероховатость падает почти до зеркальной.
+ * В результате океан ловит солнце ровно там, где должен, а суша остаётся
+ * матовой — именно это отличает планету от наклеенной на шар картинки.
+ *
+ * Ровный clearcoat по всей сфере (как было раньше) давал лаковый отблеск и на
+ * пустынях, и на льдах — выглядело как ёлочный шар.
  */
 function EarthSphere() {
+  const { gl } = useThree();
   const earthMap = useLoader(THREE.TextureLoader, '/globe/earth.jpg');
   earthMap.colorSpace = THREE.SRGBColorSpace;
-  earthMap.anisotropy = 4;
+  // Максимальная анизотропия: у края диска текстура идёт почти вдоль взгляда,
+  // и без неё побережья превращаются в мыло.
+  earthMap.anisotropy = gl.capabilities.getMaxAnisotropy();
+
+  const onBeforeCompile = useMemo(
+    () => (shader: THREE.WebGLProgramParametersWithUniforms) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+         {
+           // Маска воды: синий заметно выше красного и зелёного.
+           vec4 earthTexel = texture2D( map, vMapUv );
+           float ocean = smoothstep(
+             0.015, 0.14,
+             earthTexel.b - max( earthTexel.r, earthTexel.g )
+           );
+           // Вода — почти зеркало, суша — матовая.
+           roughnessFactor = mix( roughnessFactor, 0.11, ocean );
+         }`,
+      );
+    },
+    [],
+  );
+
   return (
     <mesh>
-      <sphereGeometry args={[R * 0.998, 96, 96]} />
-      {/*
-        Физический материал вместо standard: clearcoat даёт по океанам тонкий
-        лаковый отблеск от окружения (как влажная поверхность), из-за которого
-        планета перестаёт выглядеть наклеенной картой. Карта высот у нас нет,
-        поэтому рельеф читается именно через блик и терминатор.
-      */}
+      <sphereGeometry args={[R * 0.998, 128, 128]} />
       <meshPhysicalMaterial
         map={earthMap}
-        roughness={0.78}
-        metalness={0.04}
-        clearcoat={0.45}
-        clearcoatRoughness={0.5}
-        envMapIntensity={0.55}
-        sheen={0.2}
-        sheenColor="#9fc4e8"
+        roughness={0.92}
+        metalness={0}
+        // Отражать в космосе почти нечего: слабое окружение оставлено только
+        // ради подсветки блика, иначе океан выглядит пластиковым.
+        envMapIntensity={0.18}
+        onBeforeCompile={onBeforeCompile}
       />
     </mesh>
   );
 }
 
+// ── Процедурные облака ─────────────────────────────────────────────────
+
+/** Хеш 3D-решётки → 0..1. */
+function hash3(x: number, y: number, z: number): number {
+  let h = x * 374761393 + y * 668265263 + z * 1274126177;
+  h = (h ^ (h >> 13)) * 1274126177;
+  return ((h ^ (h >> 16)) >>> 0) / 4294967295;
+}
+
+const smoothT = (t: number) => t * t * (3 - 2 * t);
+
+/** Трилинейный value-шум. 3D нужен, чтобы карта сходилась по долготе без шва. */
+function valueNoise3(x: number, y: number, z: number): number {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  const fx = smoothT(x - ix), fy = smoothT(y - iy), fz = smoothT(z - iz);
+  const c = (dx: number, dy: number, dz: number) => hash3(ix + dx, iy + dy, iz + dz);
+  const x00 = c(0, 0, 0) + fx * (c(1, 0, 0) - c(0, 0, 0));
+  const x10 = c(0, 1, 0) + fx * (c(1, 1, 0) - c(0, 1, 0));
+  const x01 = c(0, 0, 1) + fx * (c(1, 0, 1) - c(0, 0, 1));
+  const x11 = c(0, 1, 1) + fx * (c(1, 1, 1) - c(0, 1, 1));
+  const y0 = x00 + fy * (x10 - x00);
+  const y1 = x01 + fy * (x11 - x01);
+  return y0 + fz * (y1 - y0);
+}
+
+function fbm3(x: number, y: number, z: number, octaves = 4): number {
+  let sum = 0, amp = 0.5, norm = 0, f = 1;
+  for (let i = 0; i < octaves; i++) {
+    sum += valueNoise3(x * f, y * f, z * f) * amp;
+    norm += amp;
+    amp *= 0.5;
+    f *= 2.07;
+  }
+  return sum / norm;
+}
+
+/**
+ * Карта облачности как маска прозрачности.
+ *
+ * ⚠️ Файл `public/globe/clouds.jpg`, лежавший тут раньше, оказался ПУСТЫМ:
+ * 1600×800 сплошного белого, ни одного пикселя темнее 255. Аддитивным слоем он
+ * намазывал ровную белую пелену на весь диск — это и была «туманность»,
+ * из-за которой планета выглядела снятой сквозь молоко. Файл удалён.
+ *
+ * Здесь облачность СЧИТАЕТСЯ, причём по настоящей климатологии:
+ *  • шум сэмплируется на цилиндре (3D по cos/sin долготы) — карта сходится по
+ *    шву 0°/360°, чего плоский 2D-шум дать не может;
+ *  • domain warping даёт закрученные фронты вместо ватных клякс;
+ *  • плотность зависит от широты: густо на экваторе (ВЗК), разрыв в субтропиках
+ *    (пояса высокого давления — там пустыни и ясное небо), снова густо в
+ *    умеренных широтах (штормовые треки). Именно этот рисунок мозг узнаёт как
+ *    «снимок Земли».
+ */
+function makeCloudAlphaMap(size = 512): THREE.CanvasTexture {
+  const W = size, H = size >> 1;
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+
+  const gauss = (v: number, c: number, w: number) => Math.exp(-(((v - c) / w) ** 2));
+
+  for (let j = 0; j < H; j++) {
+    const v = j / (H - 1);
+    const lat = (0.5 - v) * 180;
+    const alat = Math.abs(lat);
+    // Доля неба, закрытая облаками, по широте.
+    const cover =
+      0.3 +
+      0.3 * gauss(lat, 0, 13) + // внутритропическая зона конвергенции
+      0.26 * gauss(alat, 56, 17) + // штормовые треки умеренных широт
+      -0.19 * gauss(alat, 27, 11); // субтропические антициклоны
+
+    // Сжатие по широте: у полюсов меридианы сходятся, и без коррекции
+    // облака размазывались бы в кольца.
+    const shrink = Math.max(0.15, Math.cos((lat * Math.PI) / 180));
+
+    for (let i = 0; i < W; i++) {
+      const u = i / W;
+      const ang = u * Math.PI * 2;
+      const cx = Math.cos(ang) * 2.6 * shrink;
+      const cz = Math.sin(ang) * 2.6 * shrink;
+      const cy = v * 5.2;
+
+      // Domain warping: смещаем точку выборки другим шумом.
+      const wx = fbm3(cx + 11, cy + 3, cz - 7, 3) - 0.5;
+      const wy = fbm3(cx - 5, cy + 19, cz + 2, 3) - 0.5;
+      const n = fbm3(cx + wx * 1.6, cy + wy * 1.6, cz, 4);
+
+      const t = 1 - cover;
+      const a = smoothT(Math.max(0, Math.min(1, (n - (t - 0.13)) / 0.24)));
+
+      const k = (j * W + i) * 4;
+      const val = Math.round(a * 255);
+      d[k] = val;
+      d[k + 1] = val; // alphaMap читает зелёный канал
+      d[k + 2] = val;
+      d[k + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.NoColorSpace; // это маска, а не цвет
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * Облака: белый ОСВЕЩЁННЫЙ слой, где карта работает маской прозрачности.
+ * Настоящие облака ничего не излучают — их освещает то же солнце, и на
+ * терминаторе они гаснут вместе с поверхностью. `alphaMap` +
+ * meshStandardMaterial дают ровно это; аддитивный слой светился бы и ночью.
+ */
 function CloudLayer() {
-  const cloudsMap = useLoader(THREE.TextureLoader, '/globe/clouds.jpg');
+  const cloudsMap = useMemo(() => makeCloudAlphaMap(), []);
   const ref = useRef<THREE.Mesh>(null);
   useFrame((_, dt) => {
-    if (ref.current) ref.current.rotation.y += dt * 0.012; // дрейф облаков
+    if (ref.current) ref.current.rotation.y += dt * 0.008; // дрейф облаков
   });
   return (
     <mesh ref={ref}>
-      <sphereGeometry args={[R * 1.018, 64, 64]} />
-      <meshBasicMaterial
-        map={cloudsMap}
+      <sphereGeometry args={[R * 1.008, 96, 96]} />
+      <meshStandardMaterial
+        color="#ffffff"
+        alphaMap={cloudsMap}
         transparent
-        opacity={0.38}
-        blending={THREE.AdditiveBlending}
+        opacity={0.9}
+        roughness={1}
+        metalness={0}
         depthWrite={false}
+      />
+    </mesh>
+  );
+}
+
+const ATMO_VERT = /* glsl */ `
+  varying vec3 vNormalW;
+  varying vec3 vViewDir;
+  void main() {
+    vec4 world = modelMatrix * vec4( position, 1.0 );
+    vNormalW = normalize( mat3( modelMatrix ) * normal );
+    vViewDir = normalize( cameraPosition - world.xyz );
+    gl_Position = projectionMatrix * viewMatrix * world;
+  }
+`;
+
+const ATMO_FRAG = /* glsl */ `
+  uniform vec3 uSunDir;
+  uniform vec3 uColor;
+  uniform float uIntensity;
+  varying vec3 vNormalW;
+  varying vec3 vViewDir;
+
+  void main() {
+    // Оболочка отрисована изнутри (BackSide), поэтому нормаль смотрит внутрь —
+    // разворачиваем её, иначе френель считается наизнанку.
+    vec3 N = normalize( -vNormalW );
+    float fres = pow( 1.0 - clamp( dot( N, normalize( vViewDir ) ), 0.0, 1.0 ), 3.0 );
+
+    // Атмосфера светится только там, куда падает солнце: на ночной стороне
+    // лимб гаснет. Ровное свечение по всему кругу читается как ореол вокруг
+    // ёлочного шара, а не как воздух планеты.
+    float sun = clamp( dot( N, normalize( uSunDir ) ), 0.0, 1.0 );
+    float lit = pow( sun, 0.6 );
+
+    float a = fres * lit * uIntensity;
+    if ( a < 0.002 ) discard;
+    gl_FragColor = vec4( uColor, a );
+  }
+`;
+
+/**
+ * Атмосфера: тонкий рэлеевский ободок по лимбу, гаснущий на ночной стороне.
+ * Аддитивная оболочка с постоянной прозрачностью, стоявшая тут раньше, ровно
+ * подсвечивала весь круг — из-за этого планета казалась завёрнутой в дымку.
+ */
+function Atmosphere() {
+  const uniforms = useMemo(
+    () => ({
+      uSunDir: { value: SUN_DIR },
+      uColor: { value: new THREE.Color('#6ea8ff') },
+      uIntensity: { value: 0.85 },
+    }),
+    [],
+  );
+  return (
+    <mesh>
+      <sphereGeometry args={[R * 1.045, 96, 96]} />
+      <shaderMaterial
+        vertexShader={ATMO_VERT}
+        fragmentShader={ATMO_FRAG}
+        uniforms={uniforms}
+        transparent
+        side={THREE.BackSide}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
     </mesh>
   );
@@ -220,18 +434,8 @@ function Globe({
     <group ref={group}>
       {/* Реалистичная Земля: NASA Blue Marble (public domain), непрозрачная */}
       <EarthSphere />
-      {/* Тёплый ободок-атмосфера по краю диска */}
-      <mesh>
-        <sphereGeometry args={[R * 1.035, 64, 64]} />
-        <meshBasicMaterial
-          color="#9fc4e8"
-          transparent
-          opacity={0.1}
-          side={THREE.BackSide}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-        />
-      </mesh>
+      {/* Рэлеевский ободок атмосферы, гаснущий на ночной стороне */}
+      <Atmosphere />
       {/* Границы стран: единый LineSegments, чуть над поверхностью */}
       <lineSegments>
         <bufferGeometry>
@@ -296,17 +500,15 @@ function CountryDot({ marker, hovered }: { marker: MarkerPoint; hovered: boolean
  * холодный rim сзади, мягкий fill сверху и слабый отражатель снизу. Именно
  * этот набор даёт физическому материалу дорогие протяжённые блики.
  */
-function StudioEnvironment({ tier }: { tier: DeviceTier }) {
+function SpaceEnvironment({ tier }: { tier: DeviceTier }) {
   return (
-    <Environment resolution={tier === 'high' ? 256 : 128} frames={1}>
-      {/* Тёплый основной свет — «солнце» справа сверху */}
-      <Lightformer form="rect" intensity={3.2} color="#ffdfb0" position={[6, 4, 4]} scale={[8, 8, 1]} target={[0, 0, 0]} />
-      {/* Холодный контровой — отделяет планету от фона */}
-      <Lightformer form="rect" intensity={1.5} color="#9dc0ea" position={[-7, 1, -5]} scale={[10, 6, 1]} target={[0, 0, 0]} />
-      {/* Мягкий верхний fill */}
-      <Lightformer form="circle" intensity={1.1} color="#fff6e6" position={[0, 9, 1]} scale={[6, 6, 1]} target={[0, 0, 0]} />
-      {/* Слабый нижний отражатель — без него низ планеты проваливается в ноль */}
-      <Lightformer form="rect" intensity={0.5} color="#6f5a44" position={[0, -7, 2]} scale={[9, 5, 1]} target={[0, 0, 0]} />
+    <Environment resolution={tier === 'high' ? 128 : 64} frames={1}>
+      {/* Солнце: единственный по-настоящему яркий источник в кадре. */}
+      <Lightformer form="circle" intensity={6} color="#fff6ec" position={[8, 5, 9]} scale={[3, 3, 1]} target={[0, 0, 0]} />
+      {/* Едва различимая холодная заливка «звёздного неба»: без неё зеркальный
+          океан отражает абсолютную черноту и выглядит мёртвым пластиком. */}
+      <Lightformer form="rect" intensity={0.16} color="#2c3a58" position={[-9, 2, -7]} scale={[14, 10, 1]} target={[0, 0, 0]} />
+      <Lightformer form="rect" intensity={0.1} color="#1e2740" position={[0, -8, 3]} scale={[12, 8, 1]} target={[0, 0, 0]} />
     </Environment>
   );
 }
@@ -369,7 +571,6 @@ export function Hero3D({
   // на слабом железе композер съедает больше, чем даёт.
   const [tier, setTier] = useState<DeviceTier>('mid');
   useEffect(() => setTier(detectTier()), []);
-  const dustCount = tier === 'low' ? 240 : tier === 'mid' ? 520 : 900;
   const particleCount = tier === 'low' ? 1300 : 2600;
 
   const aim = useRef<AimState>({ pointer: null, hovered: null, dragging: false, dragDx: 0, dragDy: 0 });
@@ -473,20 +674,33 @@ export function Hero3D({
         // иначе на low-тире (без композера) картинка была бы другой.
         onCreated={({ gl }) => {
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.08;
+          // Океан на снимке Blue Marble имеет очень низкое альбедо: при
+          // экспозиции 1.08 диск честно уходил в почти чёрный, и золотые метки
+          // стран на нём терялись. 1.22 сохраняет терминатор, но возвращает
+          // читаемость — это интерфейс, а не астрофото.
+          gl.toneMappingExposure = 1.22;
         }}
         // События обрабатываем на обёртке (магнитный снапинг), r3f-рейкаст не нужен.
         events={undefined}
       >
-        <fog attach="fog" args={['#0d0b08', 7, 14]} />
-        {/* Свет: мягкий заполняющий + «солнце» сбоку — рельеф и день/ночь */}
-        <ambientLight intensity={0.32} />
-        <directionalLight position={[4, 2.5, 5]} intensity={2.1} color="#fff4dd" />
-        {/* Холодный контровой: терминатор планеты перестаёт быть чёрным. */}
-        <directionalLight position={[-5, -1, -4]} intensity={0.5} color="#8fb4e0" />
+        {/*
+          Тумана в сцене НЕТ намеренно. Он начинался в семи единицах от камеры,
+          то есть ровно на дальней половине шара, и затягивал лимб дымкой —
+          планета выглядела снятой сквозь мутное стекло. В космосе между
+          камерой и Землёй рассеивать нечего.
+
+          Свет: одно почти белое солнце (Солнце — источник класса D65, тёплым
+          его делает только земная атмосфера) плюс очень слабая заливка вместо
+          прежней ambient 0.32: при сильной заливке ночная сторона светилась
+          сама по себе и терминатор пропадал.
+        */}
+        <ambientLight intensity={0.16} />
+        <directionalLight position={[4, 2.5, 5]} intensity={3.9} color="#fff6ec" />
+        {/* Пепельный свет: ночная сторона не абсолютно чёрная, но и не «день». */}
+        <directionalLight position={[-5, -1, -4]} intensity={0.22} color="#5f7fb0" />
 
         <Suspense fallback={null}>
-          <StudioEnvironment tier={tier} />
+          <SpaceEnvironment tier={tier} />
           <Globe
             reduced={reduced}
             markers={markers}
@@ -496,30 +710,32 @@ export function Hero3D({
           />
         </Suspense>
 
-        {/* Объёмная атмосфера: солнце за планетой, лучи и пыль в воздухе. */}
-        <SunGlow position={[5.5, 3.2, -6]} scale={2.6} intensity={tier === 'low' ? 0.6 : 1} />
-        {tier !== 'low' && !reduced && (
-          <LightShafts
-            count={tier === 'high' ? 5 : 3}
-            origin={[5.5, 3.2, -6]}
-            target={[-0.6, -1.2, 1]}
-            length={16}
-            spread={1.6}
-            intensity={0.2}
-          />
-        )}
-        <DustField
-          count={dustCount}
-          radius={9}
-          height={8}
-          size={0.055}
-          opacity={0.45}
-          speed={reduced ? 0 : 0.14}
-          mouseInfluence={reduced ? 0 : 0.35}
-        />
+        {/*
+          Ни солнечного гало, ни объёмных лучей, ни поля пыли вокруг планеты.
+          Всё это — атмосферные эффекты, которым в вакууме взяться неоткуда:
+          именно они читались как «туманность» и мешали увидеть саму Землю.
+        */}
 
         {!reduced && <Rig aim={aim} scrollReact={scrollReact} />}
-        {!reduced && <CinematicPost tier={tier} bloom={0.7} bloomThreshold={0.62} dof={false} vignette={0.5} grain={0.028} />}
+        {/*
+          Пост-обработка сведена к оптике объектива: слабый bloom с высоким
+          порогом ловит только солнечный блик по океану и золотые метки стран.
+          Плёночное зерно убрано полностью (grain 0) — оно делает картинку
+          «киношной», то есть ровно противоположной фотореализму, а виньетка
+          оставлена едва заметной, чтобы кадр не расползался по краям.
+        */}
+        {!reduced && (
+          <CinematicPost
+            tier={tier}
+            bloom={0.32}
+            bloomThreshold={0.86}
+            dof={false}
+            vignette={0.16}
+            grain={0}
+            saturation={0.02}
+            contrast={0.02}
+          />
+        )}
       </Canvas>
     </div>
   );
