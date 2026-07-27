@@ -1,6 +1,7 @@
 /** Проверка рельефа: время сборки, проходимость троп, вода на месте. */
 import {
   BASINS,
+  BRIDGES,
   HeightField,
   RIVERS,
   TRAILS,
@@ -16,6 +17,8 @@ import {
   ARTIFACTS,
   REGIONS,
 } from '../src/components/game/regions.ts';
+import { FRAGMENTS } from '../src/components/game/story.ts';
+import { QUESTS } from '../src/components/game/quests.ts';
 
 const RES = { low: 281, mid: 401, high: 561 };
 
@@ -186,7 +189,29 @@ TRAILS.forEach((nodes, i) => {
   const poi: [string, number, number][] = [
     ...REGIONS.map((r) => [`регион ${r.name}`, r.at[0], r.at[1]] as [string, number, number]),
     ...ARTIFACTS.map((a) => [`артефакт ${a.name}`, a.at[0], a.at[1]] as [string, number, number]),
+    ...FRAGMENTS.map((f) => [`фрагмент ${f.name}`, f.at[0], f.at[1]] as [string, number, number]),
+    // Каждая цель каждого задания: если до неё нельзя дойти, задание
+    // невыполнимо, а игрок этого не поймёт — он просто будет ходить кругами.
+    //
+    // У целей вида `fragment` своих координат нет намеренно (фрагмент один и
+    // живёт в story.ts), поэтому берём координаты самого фрагмента.
+    ...QUESTS.flatMap((q) =>
+      q.objectives.map((o) => {
+        const at = o.kind === 'fragment' ? FRAGMENTS.find((f) => f.id === o.fragment)?.at : o.at;
+        if (!at) throw new Error(`цель ${o.id} задания ${q.id}: не удалось определить координаты`);
+        return [`${q.id} · ${o.label}`, at[0], at[1]] as [string, number, number];
+      }),
+    ),
   ];
+  /**
+   * Намеренно недостижимое пешком. Держим списком с причиной, а не молча
+   * пропускаем: иначе первая же настоящая поломка утонет среди «ожидаемых».
+   */
+  const EXPECTED_UNREACHABLE = new Map([
+    ['регион Остров Забвения', 'за проливом, задел под лодку'],
+  ]);
+
+  let unreachable = 0;
   for (const [name, x, z] of poi) {
     // Ищем ближайшую достижимую клетку — сама точка может оказаться в воде
     // или на камне, важно, что рядом можно стоять.
@@ -200,8 +225,38 @@ TRAILS.forEach((nodes, i) => {
         if (i > 0 && j > 0 && i < res - 1 && j < res - 1 && seen[j * res + i]) ok = true;
       }
     }
-    console.log(`  ${ok ? '✓' : '✗ НЕДОСТИЖИМО'}  ${name}`);
+    // Достижимое печатаем сжато: сотня зелёных строк прячет единственную
+    // красную, а именно она и есть результат проверки.
+    const expected = EXPECTED_UNREACHABLE.get(name);
+    if (ok && expected) {
+      // Обратная проверка: если «недостижимое» вдруг стало достижимым, значит
+      // рельеф поехал и пролив замкнулся — это тоже поломка, просто наоборот.
+      console.log(`  ⚠ СТАЛО ДОСТИЖИМЫМ  ${name} (ожидалось: ${expected})`);
+      unreachable++;
+    } else if (!ok && !expected) {
+      unreachable++;
+      console.log(`  ✗ НЕДОСТИЖИМО  ${name}`);
+    }
   }
+  console.log(
+    unreachable === 0
+      ? `  ✓ все ${poi.length} точек интереса в норме (${EXPECTED_UNREACHABLE.size} недостижимы намеренно)`
+      : `  ⚠ расхождений: ${unreachable} из ${poi.length}`,
+  );
+}
+
+// ── Мосты ──
+// Настил обязан лежать вплотную над землёй в точке переправы. Слишком высоко —
+// игрок идёт ПОД мостом по броду; слишком низко — доски утонули в грунте.
+console.log('\nмосты (настил над землёй, норма 0.2…0.8 м):');
+for (const b of BRIDGES) {
+  const g = hf.sample(b.x, b.z);
+  const gap = b.deck - g;
+  const ok = gap >= 0.2 && gap <= 0.8;
+  console.log(
+    `  ${b.id.padEnd(7)} земля=${g.toFixed(2)} настил=${b.deck.toFixed(2)} зазор=${gap.toFixed(2)} ` +
+      `${ok ? 'ok' : gap > 0.8 ? '⚠ ВЫСОКО: пройдёт под мостом' : '⚠ НИЗКО: настил в грунте'}`,
+  );
 }
 
 // ── Разрез подъёма на вершину ──

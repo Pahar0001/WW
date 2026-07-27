@@ -8,6 +8,8 @@ import { pluralize } from '@/lib/plural';
 import { PUBLIC_REGIONS, REGIONS, ARTIFACTS } from '../regions';
 import { gameStore, live, useGame } from '../state';
 import { HeightField, WORLD, groundColor, lavaAt, waterLevelAt } from '../world/terrain';
+import { FRAGMENTS } from '../story';
+import { ActionPrompt, ChapterCard, Journal, QuestTracker } from './Story';
 
 /**
  * Интерфейс игры — намеренно минимальный: компас, карта, имя региона и
@@ -94,7 +96,12 @@ function Compass() {
   }
 
   return (
-    <div className="pointer-events-none relative h-9 w-[min(56vw,420px)] overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_16%,#000_84%,transparent)]">
+    // Ширина в vw, а не фиксированная: на узком экране лента компаса должна
+    // уступать место счётчикам и кнопкам справа. При 56vw верхняя строка
+    // (81 + 390 + 190 плюс отступы) не влезала в 696 px и обрезалась по краю —
+    // счётчик регионов и кнопка дневника уезжали за экран. На широких экранах
+    // ограничение 420 px всё равно срабатывает раньше, так что вид не меняется.
+    <div className="pointer-events-none relative h-9 w-[min(32vw,420px)] overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_16%,#000_84%,transparent)] sm:w-[min(40vw,420px)]">
       <div ref={strip} className="absolute left-1/2 top-1 h-full will-change-transform">
         {ticks}
         {/* Позицию и прозрачность метки пересчитывает тикер выше — здесь только
@@ -287,11 +294,11 @@ function Waypoint() {
   return (
     <div
       ref={box}
-      className="pointer-events-none flex items-center gap-2.5 rounded-full border border-white/15 bg-black/35 px-4 py-2 text-xs text-white/80 opacity-0 backdrop-blur-md transition-opacity duration-500"
+      className="pointer-events-none flex max-w-full items-center gap-2.5 rounded-full border border-white/15 bg-black/35 px-4 py-2 text-xs text-white/80 opacity-0 backdrop-blur-md transition-opacity duration-500"
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-[#e6c179]" />
-      <span ref={name} className="font-medium text-white/95" />
-      <span ref={dist} className="tabular-nums text-white/55" />
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#e6c179]" />
+      <span ref={name} className="truncate font-medium text-white/95" />
+      <span ref={dist} className="shrink-0 tabular-nums text-white/55" />
     </div>
   );
 }
@@ -569,7 +576,9 @@ export function Briefing() {
             ['Space', 'прыжок'],
             ['Мышь', 'осмотреться'],
             ['Колесо', 'приблизить'],
+            ['E', 'действие'],
             ['M', 'карта'],
+            ['J', 'дневник'],
           ].map(([k, v]) => (
             <div key={k} className="flex items-center gap-2.5">
               <dt className="rounded-md border border-white/20 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/85">
@@ -587,7 +596,7 @@ export function Briefing() {
 // ── Сборка HUD ─────────────────────────────────────────────────────────
 
 export function Hud({ hf }: { hf: HeightField }) {
-  const { discovered, artifacts, mapOpen, phase } = useGame();
+  const { discovered, artifacts, fragments, mapOpen, phase } = useGame();
   const [hintsVisible, setHints] = useState(true);
 
   // Подсказки управления гаснут, как только игрок реально пошёл, —
@@ -610,7 +619,15 @@ export function Hud({ hf }: { hf: HeightField }) {
     };
   }, [phase]);
 
-  if (phase !== 'play') return <RegionCard />;
+  // Экран главы и дневник доступны и на паузе: карточка региона и глава могут
+  // накладываться, а дневник игрок открывает именно тогда, когда остановился.
+  if (phase !== 'play')
+    return (
+      <>
+        <RegionCard />
+        <ChapterCard />
+      </>
+    );
 
   return (
     <div className="pointer-events-none absolute inset-0 z-20 select-none">
@@ -624,19 +641,26 @@ export function Hud({ hf }: { hf: HeightField }) {
           На сайт
         </Link>
 
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex min-w-0 flex-1 justify-center">
           <Compass />
-          <Waypoint />
         </div>
 
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3.5 py-2 text-xs text-white/70 backdrop-blur-md">
+            {/* Карта Мира — главный счётчик: именно её собирает игрок. */}
+            <span className="text-[#e6c179]">◈</span>
+            <span className="tabular-nums">
+              {fragments.length}/{FRAGMENTS.length}
+            </span>
+            <span className="mx-1 h-3 w-px bg-white/20" />
             <span className="text-[#e6c179]">◆</span>
             <span className="tabular-nums">
               {artifacts.length}/{ARTIFACTS.length}
             </span>
-            <span className="mx-1 h-3 w-px bg-white/20" />
-            <span className="tabular-nums">
+            {/* Счётчик регионов на телефоне скрыт: три группы в одну строку не
+                влезают (495 px в 375), а то же число видно на карте. */}
+            <span className="mx-1 hidden h-3 w-px bg-white/20 sm:block" />
+            <span className="hidden tabular-nums sm:inline">
               {discovered.filter((id) => !REGIONS.find((r) => r.id === id)?.secret).length}/
               {PUBLIC_REGIONS.length}
             </span>
@@ -646,9 +670,35 @@ export function Hud({ hf }: { hf: HeightField }) {
             onClick={() => gameStore.toggleMap()}
             className="pointer-events-auto rounded-full border border-white/15 bg-black/35 px-3.5 py-2 text-[11px] uppercase tracking-[0.18em] text-white/70 backdrop-blur-md transition-colors duration-500 hover:border-white/40 hover:text-white"
           >
-            Карта · M
+            Карта<span className="hidden sm:inline"> · M</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => gameStore.toggleJournal()}
+            className="pointer-events-auto rounded-full border border-white/15 bg-black/35 px-3.5 py-2 text-[11px] uppercase tracking-[0.18em] text-white/70 backdrop-blur-md transition-colors duration-500 hover:border-white/40 hover:text-white"
+          >
+            Дневник<span className="hidden sm:inline"> · J</span>
           </button>
         </div>
+      </div>
+
+      {/* Указатели цели идут ОТДЕЛЬНОЙ строкой под верхней панелью, а не в
+          средней колонке вместе с компасом.
+          В колонке им доставалась лишь та ширина, что осталась от ссылки слева
+          и счётчиков справа: на экране 375 px это 61 px, и название цели
+          обрезалось до пустоты — от подсказки «Спуститься к воде 47 м»
+          оставалось одно «47 м». Своя строка даёт им всю ширину экрана. */}
+      {/* На телефоне строка уходит НИЖЕ кнопок справа (счётчики + «Карта» +
+          «Дневник» занимают там ~130 px по вертикали), иначе широкая плашка
+          цели наезжает на них. На широком экране места хватает и без сдвига. */}
+      <div className="absolute inset-x-0 top-36 flex flex-col items-center gap-2 px-4 md:top-[5.4rem]">
+        <Waypoint />
+        <QuestTracker />
+      </div>
+
+      {/* Подсказка действия — по центру снизу, над сообщениями */}
+      <div className="absolute inset-x-0 bottom-40 flex justify-center px-4 md:bottom-24">
+        <ActionPrompt />
       </div>
 
       {/* Мини-карта в углу / развёрнутая карта по центру */}
@@ -691,6 +741,8 @@ export function Hud({ hf }: { hf: HeightField }) {
               ['Shift', 'бежать'],
               ['Space', 'прыжок'],
               ['мышь', 'осмотреться'],
+              ['E', 'действие'],
+              ['J', 'дневник'],
             ].map(([k, v]) => (
               <span key={k} className="flex items-center gap-1.5">
                 <span className="rounded border border-white/20 bg-white/5 px-1.5 py-0.5 text-white/75">{k}</span>
@@ -702,6 +754,8 @@ export function Hud({ hf }: { hf: HeightField }) {
       </AnimatePresence>
 
       <RegionCard />
+      <ChapterCard />
+      <Journal />
     </div>
   );
 }

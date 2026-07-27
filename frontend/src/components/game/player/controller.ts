@@ -31,7 +31,63 @@ export const input = {
   zoom: 0,
   /** Тач-джойстик активен. */
   touch: false,
+  /**
+   * Кнопка действия (E) удерживается. Не «нажата один раз», а именно
+   * УДЕРЖИВАЕТСЯ: работы вроде укладки настила требуют пары секунд, и
+   * одиночное событие нажатия для них не подходит.
+   */
+  action: false,
+  /**
+   * Момент нажатия действия, буфер на 180 мс — ровно как у прыжка.
+   *
+   * Короткое нажатие целиком укладывается между двумя кадрами: keydown и keyup
+   * приходят раньше, чем игровой цикл успевает прочитать `action`, и снимок
+   * просто не делается. С буфером «щелчок» ловится независимо от того, куда он
+   * попал по времени. Потребитель обязан сбросить значение в −1, иначе одно
+   * нажатие сработает несколько кадров подряд.
+   */
+  actionAt: -1,
 };
+
+/**
+ * Физический код клавиши, устойчивый к событиям без `code`.
+ *
+ * Управление держится на `event.code` осознанно: это ФИЗИЧЕСКАЯ клавиша, и
+ * WASD работает одинаково в любой раскладке (на русской та же клавиша даёт
+ * `key = 'ц'`, но `code = 'KeyW'`).
+ *
+ * Беда в том, что `code` заполнен не всегда: экранные и виртуальные клавиатуры,
+ * часть программ доступности и синтетические события шлют только `key`, оставляя
+ * `code` пустым. Тогда игра просто не реагировала на нажатия — молча, потому что
+ * сравнение с 'KeyE' даёт false, а не ошибку. Здесь мы достраиваем код по `key`,
+ * когда его нет; при заполненном `code` поведение не меняется совсем.
+ */
+const NAMED_KEYS: Record<string, string> = {
+  ' ': 'Space',
+  Spacebar: 'Space',
+  Escape: 'Escape',
+  Esc: 'Escape',
+  Tab: 'Tab',
+  Enter: 'Enter',
+  Shift: 'ShiftLeft',
+  ArrowUp: 'ArrowUp',
+  ArrowDown: 'ArrowDown',
+  ArrowLeft: 'ArrowLeft',
+  ArrowRight: 'ArrowRight',
+};
+
+export function keyCodeOf(e: KeyboardEvent): string {
+  if (e.code) return e.code;
+  const k = e.key;
+  if (!k) return '';
+  if (NAMED_KEYS[k]) return NAMED_KEYS[k];
+  if (k.length === 1) {
+    const up = k.toUpperCase();
+    if (up >= 'A' && up <= 'Z') return `Key${up}`;
+    if (up >= '0' && up <= '9') return `Digit${up}`;
+  }
+  return k;
+}
 
 const KEYS_FWD = ['KeyW', 'ArrowUp'];
 const KEYS_BACK = ['KeyS', 'ArrowDown'];
@@ -58,22 +114,27 @@ export function attachInput(
     input.forward = Math.max(-1, Math.min(1, f));
     input.strafe = Math.max(-1, Math.min(1, s));
     input.run = down.has('ShiftLeft') || down.has('ShiftRight');
+    input.action = down.has('KeyE');
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
     // Не воруем клавиши у полей ввода (карточка региона содержит ссылки).
     const el = document.activeElement;
     if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) return;
-    if (e.code === 'Space') {
+    const code = keyCodeOf(e);
+    if (code === 'Space') {
       e.preventDefault();
       input.jumpAt = performance.now();
     }
-    down.add(e.code);
+    // Ставим метку только на ПЕРВОМ нажатии: при удержании браузер повторяет
+    // keydown, и метка обновлялась бы каждые ~30 мс, срабатывая многократно.
+    if (code === 'KeyE' && !down.has('KeyE')) input.actionAt = performance.now();
+    down.add(code);
     recompute();
-    onKey?.(e.code);
+    onKey?.(code);
   };
   const onKeyUp = (e: KeyboardEvent) => {
-    down.delete(e.code);
+    down.delete(keyCodeOf(e));
     recompute();
   };
   const onBlur = () => {
@@ -142,6 +203,7 @@ export function attachInput(
     input.forward = 0;
     input.strafe = 0;
     input.run = false;
+    input.action = false;
   };
 }
 

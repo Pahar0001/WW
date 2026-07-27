@@ -24,8 +24,11 @@ import {
   type Character,
 } from './player/controller';
 import { ARTIFACTS, REGIONS } from './regions';
-import { gameStore, live, useGame } from './state';
+import { gameStore, isFrozen, live, useGame } from './state';
+import { evaluateQuests } from './quest-runner';
+import { QuestObjects } from './world/QuestObjects';
 import { Briefing, Hud, LoadingScreen } from './hud/Hud';
+import { IntroScenes, ShutterFlash } from './hud/Story';
 
 /**
  * Vela Island — интерактивный трёхмерный мир проекта.
@@ -121,12 +124,17 @@ function GameLoop({
   hf,
   character,
   playerPos,
+  setFlash,
 }: {
   hf: HeightField;
   character: React.MutableRefObject<Character>;
   playerPos: React.MutableRefObject<THREE.Vector3>;
+  setFlash: (n: number) => void;
 }) {
   const fpsAcc = useRef({ frames: 0, time: 0 });
+  /** Состояние удержания кнопки действия: какая работа и сколько уже держат. */
+  const work = useRef({ id: null as string | null, held: 0 });
+  const shutter = useRef(0);
 
   // Отладочная ручка (только dev): позволяет телепортировать героя и щупать
   // рельеф из консоли — например `__vela.to(74, 44)` к руинам. Тот же приём
@@ -149,8 +157,11 @@ function GameLoop({
     const g = gameStore.get();
     const c = character.current;
     const playing = g.phase === 'play';
-    // Во время карточки региона герой замирает: управление отдано интерфейсу.
-    stepCharacter(c, hf, live.camYaw, dt, !playing || g.paused || !!g.card);
+    // Пока открыто ЛЮБОЕ окно, герой замирает: управление отдано интерфейсу.
+    // Условие считает isFrozen — перечислять окна здесь по одному значило бы
+    // забыть новое при следующей правке (так и вышло с экраном главы).
+    const frozen = !playing || isFrozen(g);
+    stepCharacter(c, hf, live.camYaw, dt, frozen);
 
     playerPos.current.copy(c.pos);
     live.x = c.pos.x;
@@ -170,7 +181,68 @@ function GameLoop({
       acc.time = 0;
     }
 
-    if (!playing) return;
+    // Пока открыто окно, задания не обсчитываем: герой всё равно не двигается,
+    // а кнопка действия иначе срабатывала бы прямо сквозь дневник — открыл
+    // журнал, нажал E, получил снимок места, на котором стоишь.
+    if (frozen) return;
+
+    // ── Задания ──
+    // Вычислитель возвращает доступное действие; выполняет его цикл, потому что
+    // удержание кнопки живёт между кадрами, а вычислитель состояния не хранит.
+    const pending = evaluateQuests(g, hf, c.pos.x, c.pos.y, c.pos.z);
+    const w = work.current;
+
+    if (!pending) {
+      // Отошли от места работ — прогресс удержания сбрасываем. Иначе игрок
+      // накопил бы его в трёх разных местах и закончил работу мгновенно.
+      w.id = null;
+      w.held = 0;
+      live.workProgress = 0;
+      live.actionHint = null;
+    } else if (pending.kind === 'photo') {
+      w.id = null;
+      w.held = 0;
+      live.workProgress = 0;
+      live.actionHint = 'Сделать снимок';
+      // Кадр — одиночное нажатие: держать кнопку незачем. Читаем буфер, а не
+      // текущее состояние клавиши: короткий щелчок целиком проходит между
+      // кадрами и иначе теряется.
+      const tapped = input.actionAt > 0 && performance.now() - input.actionAt < 180;
+      if (tapped) {
+        input.actionAt = -1;
+        gameStore.addSnapshot({
+          id: pending.objective,
+          caption: pending.caption,
+          at: [c.pos.x, c.pos.z],
+        });
+        gameStore.completeObjective(pending.objective);
+        shutter.current++;
+        setFlash(shutter.current);
+      }
+    } else {
+      live.actionHint = pending.label;
+      if (w.id !== pending.objective) {
+        w.id = pending.objective;
+        w.held = 0;
+      }
+      if (input.action) {
+        w.held += dt;
+        live.workProgress = Math.min(1, w.held / pending.seconds);
+        if (w.held >= pending.seconds) {
+          gameStore.completeObjective(pending.objective);
+          gameStore.addWork(pending.objective);
+          celebrate(c, 1.6);
+          w.id = null;
+          w.held = 0;
+          live.workProgress = 0;
+        }
+      } else {
+        // Отпустил — прогресс утекает, но не мгновенно: случайный сбой нажатия
+        // не должен обнулять две секунды работы.
+        w.held = Math.max(0, w.held - dt * 1.6);
+        live.workProgress = Math.min(1, w.held / pending.seconds);
+      }
+    }
 
     // ── Регионы ──
     let best: { id: string; dist: number } | null = null;
@@ -218,6 +290,7 @@ function Scene({
   character,
   playerPos,
   mode,
+  setFlash,
 }: {
   hf: HeightField;
   data: TerrainData;
@@ -226,6 +299,7 @@ function Scene({
   character: React.MutableRefObject<Character>;
   playerPos: React.MutableRefObject<THREE.Vector3>;
   mode: 'intro' | 'follow';
+  setFlash: (n: number) => void;
 }) {
   const { gl } = useThree();
   const shadows = tier !== 'low';
@@ -270,12 +344,13 @@ function Scene({
       <Scatter hf={hf} tier={tier} shadows={shadows} />
       <GrassField hf={hf} tier={tier} target={playerPos} />
       <Landmarks hf={hf} />
+      <QuestObjects hf={hf} />
       <Wildlife hf={hf} tier={tier} player={playerPos} />
 
       <Traveler character={character} castShadow={shadows} />
 
       <FollowCamera character={character} hf={hf} mode={mode} />
-      <GameLoop hf={hf} character={character} playerPos={playerPos} />
+      <GameLoop hf={hf} character={character} playerPos={playerPos} setFlash={setFlash} />
 
       <CinematicPost
         tier={tier}
@@ -384,6 +459,8 @@ export function VelaIsland() {
     heightTex: THREE.DataTexture;
   } | null>(null);
   const [progress, setProgress] = useState(0.05);
+  /** Счётчик вспышек затвора: смена значения запускает анимацию кадра. */
+  const [flash, setFlash] = useState(0);
 
   const character = useRef<Character | null>(null);
   const playerPos = useRef(new THREE.Vector3());
@@ -500,9 +577,11 @@ export function VelaIsland() {
     if (!el) return;
     return attachInput(el, (code) => {
       if (code === 'KeyM' || code === 'Tab') gameStore.toggleMap();
+      if (code === 'KeyJ') gameStore.toggleJournal();
       if (code === 'Escape') {
         const g = gameStore.get();
         if (g.mapOpen) gameStore.toggleMap();
+        else if (g.journalOpen) gameStore.toggleJournal();
       }
     });
   }, [world]);
@@ -535,6 +614,7 @@ export function VelaIsland() {
               character={character as React.MutableRefObject<Character>}
               playerPos={playerPos}
               mode={phase === 'play' ? 'follow' : 'intro'}
+              setFlash={setFlash}
             />
           </Suspense>
         </Canvas>
@@ -542,8 +622,12 @@ export function VelaIsland() {
 
       {ready && phase === 'play' && <TouchControls />}
       {ready && <Hud hf={world.hf} />}
+      <ShutterFlash token={flash} />
 
-      <AnimatePresence>{phase === 'briefing' && <Briefing key="briefing" />}</AnimatePresence>
+      <AnimatePresence>
+        {phase === 'intro' && <IntroScenes key="intro" />}
+        {phase === 'briefing' && <Briefing key="briefing" />}
+      </AnimatePresence>
       {phase === 'loading' && <LoadingScreen progress={progress} />}
     </div>
   );
