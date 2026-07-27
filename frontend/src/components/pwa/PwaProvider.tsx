@@ -26,10 +26,40 @@ export function PwaProvider() {
 
   // Регистрация SW.
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production') return;
     if (!('serviceWorker' in navigator)) return;
+
+    // ── Разработка: не просто «не регистрируем», а СНИМАЕМ чужой ──
+    //
+    // Прод-сборка в докере поднимается на том же localhost:3000, регистрирует
+    // service worker и оставляет его жить. Дальше на этот же адрес встаёт
+    // dev-сервер — а в режиме разработки имена чанков БЕЗ хешей
+    // (`/_next/static/chunks/app/vela/page.js`). Статика у нас отдаётся
+    // cache-first, поэтому SW бесконечно подсовывает dev-серверу чанки от
+    // докер-сборки, и страница падает с client-side exception. Симптом
+    // выглядит как поломка приложения, хотя код в порядке.
+    if (process.env.NODE_ENV !== 'production') {
+      navigator.serviceWorker.getRegistrations?.().then(
+        (regs) => regs.forEach((r) => r.unregister()),
+        () => undefined,
+      );
+      // Кэш сохранённых поездок не трогаем — это данные пользователя.
+      if ('caches' in window) {
+        caches.keys().then(
+          (keys) =>
+            keys
+              .filter((k) => k.startsWith('vela-') && k !== 'vela-trips')
+              .forEach((k) => caches.delete(k)),
+          () => undefined,
+        );
+      }
+      return;
+    }
+
     const onLoad = () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
+      // Версия в адресе: при новом BUILD_ID браузер видит другой SW, ставит его
+      // и в `activate` вычищает кэши предыдущей сборки (см. sw.js).
+      const v = process.env.NEXT_PUBLIC_BUILD_ID || 'dev';
+      navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(v)}`).catch(() => {
         /* офлайн-режим просто не включится — сайт работает как обычно */
       });
     };
