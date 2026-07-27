@@ -4,8 +4,8 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { DeviceTier } from '@/lib/motion';
-import { HeightField, RIVER, WORLD } from './terrain';
-import { ATMO } from './Sky';
+import { BASINS, FALLS, HeightField, PathNode, RIVERS, WORLD, type Basin } from './terrain';
+import { ATMO, FOG_DENSITY } from './Sky';
 import { makeGlowTexture } from '@/components/fx/particles';
 
 /**
@@ -48,28 +48,18 @@ const WATER_VERT = /* glsl */ `
     // стыкуются без шва, потому что фаза зависит от мировой позиции, а не от
     // локального uv.
     //
-    // Четыре октавы с быстро растущей частотой и падающей амплитудой. Двух-трёх
-    // крупных синусов недостаточно: на плоскости в триста метров они читаются
-    // как вельвет — восемь широких полос через весь кадр. Мелкая рябь поверх
-    // ломает этот рисунок и даёт воду.
+    // В ГЕОМЕТРИИ оставлены только две самые длинные волны — зыбь. Мелкая рябь
+    // ушла целиком в пиксельный шейдер (см. waveNormal), и вот почему: сетка
+    // воды растянута на весь мир, у океана это 3.7 метра между вершинами, у
+    // кратерного озера 2.2. Рябь с длиной волны 7 метров попадала на такую
+    // сетку тремя точками на период — прямо на пределе Найквиста — и вместо
+    // воды по всей плоскости шли ровные полосы шириной с дом. Зыбь длиной
+    // в десятки метров такую сетку переживает спокойно.
     float t = uTime;
     float s = uWaveS;
-    float w1 = sin(world.x * s + t * 1.05);
-    float w2 = sin(world.z * s * 1.37 - t * 0.82);
-    float w3 = sin((world.x + world.z) * s * 2.7 + t * 1.9);
-    float w4 = sin((world.x - world.z) * s * 5.1 - t * 2.6);
-    float h = w1 * 0.42 + w2 * 0.3 + w3 * 0.18 + w4 * 0.1;
-    world.y += h * uWaveH;
-
-    // Нормаль волн — аналитическая производная тех же синусов. Дешевле и
-    // точнее, чем пересчёт нормалей геометрии на CPU.
-    float dx = cos(world.x * s + t * 1.05) * s * 0.42
-             + cos((world.x + world.z) * s * 2.7 + t * 1.9) * s * 2.7 * 0.18
-             + cos((world.x - world.z) * s * 5.1 - t * 2.6) * s * 5.1 * 0.1;
-    float dz = cos(world.z * s * 1.37 - t * 0.82) * s * 1.37 * 0.3
-             + cos((world.x + world.z) * s * 2.7 + t * 1.9) * s * 2.7 * 0.18
-             - cos((world.x - world.z) * s * 5.1 - t * 2.6) * s * 5.1 * 0.1;
-    vWaveNormal = normalize(vec3(-dx * uWaveH * 9.0, 1.0, -dz * uWaveH * 9.0));
+    float swell = sin(world.x * s * 0.34 + t * 0.55) * 0.6
+                + sin(world.z * s * 0.47 - t * 0.43) * 0.4;
+    world.y += swell * uWaveH;
 
     vWorld = world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
@@ -93,8 +83,34 @@ const WATER_FRAG = /* glsl */ `
   uniform vec3 uFogColor;
   uniform float uFogDensity;
 
+  uniform float uWaveH;
+  uniform float uWaveS;
+
   varying vec3 vWorld;
-  varying vec3 vWaveNormal;
+
+  /**
+   * Нормаль волн, посчитанная НА ПИКСЕЛЬ.
+   *
+   * Аналитическая производная тех же синусов, что и в вершинном шейдере, плюс
+   * две высокочастотные октавы, которых в геометрии нет вовсе. Плотность
+   * сетки перестаёт что-либо значить: рябь одинаково подробна и под ногами, и
+   * на озере в ста метрах, и стоит это несколько инструкций на пиксель вместо
+   * сотен тысяч лишних вершин.
+   */
+  vec3 waveNormal(vec3 p, float t, float s, float dist) {
+    // Рябь гаснет с расстоянием. Дело не в экономии: на дальней воде период
+    // ряби становится меньше пикселя, и вместо неё идёт муар — тёмная
+    // «рябая» плёнка на горизонте. Глаз ждёт обратного: далёкая вода читается
+    // гладкой и зеркалит небо. Затухание убирает муар и делает верно.
+    float ripple = 1.0 - smoothstep(40.0, 190.0, dist);
+    float dx = cos(p.x * s * 0.34 + t * 0.55) * s * 0.34 * 0.6
+             + (cos((p.x + p.z) * s * 2.7 + t * 1.9) * s * 2.7 * 0.20
+             +  cos((p.x - p.z) * s * 5.1 - t * 2.6) * s * 5.1 * 0.11) * ripple;
+    float dz = cos(p.z * s * 0.47 - t * 0.43) * s * 0.47 * 0.4
+             + (cos((p.x + p.z) * s * 2.7 + t * 1.9) * s * 2.7 * 0.20
+             -  cos((p.x - p.z) * s * 5.1 - t * 2.6) * s * 5.1 * 0.11) * ripple;
+    return normalize(vec3(-dx * uWaveH * 9.0, 1.0, -dz * uWaveH * 9.0));
+  }
 
   // Компактный хеш-шум для рисунка пены.
   float hash(vec2 p) {
@@ -118,12 +134,16 @@ const WATER_FRAG = /* glsl */ `
       if (depth <= 0.0) discard;
     }
 
-    vec3 N = normalize(vWaveNormal);
+    float viewDist = length(cameraPosition - vWorld);
+    vec3 N = waveNormal(vWorld, uTime, uWaveS, viewDist);
     vec3 V = normalize(cameraPosition - vWorld);
     vec3 L = normalize(uSunDir);
 
     // Цвет по глубине: отмель прозрачно-бирюзовая, глубина — плотная синь.
-    float dn = clamp(depth / 7.0, 0.0, 1.0);
+    // Шкала растянута с 7 до 14 метров вместе с ростом водоёмов: кратерное
+    // озеро глубиной девять метров упиралось в неё целиком и выглядело
+    // сплошной чернильной кляксой без единого перехода.
+    float dn = clamp(depth / 14.0, 0.0, 1.0);
     vec3 col = mix(uShallow, uDeep, dn);
 
     // Френель: у горизонта вода зеркалит небо, под ногами — прозрачна.
@@ -148,8 +168,7 @@ const WATER_FRAG = /* glsl */ `
     // автоматически, и без этой строки океан у горизонта оставался бы
     // насыщенно синим, пока горы уже растворились в дымке, — остров выглядел
     // бы вклеенным в чужую фотографию.
-    float fogDist = length(cameraPosition - vWorld);
-    float fogAmount = 1.0 - exp(-pow(fogDist * uFogDensity, 2.0));
+    float fogAmount = 1.0 - exp(-pow(viewDist * uFogDensity, 2.0));
     col = mix(col, uFogColor, clamp(fogAmount, 0.0, 1.0));
 
     // Отмель полупрозрачна — сквозь неё виден песок.
@@ -195,7 +214,7 @@ function useWaterMaterial(opts: {
       uFlow: { value: 0 },
       // Должно совпадать с fogExp2 сцены (см. VelaIsland → Scene).
       uFogColor: { value: ATMO.fog },
-      uFogDensity: { value: 0.0026 },
+      uFogDensity: { value: FOG_DENSITY },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [opts.heightTex, opts.level, opts.useHeight],
@@ -247,13 +266,28 @@ export function OpenSea() {
   );
 }
 
-/** Озеро в кальдере: та же механика берега, свой уровень и палитра. */
-export function CraterLake({ heightTex, tier }: { heightTex: THREE.DataTexture; tier: DeviceTier }) {
-  const L = WORLD.lake;
-  const seg = tier === 'low' ? 40 : 72;
+/**
+ * Один водоём: та же механика берега через поле высот, свой уровень и палитра.
+ *
+ * Берег НЕ моделируется геометрией: поле высот уходит во float-текстуру, и
+ * плоскость воды делает `discard` там, где земля выше зеркала. Отсюда даром
+ * получается точная кромка в любой бухте, цвет по глубине и пена ровно на
+ * отмели — при пяти водоёмах вместо одного это экономит пять наборов
+ * береговой геометрии.
+ */
+function BasinWater({
+  basin,
+  heightTex,
+  tier,
+}: {
+  basin: Basin;
+  heightTex: THREE.DataTexture;
+  tier: DeviceTier;
+}) {
+  const seg = tier === 'low' ? 32 : 64;
   const uniforms = useWaterMaterial({
     heightTex,
-    level: L.level,
+    level: basin.level,
     useHeight: true,
     shallow: ATMO.lakeShallow,
     deep: ATMO.lakeDeep,
@@ -267,12 +301,8 @@ export function CraterLake({ heightTex, tier }: { heightTex: THREE.DataTexture; 
   });
 
   return (
-    <mesh
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[L.x, L.level, L.z]}
-      renderOrder={2}
-    >
-      <planeGeometry args={[L.r * 2.3, L.r * 2.3, seg, seg]} />
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[basin.x, basin.level, basin.z]} renderOrder={2}>
+      <planeGeometry args={[basin.r * 2.3, basin.r * 2.3, seg, seg]} />
       <shaderMaterial
         vertexShader={WATER_VERT}
         fragmentShader={WATER_FRAG}
@@ -285,6 +315,102 @@ export function CraterLake({ heightTex, tier }: { heightTex: THREE.DataTexture; 
   );
 }
 
+/** Все пресные водоёмы мира: кратерное озеро, тарн, оазис, лагуна. */
+export function Lakes({ heightTex, tier }: { heightTex: THREE.DataTexture; tier: DeviceTier }) {
+  return (
+    <>
+      {BASINS.filter((b) => b.kind === 'water').map((b) => (
+        <BasinWater key={b.id} basin={b} heightTex={heightTex} tier={tier} />
+      ))}
+    </>
+  );
+}
+
+const LAVA_FRAG = /* glsl */ `
+  uniform float uTime;
+  varying vec2 vUv;
+  varying vec3 vWorld;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x),
+               mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float s = 0.0, a = 0.5;
+    for (int i = 0; i < 4; i++) { s += noise(p) * a; p *= 2.07; a *= 0.5; }
+    return s;
+  }
+
+  void main() {
+    vec2 p = vWorld.xz * 0.055;
+    // Две конвекционные ячейки с разной скоростью: корка ползёт, трещины
+    // между плитами светятся. Один слой читался бы как крашеная плоскость.
+    float a = fbm(p + vec2(uTime * 0.021, uTime * -0.014));
+    float b = fbm(p * 1.9 + vec2(uTime * -0.03, uTime * 0.024) + 11.0);
+    float crust = smoothstep(0.34, 0.62, a * 0.65 + b * 0.45);
+
+    vec3 hot = vec3(1.0, 0.62, 0.16);
+    vec3 white = vec3(1.0, 0.92, 0.62);
+    vec3 cold = vec3(0.14, 0.07, 0.06);
+    // Жилы: чем тоньше корка, тем ярче и белее просвет.
+    vec3 c = mix(mix(white, hot, smoothstep(0.0, 0.35, crust)), cold, smoothstep(0.35, 0.95, crust));
+    // Медленная пульсация свечения — жерло «дышит».
+    c *= 0.85 + 0.15 * sin(uTime * 0.7 + a * 6.0);
+    gl_FragColor = vec4(c, 1.0);
+  }
+`;
+
+const LAVA_VERT = /* glsl */ `
+  varying vec2 vUv;
+  varying vec3 vWorld;
+  void main() {
+    vUv = uv;
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vWorld = wp.xyz;
+    gl_Position = projectionMatrix * viewMatrix * wp;
+  }
+`;
+
+/**
+ * Лавовое озеро в жерле вулкана. Непрозрачное и самосветящееся: у лавы нет
+ * ни отражений, ни глубины, поэтому шейдер воды здесь не подходит совсем —
+ * нужна ползущая корка с раскалёнными трещинами.
+ */
+export function LavaLakes() {
+  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+  useFrame(({ clock }) => {
+    uniforms.uTime.value = clock.elapsedTime;
+  });
+  const lava = BASINS.filter((b) => b.kind === 'lava');
+  if (!lava.length) return null;
+
+  return (
+    <>
+      {lava.map((b) => (
+        <mesh key={b.id} rotation={[-Math.PI / 2, 0, 0]} position={[b.x, b.level, b.z]}>
+          <circleGeometry args={[b.r * 1.04, 56]} />
+          <shaderMaterial vertexShader={LAVA_VERT} fragmentShader={LAVA_FRAG} uniforms={uniforms} />
+        </mesh>
+      ))}
+      {/* Зарево над жерлом: тёплый свет снизу — главная причина, по которой
+          вулкан читается издалека даже ночью. */}
+      {lava.map((b) => (
+        <pointLight
+          key={`${b.id}-glow`}
+          position={[b.x, b.level + 8, b.z]}
+          color="#ff7326"
+          intensity={140}
+          distance={190}
+          decay={2}
+        />
+      ))}
+    </>
+  );
+}
+
 /**
  * Река: лента по узлам русла. Вершины кладутся на профиль дна и приподняты на
  * пару десятков сантиметров — так вода видна и в брод, и в порогах.
@@ -292,43 +418,43 @@ export function CraterLake({ heightTex, tier }: { heightTex: THREE.DataTexture; 
  */
 export function River({ hf }: { hf: HeightField }) {
   const geometry = useMemo(() => {
-    const nodes = RIVER;
     const positions: number[] = [];
     const index: number[] = [];
-    const widths = nodes.map((_, i) => {
-      // Река расширяется к устью — от горного ручья до дельты.
-      const t = i / (nodes.length - 1);
-      return 3.4 + t * 5.6;
-    });
 
-    for (let i = 0; i < nodes.length; i++) {
-      const [x, z] = nodes[i];
-      const prev = nodes[Math.max(0, i - 1)];
-      const next = nodes[Math.min(nodes.length - 1, i + 1)];
-      const dx = next[0] - prev[0];
-      const dz = next[1] - prev[1];
-      const len = Math.hypot(dx, dz) || 1;
-      // Перпендикуляр к направлению течения.
-      const px = -dz / len;
-      const pz = dx / len;
-      const w = widths[i];
-      for (const s of [-1, 1]) {
-        const vx = x + px * w * s;
-        const vz = z + pz * w * s;
-        // Дно берём из готового рельефа — лента точно ложится в вырезанное русло.
-        positions.push(vx, hf.sample(vx, vz) + 0.22, vz);
+    // Все реки мира — в одну геометрию: три отдельных меша дали бы три вызова
+    // отрисовки и три одинаковых материала ради полутора тысяч треугольников.
+    const addRiver = (nodes: PathNode[], baseWidth: number, endWidth: number) => {
+      const first = positions.length / 3;
+      for (let i = 0; i < nodes.length; i++) {
+        const [x, z] = nodes[i];
+        const prev = nodes[Math.max(0, i - 1)];
+        const next = nodes[Math.min(nodes.length - 1, i + 1)];
+        const dx = next[0] - prev[0];
+        const dz = next[1] - prev[1];
+        const len = Math.hypot(dx, dz) || 1;
+        // Перпендикуляр к направлению течения.
+        const px = -dz / len;
+        const pz = dx / len;
+        // Река расширяется к устью — от горного ручья до дельты.
+        const w = baseWidth + (endWidth - baseWidth) * (i / (nodes.length - 1));
+        for (const s of [-1, 1]) {
+          const vx = x + px * w * s;
+          const vz = z + pz * w * s;
+          // Дно берём из готового рельефа — лента точно ложится в вырезанное русло.
+          positions.push(vx, hf.sample(vx, vz) + 0.22, vz);
+        }
       }
-    }
-    for (let i = 0; i < nodes.length - 1; i++) {
-      const a = i * 2;
-      const b = a + 1;
-      const c = a + 2;
-      const d = a + 3;
-      // Пролёт обрыва не заполняем — его закрывает занавес водопада.
-      const dropping = Math.abs(nodes[i + 1][2] - nodes[i][2]) > 8;
-      if (dropping) continue;
-      index.push(a, c, b, b, c, d);
-    }
+      for (let i = 0; i < nodes.length - 1; i++) {
+        // Пролёт обрыва не заполняем — его закрывает занавес водопада.
+        if (Math.abs(nodes[i + 1][2] - nodes[i][2]) > 8) continue;
+        const a = first + i * 2;
+        index.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+      }
+    };
+
+    addRiver(RIVERS[0], 4.2, 9.5);
+    addRiver(RIVERS[1], 3.0, 6.0);
+    addRiver(RIVERS[2], 2.6, 5.0);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -416,9 +542,14 @@ const FALL_VERT = /* glsl */ `
  * Водопад: занавес струй + брызги у подножия.
  * Занавес — двусторонняя плоскость на обрыве, вырезанном в рельефе (см. RIVER).
  */
-export function Waterfall({ tier }: { tier: DeviceTier }) {
-  const F = WORLD.falls;
+export function Waterfall({ tier, fall = FALLS[0] }: { tier: DeviceTier; fall?: (typeof FALLS)[number] }) {
+  const F = fall;
   const height = F.lipH - F.baseH;
+  // Занавес разворачиваем ПОПЕРЁК течения. Раньше он был жёстко прибит к
+  // плоскости XY: единственный водопад в мире падал строго вдоль +Z, и это
+  // сходило с рук. Второй водопад (Ледяные Слёзы) уходит вбок, и неподвижный
+  // занавес встал бы к потоку ребром — виден был бы отвес, а не вода.
+  const angle = Math.atan2(F.base[0] - F.lip[0], F.base[1] - F.lip[1]);
   const uniforms = useMemo(
     () => ({ uTime: { value: 0 }, uColor: { value: new THREE.Color('#cfe6ee') } }),
     [],
@@ -465,10 +596,12 @@ export function Waterfall({ tier }: { tier: DeviceTier }) {
     attr.needsUpdate = true;
   });
 
-  // Занавес стоит в плоскости XY, поперёк течения (река здесь идёт по +Z).
   return (
-    <group>
-      <mesh position={[F.lip[0], F.baseH + height / 2, (F.lip[1] + F.base[1]) / 2]}>
+    <group
+      position={[(F.lip[0] + F.base[0]) / 2, 0, (F.lip[1] + F.base[1]) / 2]}
+      rotation={[0, angle, 0]}
+    >
+      <mesh position={[0, F.baseH + height / 2, 0]}>
         <planeGeometry args={[F.width * 1.35, height, 1, 1]} />
         <shaderMaterial
           vertexShader={FALL_VERT}
@@ -480,10 +613,7 @@ export function Waterfall({ tier }: { tier: DeviceTier }) {
         />
       </mesh>
       {/* Второй занавес чуть смещён и уже — придаёт потоку толщину. */}
-      <mesh
-        position={[F.lip[0], F.baseH + height / 2, (F.lip[1] + F.base[1]) / 2 + 1.1]}
-        scale={[0.72, 1, 1]}
-      >
+      <mesh position={[0, F.baseH + height / 2, 1.1]} scale={[0.72, 1, 1]}>
         <planeGeometry args={[F.width * 1.35, height, 1, 1]} />
         <shaderMaterial
           vertexShader={FALL_VERT}
@@ -494,7 +624,7 @@ export function Waterfall({ tier }: { tier: DeviceTier }) {
           side={THREE.DoubleSide}
         />
       </mesh>
-      <points ref={mist} geometry={mistGeo} position={[F.base[0], F.baseH, F.base[1] + 1.5]}>
+      <points ref={mist} geometry={mistGeo} position={[0, F.baseH, 1.5]}>
         {/* Карта обязательна: pointsMaterial без неё рисует КВАДРАТЫ, и вблизи
             брызги выглядели как рассыпанные бумажки. 0.35 м на каплю — при 1.5
             каждая была размером с человека. */}
@@ -510,5 +640,16 @@ export function Waterfall({ tier }: { tier: DeviceTier }) {
         />
       </points>
     </group>
+  );
+}
+
+/** Все водопады мира. */
+export function Waterfalls({ tier }: { tier: DeviceTier }) {
+  return (
+    <>
+      {FALLS.map((f) => (
+        <Waterfall key={f.id} tier={tier} fall={f} />
+      ))}
+    </>
   );
 }

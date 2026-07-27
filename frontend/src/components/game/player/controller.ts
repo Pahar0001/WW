@@ -1,7 +1,7 @@
 'use client';
 
 import * as THREE from 'three';
-import { HeightField, WORLD } from '../world/terrain';
+import { HeightField, WORLD, waterLevelAt } from '../world/terrain';
 import { blocked, buildColliders } from '../world/colliders';
 
 /**
@@ -196,13 +196,6 @@ export function createCharacter(hf: HeightField): Character {
     hold: 0,
     wade: 0,
   };
-}
-
-/** Уровень воды в точке: 0 — океан, уровень озера внутри кальдеры. */
-function waterLevelAt(x: number, z: number): number {
-  const L = WORLD.lake;
-  if (Math.hypot(x - L.x, z - L.z) < L.r * 1.05) return L.level;
-  return 0;
 }
 
 /** Можно ли встать в точку: не слишком круто, не слишком глубоко, не в стене. */

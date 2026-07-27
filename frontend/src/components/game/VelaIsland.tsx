@@ -7,9 +7,9 @@ import * as THREE from 'three';
 import { detectTier, prefersReducedMotion, type DeviceTier } from '@/lib/motion';
 import { CinematicPost } from '@/components/fx/CinematicPost';
 import { HeightField, WORLD } from './world/terrain';
-import { Terrain } from './world/TerrainMesh';
-import { CraterLake, Ocean, OpenSea, River, Waterfall, makeHeightTexture } from './world/Water';
-import { ATMO, Clouds, SkyDome } from './world/Sky';
+import { CHUNKS, Terrain, TerrainData } from './world/TerrainMesh';
+import { Lakes, LavaLakes, Ocean, OpenSea, River, Waterfalls, makeHeightTexture } from './world/Water';
+import { ATMO, Clouds, FOG_DENSITY, SkyDome } from './world/Sky';
 import { GrassField, Scatter } from './world/Scatter';
 import { Landmarks } from './world/Landmarks';
 import { Wildlife } from './world/Wildlife';
@@ -35,13 +35,27 @@ import { Briefing, Hud, LoadingScreen } from './hud/Hud';
  * сколько весит код, собирается за доли секунды и не зависит ни от CDN, ни от
  * чужих лицензий.
  *
+ * Мир — материк 840 × 840 метров из десяти зон: бухта, лес, каньон, ледник,
+ * главный хребет, вулкан, пустыня, руины, кратерное озеро и связующая долина.
+ *
  * Три уровня качества выбираются по устройству (см. detectTier):
- *   low  — 176² вершин рельефа, без теней, без пост-обработки;
- *   mid  — 224², тени 1024, bloom + грейд + зерно;
- *   high — 288², тени 2048, плюс глубина резкости и дисперсия.
+ *   low  — 281² вершин рельефа (3.0 м/клетка), без теней, без пост-обработки;
+ *   mid  — 401² (2.1 м), тени 1024, bloom + грейд + зерно;
+ *   high — 561² (1.5 м), тени 2048, плюс глубина резкости и дисперсия.
  */
 
-const RES: Record<DeviceTier, number> = { low: 176, mid: 224, high: 288 };
+/**
+ * Разрешение поля высот по классу устройства.
+ *
+ * Число обязано давать `(res − 1) % CHUNKS === 0`: рельеф режется на сетку
+ * чанков, и остаток от деления оставил бы полосу мира без геометрии.
+ * Шаг сетки — 1.5 м на high, 2.1 на mid, 3.0 на low при стороне мира 840 м.
+ */
+const RES: Record<DeviceTier, number> = {
+  low: CHUNKS * 28 + 1,
+  mid: CHUNKS * 40 + 1,
+  high: CHUNKS * 56 + 1,
+};
 
 // ── Свет ───────────────────────────────────────────────────────────────
 
@@ -198,6 +212,7 @@ function GameLoop({
 
 function Scene({
   hf,
+  data,
   heightTex,
   tier,
   character,
@@ -205,6 +220,7 @@ function Scene({
   mode,
 }: {
   hf: HeightField;
+  data: TerrainData;
   heightTex: THREE.DataTexture;
   tier: DeviceTier;
   character: React.MutableRefObject<Character>;
@@ -225,19 +241,31 @@ function Scene({
   return (
     <>
       {/* Экспоненциальный туман: атмосферная перспектива, из-за которой
-          далёкие хребты уходят в дымку и остров кажется большим. */}
-      <fogExp2 attach="fog" args={[ATMO.fog.getHex(), 0.0026]} />
+          далёкие хребты уходят в дымку.
+
+          Плотность снижена с 0.0026 до 0.0011 вместе с ростом мира. Прежнее
+          значение подбиралось под остров в 330 метров, где дальняя точка
+          скрадывалась на две трети. На материке в 840 метров оно съедало
+          дальнюю половину карты целиком (0.99 плотности тумана): с вершины
+          хребта не было видно ни вулкана, ни пустыни — вместо простора
+          получалась белая стена в двухстах метрах от героя.
+
+          ⚠️ Значение обязано совпадать с uFogDensity в шейдерах воды
+          (Water.tsx): свой шейдер не получает туман сцены автоматически, и при
+          расхождении океан у горизонта остаётся синим, когда горы уже растаяли. */}
+      <fogExp2 attach="fog" args={[ATMO.fog.getHex(), FOG_DENSITY]} />
 
       <SkyDome />
       <Clouds tier={tier} />
       <SunLight character={character} tier={tier} />
 
-      <Terrain hf={hf} receiveShadow={shadows} />
+      <Terrain data={data} tier={tier} receiveShadow={shadows} />
       <OpenSea />
       <Ocean heightTex={heightTex} tier={tier} />
-      <CraterLake heightTex={heightTex} tier={tier} />
+      <Lakes heightTex={heightTex} tier={tier} />
+      <LavaLakes />
       <River hf={hf} />
-      <Waterfall tier={tier} />
+      <Waterfalls tier={tier} />
 
       <Scatter hf={hf} tier={tier} shadows={shadows} />
       <GrassField hf={hf} tier={tier} target={playerPos} />
@@ -350,7 +378,11 @@ export function VelaIsland() {
   const wrap = useRef<HTMLDivElement>(null);
   const { phase } = useGame();
   const [tier, setTier] = useState<DeviceTier>('mid');
-  const [world, setWorld] = useState<{ hf: HeightField; heightTex: THREE.DataTexture } | null>(null);
+  const [world, setWorld] = useState<{
+    hf: HeightField;
+    data: TerrainData;
+    heightTex: THREE.DataTexture;
+  } | null>(null);
   const [progress, setProgress] = useState(0.05);
 
   const character = useRef<Character | null>(null);
@@ -372,34 +404,87 @@ export function VelaIsland() {
   }, []);
 
   // ── Сборка мира по шагам ──
-  // Между шагами отдаём кадр браузеру, иначе экран загрузки не успел бы
-  // отрисоваться и пользователь смотрел бы на белый экран.
+  //
+  // Мир — 840 × 840 метров, на высоком качестве это 315 000 вершин рельефа,
+  // столько же запечённых цветов с ambient occlusion и сотня чанков геометрии.
+  // Синхронно это полторы-две секунды намертво заблокированного потока: экран
+  // загрузки не успел бы даже отрисоваться, а браузер показал бы «страница не
+  // отвечает». Поэтому работа нарезана на порции по несколько строк поля, и
+  // между порциями кадр отдаётся браузеру — прогресс едет, вкладка живая.
   useEffect(() => {
     let cancelled = false;
-    const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
+
+    /**
+     * Уступить управление браузеру.
+     *
+     * На ВИДИМОЙ вкладке ждём кадра: прогресс должен рисоваться, а порции
+     * работы — попадать между кадрами.
+     *
+     * На СКРЫТОЙ вкладке requestAnimationFrame не вызывается вообще, и сборка
+     * замирала до возвращения пользователя: свернул окно на секунду — вернулся
+     * к тому же экрану загрузки. Там уступаем через MessageChannel: в отличие
+     * от setTimeout, его сообщения не придушены в фоне (тем же приёмом
+     * пользуется планировщик React), а раз никто не смотрит — работаем
+     * порциями впятеро крупнее и заканчиваем быстрее.
+     */
+    const yieldToBrowser = () =>
+      new Promise<void>((r) => {
+        if (typeof document !== 'undefined' && document.hidden) {
+          const ch = new MessageChannel();
+          ch.port1.onmessage = () => {
+            ch.port1.close();
+            r();
+          };
+          ch.port2.postMessage(null);
+        } else {
+          requestAnimationFrame(() => r());
+        }
+      });
 
     (async () => {
-      setProgress(0.12);
+      // Порция подобрана по ВРЕМЕНИ, а не по числу строк: на слабом телефоне
+      // те же 24 строки считаются вчетверо дольше, и фиксированный размер
+      // порции снова даёт заметные рывки.
+      const chunkedBuild = async (build: (rows: number) => number, from: number, to: number) => {
+        let rows = 16;
+        for (;;) {
+          const budget = typeof document !== 'undefined' && document.hidden ? 60 : 12;
+          const t0 = performance.now();
+          const done = build(rows);
+          const dt = performance.now() - t0;
+          setProgress(from + (to - from) * done);
+          if (done >= 1 || cancelled) return;
+          rows = Math.max(4, Math.min(160, Math.round((rows * budget) / Math.max(dt, 0.5))));
+          await yieldToBrowser();
+        }
+      };
+      const nextFrame = yieldToBrowser;
+
+      setProgress(0.04);
       await nextFrame();
+
       const hf = new HeightField(RES[tier]);
+      await chunkedBuild((r) => hf.buildRows(r), 0.04, 0.5);
       if (cancelled) return;
 
-      setProgress(0.55);
+      const data = new TerrainData(hf);
+      await chunkedBuild((r) => data.buildRows(r), 0.5, 0.88);
+      if (cancelled) return;
+
+      setProgress(0.9);
       await nextFrame();
       const heightTex = makeHeightTexture(hf);
       if (cancelled) return;
 
-      setProgress(0.78);
+      setProgress(0.95);
       await nextFrame();
       character.current = createCharacter(hf);
       playerPos.current.copy(character.current.pos);
       live.x = character.current.pos.x;
       live.z = character.current.pos.z;
-
-      setProgress(0.95);
-      await nextFrame();
       if (cancelled) return;
-      setWorld({ hf, heightTex });
+
+      setWorld({ hf, data, heightTex });
       setProgress(1);
       gameStore.ready();
     })();
@@ -444,6 +529,7 @@ export function VelaIsland() {
           <Suspense fallback={null}>
             <Scene
               hf={world.hf}
+              data={world.data}
               heightTex={world.heightTex}
               tier={tier}
               character={character as React.MutableRefObject<Character>}

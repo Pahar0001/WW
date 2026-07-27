@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { EASE, onFrame } from '@/lib/motion';
+import { pluralize } from '@/lib/plural';
 import { PUBLIC_REGIONS, REGIONS, ARTIFACTS } from '../regions';
 import { gameStore, live, useGame } from '../state';
-import { HeightField, WORLD, biomeAt } from '../world/terrain';
+import { HeightField, WORLD, groundColor, lavaAt, waterLevelAt } from '../world/terrain';
 
 /**
  * Интерфейс игры — намеренно минимальный: компас, карта, имя региона и
@@ -129,13 +130,11 @@ function useIslandMap(hf: HeightField, size: number) {
     const img = ctx.createImageData(size, size);
     const d = img.data;
 
-    const palette: Record<string, [number, number, number]> = {
-      sand: [214, 196, 156],
-      grass: [126, 145, 82],
-      forest: [76, 99, 56],
-      rock: [122, 116, 104],
-      snow: [232, 238, 245],
-    };
+    // Цвет берём той же функцией, что красит рельеф: карта и мир не могут
+    // расходиться по определению. Раньше у карты была своя палитра из пяти
+    // биомов, и после появления дюн, пепла, льда и красной глины она показывала
+    // бы вулкан и каньон одинаковым серым «камнем».
+    const rgb: [number, number, number] = [0, 0, 0];
 
     for (let j = 0; j < size; j++) {
       for (let i = 0; i < size; i++) {
@@ -143,22 +142,31 @@ function useIslandMap(hf: HeightField, size: number) {
         const z = -WORLD.half + (j / (size - 1)) * WORLD.half * 2;
         const h = hf.sample(x, z);
         const k = (j * size + i) * 4;
-        if (h <= 0) {
-          // Море: глубина читается плотностью синего.
-          const t = Math.min(1, -h / 6);
+        const water = waterLevelAt(x, z);
+        if (h <= water) {
+          // Вода: глубина читается плотностью синего.
+          const t = Math.min(1, (water - h) / 8);
           d[k] = 34 + (1 - t) * 40;
           d[k + 1] = 82 + (1 - t) * 52;
           d[k + 2] = 116 + (1 - t) * 44;
           d[k + 3] = 210;
           continue;
         }
-        const [r, g, b] = palette[biomeAt(h, hf.slope(x, z))];
+        if (lavaAt(x, z)) {
+          d[k] = 226;
+          d[k + 1] = 88;
+          d[k + 2] = 30;
+          d[k + 3] = 255;
+          continue;
+        }
+        groundColor(x, z, h, hf.slope(x, z), rgb);
         // Отмывка рельефа: склоны к северо-западу светлее — карта читается
         // объёмной, как в старом атласе.
-        const shade = 0.78 + (hf.sample(x - 3, z - 3) - h) * 0.06;
-        d[k] = Math.max(0, Math.min(255, r * shade));
-        d[k + 1] = Math.max(0, Math.min(255, g * shade));
-        d[k + 2] = Math.max(0, Math.min(255, b * shade));
+        const shade = 0.82 + (hf.sample(x - 6, z - 6) - h) * 0.035;
+        // Линейный цвет → sRGB: без гаммы карта выглядит вымытой и мутной.
+        for (let c = 0; c < 3; c++) {
+          d[k + c] = Math.max(0, Math.min(255, Math.pow(Math.max(0, rgb[c] * shade), 1 / 2.2) * 255));
+        }
         d[k + 3] = 255;
       }
     }
@@ -506,9 +514,14 @@ export function Briefing() {
           transition={{ duration: 0.9, ease: EASE, delay: 0.7 }}
           className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/70 md:text-base"
         >
-          Шесть мест, два секрета и семь древних артефактов. Каждое открытое место —
-          это раздел Vela: коллекция маршрутов, сообщество, честные данные, консьерж.
-          Идите куда хотите — карта заполнится сама.
+          {/* Числа считаем из данных, а не пишем словами: набор регионов и
+              артефактов меняется, а подпись «шесть мест и семь артефактов»
+              молча устаревает и начинает врать игроку на первом же экране. */}
+          {pluralize(PUBLIC_REGIONS.length, 'место', 'места', 'мест')},{' '}
+          {pluralize(REGIONS.length - PUBLIC_REGIONS.length, 'секрет', 'секрета', 'секретов')} и{' '}
+          {pluralize(ARTIFACTS.length, 'древний артефакт', 'древних артефакта', 'древних артефактов')}.
+          Каждое открытое место — это раздел Vela: коллекция маршрутов, сообщество,
+          честные данные, консьерж. Идите куда хотите — карта заполнится сама.
         </motion.p>
 
         <motion.div

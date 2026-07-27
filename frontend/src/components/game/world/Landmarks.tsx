@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ARTIFACTS, PUBLIC_REGIONS, REGIONS } from '../regions';
 import { useGame } from '../state';
-import { BRIDGE, HeightField, WORLD, rnd } from './terrain';
+import { BRIDGES, HeightField, WORLD, rnd } from './terrain';
 import { ruinsColumns } from './colliders';
 
 /**
@@ -278,7 +278,8 @@ export function Grotto({ hf }: { hf: HeightField }) {
 
 // ── Мост через реку ────────────────────────────────────────────────────
 
-export function Bridge() {
+export function Bridge({ bridge = BRIDGES[0] }: { bridge?: (typeof BRIDGES)[number] }) {
+  const BRIDGE = bridge;
   const planks = 11;
   return (
     <group position={[BRIDGE.x, BRIDGE.deck, BRIDGE.z]} rotation={[0, BRIDGE.angle, 0]}>
@@ -529,7 +530,9 @@ export function Landmarks({ hf }: { hf: HeightField }) {
     <group>
       <Ruins hf={hf} />
       <Grotto hf={hf} />
-      <Bridge />
+      {BRIDGES.map((b) => (
+        <Bridge key={b.id} bridge={b} />
+      ))}
       <Lookout
         position={[summit[0], hf.sample(summit[0], summit[1]) + 0.1, summit[1]]}
         size={5.4}

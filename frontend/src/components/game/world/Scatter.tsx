@@ -4,7 +4,18 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { DeviceTier } from '@/lib/motion';
-import { HeightField, WORLD, biomeAt, riverWeight, rnd, scatterPoints, trailWeight } from './terrain';
+import {
+  HeightField,
+  WORLD,
+  lavaAt,
+  riverWeight,
+  rnd,
+  scatterPoints,
+  surfaceAt,
+  trailWeight,
+  waterLevelAt,
+  zoneAt,
+} from './terrain';
 
 /**
  * Растительность и камни острова — всё через InstancedMesh.
@@ -300,13 +311,15 @@ function place(
   return out;
 }
 
-/** Общее правило: не на тропе, не в реке, не в озере, не под водой. */
+/** Общее правило: не на тропе, не в реке, не в водоёме, не под водой. */
 function freeGround(hf: HeightField, x: number, z: number, h: number): boolean {
-  if (h < WORLD.beach - 1.2) return false;
   if (trailWeight(x, z) > 0.3) return false;
   if (riverWeight(x, z) > 0.35) return false;
-  const L = WORLD.lake;
-  if (Math.hypot(x - L.x, z - L.z) < L.r * 0.82 && h < L.level + 1.2) return false;
+  // Уровень воды берём общий для всех пяти водоёмов, а не только для кратерного
+  // озера: иначе в тарне, лагуне и оазисе деревья росли бы прямо из зеркала.
+  const water = waterLevelAt(x, z);
+  if (h < water + 1.2) return false;
+  if (lavaAt(x, z)) return false;
   return true;
 }
 
@@ -391,10 +404,13 @@ export function Scatter({
   tier: DeviceTier;
   shadows: boolean;
 }) {
+  // Площадь мира выросла в 6.5 раза, поэтому выросли и количества — иначе лес
+  // превращается в редкий парк. Инстансинг делает это почти бесплатным: у всей
+  // растительности семь вызовов отрисовки независимо от числа растений.
   const counts = useMemo(() => {
-    if (tier === 'low') return { conifer: 220, broadleaf: 200, palm: 40, rocks: 190, flowers: 260 };
-    if (tier === 'mid') return { conifer: 460, broadleaf: 420, palm: 80, rocks: 400, flowers: 620 };
-    return { conifer: 780, broadleaf: 700, palm: 130, rocks: 660, flowers: 1100 };
+    if (tier === 'low') return { conifer: 900, broadleaf: 850, palm: 150, rocks: 800, flowers: 900 };
+    if (tier === 'mid') return { conifer: 2000, broadleaf: 1900, palm: 320, rocks: 1700, flowers: 2200 };
+    return { conifer: 3400, broadleaf: 3200, palm: 520, rocks: 2800, flowers: 3800 };
   }, [tier]);
 
   const geos = useMemo(
@@ -413,41 +429,62 @@ export function Scatter({
   const items = useMemo(() => {
     const free = (x: number, z: number, h: number) => freeGround(hf, x, z, h);
 
-    // Хвойные — выше по склону и в тени хребта.
+    // Растительность привязана к ЗОНЕ, а не только к высоте с уклоном. В мире
+    // с одним биомом высоты хватало; теперь на отметке 30 м может быть и
+    // влажный лес, и пепловое поле вулкана, и красная глина каньона — правило
+    // «h > 12 && h < 44» посадило бы сосны в кратер.
+    const R = WORLD.shore;
+
+    // Хвойные — подножия хребта, ледника и северные склоны.
     const conifer = place(
       hf,
       counts.conifer,
-      118,
+      R,
       11,
-      (h, slope, x, z) => h > 12 && h < 44 && slope < 0.42 && free(x, z, h),
+      (h, slope, x, z) => {
+        const zone = zoneAt(x, z).id;
+        if (zone === 'desert' || zone === 'volcano' || zone === 'canyon' || zone === 'cove') return false;
+        return h > 22 && h < 92 && slope < 0.42 && free(x, z, h);
+      },
       (i) => 5.2 + rnd(i, 21) * 4.6,
     );
-    // Широколиственные — средний пояс, самый густой лес.
+    // Широколиственные — влажный средний пояс: лес, луга, окрестности озёр.
     const broadleaf = place(
       hf,
       counts.broadleaf,
-      116,
+      R,
       29,
       (h, slope, x, z) => {
-        const b = biomeAt(h, slope);
-        return h > 3.4 && h < 30 && slope < 0.34 && (b === 'forest' || b === 'grass') && free(x, z, h);
+        const zone = zoneAt(x, z).id;
+        if (zone === 'desert' || zone === 'volcano' || zone === 'glacier' || zone === 'canyon') return false;
+        const s = surfaceAt(x, z, h, slope);
+        return (
+          h > WORLD.beach + 1 && h < 60 && slope < 0.34 && (s === 'forest' || s === 'grass') && free(x, z, h)
+        );
       },
       (i) => 4.6 + rnd(i, 33) * 4.2,
     );
-    // Пальмы — только узкая полоса пляжа.
+    // Пальмы — узкая полоса пляжа плюс оазис. На вулканическом пепле и на
+    // ледниковой морене пляж тоже есть, но пальм там быть не может.
     const palm = place(
       hf,
       counts.palm,
-      124,
+      R,
       53,
-      (h, slope, x, z) => h > 1.1 && h < 4.2 && slope < 0.18 && free(x, z, h),
+      (h, slope, x, z) => {
+        const zone = zoneAt(x, z).id;
+        if (zone === 'volcano' || zone === 'glacier' || zone === 'ridge') return false;
+        const nearOasis = Math.hypot(x - 286, z - 96) < 46;
+        if (nearOasis) return h > 9.5 && h < 18 && slope < 0.3 && free(x, z, h);
+        return h > WORLD.beach - 2 && h < WORLD.beach + 3.4 && slope < 0.18 && free(x, z, h);
+      },
       (i) => 5.4 + rnd(i, 47) * 2.6,
     );
     // Камни — где угодно, но крупные на скалах.
     const rocksA = place(
       hf,
       Math.round(counts.rocks * 0.6),
-      126,
+      R,
       71,
       (h, _s, x, z) => h > 0.6 && free(x, z, h),
       (i) => 0.9 + rnd(i, 59) * 2.4,
@@ -455,19 +492,23 @@ export function Scatter({
     const rocksB = place(
       hf,
       Math.round(counts.rocks * 0.4),
-      120,
+      R,
       97,
-      (h, slope, x, z) => h > 20 && slope > 0.18 && free(x, z, h),
+      (h, slope, x, z) => h > 30 && slope > 0.18 && free(x, z, h),
       (i) => 1.8 + rnd(i, 61) * 4.4,
     );
-    // Цветы — на открытых лугах, не в чаще.
+    // Цветы — на открытых лугах, не в чаще и не в пустыне.
     const mk = (n: number, seed: number) =>
       place(
         hf,
         n,
-        112,
+        R,
         seed,
-        (h, slope, x, z) => h > 3 && h < 26 && slope < 0.24 && free(x, z, h),
+        (h, slope, x, z) => {
+          const zone = zoneAt(x, z).id;
+          if (zone === 'desert' || zone === 'volcano' || zone === 'glacier') return false;
+          return h > WORLD.beach && h < 56 && slope < 0.24 && free(x, z, h);
+        },
         (i) => 0.9 + rnd(i, seed) * 0.7,
       );
 
@@ -561,7 +602,14 @@ export function GrassField({
       const z = cz + oz;
       const h = hf.sample(x, z);
       const slope = hf.slope(x, z);
-      const ok = h > WORLD.beach - 0.6 && h < 40 && slope < 0.46 && freeGround(hf, x, z, h);
+      // Газон растёт только там, где под ногами трава или лесная подстилка:
+      // на дюнах, пепле, льду и красной глине былинки выглядели бы наклейками.
+      const surf = surfaceAt(x, z, h, slope);
+      const ok =
+        (surf === 'grass' || surf === 'forest') &&
+        h > WORLD.beach - 0.6 &&
+        slope < 0.46 &&
+        freeGround(hf, x, z, h);
       // Отбракованный кустик не удаляем, а прячем нулевым масштабом: менять
       // count у InstancedMesh на ходу — это пересоздание буферов каждый шаг.
       const scale = ok ? 0.8 + rnd(i, 17) * 0.7 : 0;
