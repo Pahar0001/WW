@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { getToken } from '@/lib/auth';
+import { hasSession } from '@/lib/auth';
 import { Spark, Typewriter, renderRich, suggestionsFor } from './parts';
 import { assistant, type AssistantMessage } from '@/lib/assistant';
 
@@ -38,7 +38,7 @@ export function AssistantWidget() {
   const hidden = path === '/welcome' || path === '/vela';
 
   useEffect(() => {
-    setLoggedIn(!!getToken());
+    setLoggedIn(!!hasSession());
     const openIt = () => setOpen(true);
     window.addEventListener('vela:open-assistant', openIt);
     return () => window.removeEventListener('vela:open-assistant', openIt);

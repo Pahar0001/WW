@@ -557,14 +557,32 @@ model User {
   emailVerifyExpiry   DateTime?
   passwordResetToken  String?
   passwordResetExpiry DateTime?
-  // When the user accepted the Terms of Use (пользовательское соглашение).
-  // Null = not yet accepted → the blocking terms modal is shown after email verify.
+  // Когда принято пользовательское соглашение. Оставлено как быстрый флаг для
+  // гейта: null → показать окно принятия. ЧТО ИМЕННО принято (какая редакция,
+  // с какого экрана, соглашение или согласие на ПДн) — в модели `Consent`;
+  // одна отметка времени этого доказать не может.
   termsAcceptedAt     DateTime?
   // Последняя активность (обновляется guard'ом не чаще раза в 5 минут) —
   // «онлайн» в админке = lastSeenAt моложе 5 минут.
   lastSeenAt          DateTime?
   // Отказ от воскресного email-дайджеста (ссылка «отписаться» в письме).
+  // Остаётся главным рубильником дайджеста: ссылка с этим действием уже ушла
+  // в ранее отправленных письмах и обязана работать вечно.
   digestOptOut        Boolean    @default(false)
+  // ── Настройки уведомлений (профиль → «Настройки аккаунта») ──────────────
+  // Реклама по ст. 18 ФЗ «О рекламе» — только по ПРЕДВАРИТЕЛЬНОМУ согласию,
+  // поэтому `notifyNews` и `notifyOffers` по умолчанию выключены.
+  // `notifyRoutes` по умолчанию ВКЛЮЧЕН осознанно: это существующий воскресный
+  // дайджест, у него уже есть подписчики и рабочая ссылка отписки, и `db push`
+  // проставит default всем текущим строкам — выключить его здесь значило бы
+  // молча отключить живую функцию всей базе. Для НОВЫХ регистраций значение
+  // приходит из галочки согласия на рассылки (см. AuthService.register).
+  notifyNews          Boolean    @default(false)
+  notifyRoutes        Boolean    @default(true)
+  notifyOffers        Boolean    @default(false)
+  // Служебные напоминания о собственных поездках — не реклама, по умолчанию да.
+  notifyReminders     Boolean    @default(true)
+  consents            Consent[]      @relation("UserConsents")
   saved               SavedTrip[]
   memberships         TripMember[]
   auditLogs           AuditLog[]
@@ -875,4 +893,40 @@ model SystemState {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// Виды согласий, которые пользователь даёт отдельно друг от друга.
+// РАЗДЕЛЕНЫ НАМЕРЕННО: 152-ФЗ требует конкретного и информированного согласия,
+// а «принимаю всё одной галочкой» доказательством не является. Согласие на
+// рекламу вообще живёт по другому закону (ст. 18 ФЗ «О рекламе») и не может
+// быть условием пользования сервисом — поэтому MARKETING всегда необязателен.
+enum ConsentKind {
+  TERMS            // пользовательское соглашение
+  PRIVACY          // согласие на обработку персональных данных
+  MARKETING        // рекламные и новостные рассылки
+  COOKIE_ANALYTICS // аналитические cookie
+  COOKIE_MARKETING // маркетинговые cookie
+}
+
+// История согласий. КАЖДОЕ действие — отдельная строка, включая отзыв
+// (`granted: false`). Текущее состояние = последняя строка по (userId, kind);
+// прошлые НЕ перезаписываются, иначе доказать, на что человек соглашался
+// полгода назад, будет нечем — а отвечать за это оператору.
+model Consent {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation("UserConsents", fields: [userId], references: [id], onDelete: Cascade)
+  kind      ConsentKind
+  // Редакция документа, которую человек ВИДЕЛ в момент согласия, а не текущая:
+  // иначе правка текста задним числом меняет смысл уже данного согласия.
+  version   String
+  granted   Boolean     @default(true)
+  // Откуда пришло: 'register' | 'gate' | 'settings' | 'cookie-banner' | 'unsubscribe'.
+  source    String?
+  // Обстоятельства получения — тоже часть доказательства. Адрес храним как
+  // есть только потому, что он и есть предмет доказывания; наружу не отдаётся.
+  ip        String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+  @@index([userId, kind, createdAt])
 }

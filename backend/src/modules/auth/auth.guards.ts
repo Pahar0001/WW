@@ -11,9 +11,38 @@ import { PrismaService } from '../prisma/prisma.service';
 import { verifyToken } from '../../common/jwt';
 import { PUBLIC_KEY, ROLES_KEY } from './auth.decorators';
 
+/** Имя cookie с токеном — то же, что использует фронтенд. */
+export const TOKEN_COOKIE = 'vela_token';
+
 /**
- * Validates a Bearer JWT, loads the user, rejects missing/blocked accounts, and
- * attaches the user to the request. Routes marked @Public() skip the check.
+ * Токен запроса: сначала заголовок `Authorization`, затем cookie.
+ *
+ * Cookie нужна, чтобы токен мог жить в httpOnly-хранилище: до неё он лежал в
+ * localStorage, откуда его забирает любой XSS. Заголовок остаётся первым —
+ * по нему ходят уже выданные сессии и любые внешние клиенты.
+ *
+ * Cookie разбираем вручную: ради одной строки тащить `cookie-parser` в образ,
+ * который собирается без lock-файла, не стоит (§12.1 хендоффа).
+ */
+export function tokenOf(req: any): string | null {
+  const header: string = req.headers['authorization'] ?? '';
+  if (header.startsWith('Bearer ')) return header.slice(7);
+
+  const raw: string = req.headers['cookie'] ?? '';
+  for (const part of raw.split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    if (part.slice(0, eq).trim() !== TOKEN_COOKIE) continue;
+    const value = part.slice(eq + 1).trim();
+    return value ? decodeURIComponent(value) : null;
+  }
+  return null;
+}
+
+/**
+ * Validates a JWT (Bearer header or cookie), loads the user, rejects
+ * missing/blocked accounts, and attaches the user to the request.
+ * Routes marked @Public() skip the check.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -30,8 +59,7 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = ctx.switchToHttp().getRequest();
-    const header: string = req.headers['authorization'] ?? '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    const token = tokenOf(req);
     if (!token) throw new UnauthorizedException('Требуется вход');
 
     const payload = verifyToken(token);

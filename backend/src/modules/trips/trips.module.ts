@@ -18,16 +18,7 @@ import { TripsService } from './trips.service';
 import { CreateTripSchema, UpdateTripSchema } from './trips.dto';
 import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
 import { Roles, CurrentUser, AuthUser } from '../auth/auth.decorators';
-import { verifyToken } from '../../common/jwt';
-
-// Decode a Bearer token if present (no error if absent) — for optional auth.
-function optionalAccessor(req: any): { id: string; role: string } | null {
-  const h: string = req.headers?.authorization ?? '';
-  const t = h.startsWith('Bearer ') ? h.slice(7) : null;
-  if (!t) return null;
-  const p = verifyToken(t);
-  return p ? { id: p.sub, role: p.role } : null;
-}
+import { optionalAccessor } from '../../common/optional-auth';
 
 @Controller('trips')
 class TripsController {

@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { RateLimitGuard } from './common/rate-limit.guard';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { HealthModule } from './modules/health/health.module';
 import { TripsModule } from './modules/trips/trips.module';
@@ -22,6 +24,8 @@ import { NewsModule } from './modules/news/news.module';
 import { WeatherModule } from './modules/weather/weather.module';
 import { CurrencyModule } from './modules/currency/currency.module';
 import { DigestModule } from './modules/digest/digest.module';
+import { LegalModule } from './modules/legal/legal.module';
+import { AccountModule } from './modules/account/account.module';
 
 @Module({
   imports: [
@@ -48,6 +52,13 @@ import { DigestModule } from './modules/digest/digest.module';
     WeatherModule,
     CurrencyModule,
     DigestModule,
+    LegalModule,
+    AccountModule,
+  ],
+  providers: [
+    // Глобально, но срабатывает только там, где на обработчике стоит
+    // @RateLimit(...) — без декоратора запрос проходит не задерживаясь.
+    { provide: APP_GUARD, useClass: RateLimitGuard },
   ],
 })
 export class AppModule {}

@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { BCRYPT_ROUNDS } from '../../common/password';
 import { randomBytes } from 'crypto';
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -287,7 +288,7 @@ class AdminController {
   @Post('users/:id/reset-password')
   async resetPassword(@Param('id') id: string, @CurrentUser() me: AuthUser) {
     const temp = randomBytes(6).toString('hex'); // 12-char temp password
-    await this.prisma.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(temp, 10) } });
+    await this.prisma.user.update({ where: { id }, data: { passwordHash: await bcrypt.hash(temp, BCRYPT_ROUNDS) } });
     await this.audit.log({ userId: me.id, action: 'user.reset_password', objectType: 'user', objectId: id });
     return { ok: true, tempPassword: temp };
   }

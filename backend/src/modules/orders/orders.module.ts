@@ -4,6 +4,7 @@ import { OrdersService } from './orders.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
 import { CurrentUser, Roles, type AuthUser } from '../auth/auth.decorators';
+import { RateLimit } from '../../common/rate-limit.guard';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
@@ -12,12 +13,14 @@ class OrdersController {
 
   // ИИ-конкретизация пожелания (предпросмотр брифа, ничего не сохраняет).
   @Post('refine')
+  @RateLimit({ limit: 20, windowMs: 60 * 60_000 })   // платный вызов Groq
   refine(@Body() body: { wish?: string }) {
     return this.orders.refine(String(body?.wish ?? ''));
   }
 
   // Отправить заявку админу.
   @Post()
+  @RateLimit({ limit: 10, windowMs: 60 * 60_000 })   // спам заявками админу
   create(@CurrentUser() user: AuthUser, @Body() body: { wish?: string; brief?: string }) {
     return this.orders.create(user.id, String(body?.wish ?? ''), body?.brief ?? null);
   }

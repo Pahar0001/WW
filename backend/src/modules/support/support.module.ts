@@ -14,6 +14,7 @@ import { UserRole } from '@prisma/client';
 import { SupportService } from './support.service';
 import { JwtAuthGuard, RolesGuard } from '../auth/auth.guards';
 import { Roles, CurrentUser, AuthUser } from '../auth/auth.decorators';
+import { RateLimit } from '../../common/rate-limit.guard';
 
 const TextIn = z.object({ text: z.string().min(1).max(2000) });
 function parseText(body: unknown): string {
@@ -37,6 +38,7 @@ class SupportController {
   }
 
   @Post('thread')
+  @RateLimit({ limit: 30, windowMs: 60 * 60_000 })
   postMine(@CurrentUser() u: AuthUser, @Body() body: unknown) {
     return this.svc.postFromUser(u.id, parseText(body));
   }

@@ -24,7 +24,11 @@ function baseUrl(): string {
   return typeof window === 'undefined' ? serverBase() : BROWSER_BASE;
 }
 
-// Bearer header for authenticated write calls (client-side only).
+// Заголовок авторизации для записывающих вызовов (только в браузере).
+//
+// Пуст для сессий, заведённых после перехода на httpOnly-cookie: токена на
+// странице больше нет, а cookie уходит с запросом сама — запрос идёт на свой
+// же origin. Чтение localStorage оставлено ради сессий, выданных до перехода.
 function authHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {};
   const t = localStorage.getItem('vela_token');

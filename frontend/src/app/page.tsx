@@ -16,6 +16,7 @@ import { ButtonLink } from '@/components/ui/Button';
 import { TripCollection } from '@/components/ui/TripCollection';
 import { FadeIn, TextReveal } from '@/components/ui/Motion';
 import { pluralize } from '@/lib/plural';
+import { LEGAL_LINKS } from '@/lib/legal';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
@@ -126,8 +127,14 @@ export default async function HomePage() {
           <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">
             <Link href="/data" className="transition-colors hover:text-paper">Честные данные</Link>
             <Link href="/community" className="transition-colors hover:text-paper">Сообщество</Link>
-            <Link href="/terms" className="transition-colors hover:text-paper">Соглашение</Link>
             <Link href="/trips/new" className="transition-colors hover:text-paper">Собрать поездку</Link>
+            {/* Юридические документы берутся списком: добавится четвёртый —
+                появится в футере сам, без правки вёрстки. */}
+            {LEGAL_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className="transition-colors hover:text-paper">
+                {l.short}
+              </Link>
+            ))}
           </nav>
           <span>© {new Date().getFullYear()} Vela</span>
         </div>

@@ -68,17 +68,25 @@ export class DigestService implements OnModuleInit, OnModuleDestroy {
     return a.length === b.length && timingSafeEqual(a, b);
   }
 
+  /**
+   * Отписка/подписка на дайджест. Держим в согласии с каналом «новые маршруты»
+   * из настроек аккаунта: это один и тот же дайджест под двумя именами, и если
+   * менять только одно поле, настройки покажут человеку не то, что происходит.
+   */
   async setOptOut(userId: string, optOut: boolean) {
-    await this.prisma.user.update({ where: { id: userId }, data: { digestOptOut: optOut } });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { digestOptOut: optOut, notifyRoutes: !optOut },
+    });
     return { ok: true, optOut };
   }
 
   async getOptOut(userId: string) {
     const u = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { digestOptOut: true },
+      select: { digestOptOut: true, notifyRoutes: true },
     });
-    return { optOut: u?.digestOptOut ?? false };
+    return { optOut: (u?.digestOptOut ?? false) || !(u?.notifyRoutes ?? true) };
   }
 
   private async tick() {
@@ -168,8 +176,16 @@ export class DigestService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Два условия, а не одно: `digestOptOut` правит ссылка «отписаться» из уже
+    // разосланных писем и обязана работать вечно, `notifyRoutes` — тумблер в
+    // настройках аккаунта. Выключение любого из них означает «не слать».
     const recipients = await this.prisma.user.findMany({
-      where: { emailVerified: true, status: 'ACTIVE', digestOptOut: false },
+      where: {
+        emailVerified: true,
+        status: 'ACTIVE',
+        digestOptOut: false,
+        notifyRoutes: true,
+      },
       select: { id: true, email: true, name: true },
     });
     this.logger.log(`Дайджест ${slot}: получателей ${recipients.length}.`);

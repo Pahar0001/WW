@@ -7,6 +7,7 @@ import { SupportWidget } from '@/components/support/SupportWidget';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { FloatingNav } from '@/components/ui/FloatingNav';
 import { TermsGate } from '@/components/auth/TermsGate';
+import { CookieBanner } from '@/components/legal/CookieBanner';
 import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
 import { Toaster } from '@/components/ui/Toaster';
@@ -82,6 +83,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <BottomNav />
         <FloatingNav />
         <TermsGate />
+        {/* Ниже TermsGate: окно принятия документов модальное и перекрывает
+            баннер — сначала соглашение, потом cookie. */}
+        <CookieBanner />
         <PwaProvider />
         <Toaster />
       </body>

@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomInt } from 'crypto';
+import { ConsentKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { AuditService } from '../audit/audit.service';
+import { LegalService, type ConsentInput } from '../legal/legal.service';
+import { REQUIRED_CONSENTS, currentVersionFor } from '../legal/versions';
 import { signToken } from '../../common/jwt';
+import { BCRYPT_ROUNDS } from '../../common/password';
 
 const token = () => randomBytes(24).toString('hex');
 // 6-digit numeric email-verification code (100000–999999).
@@ -32,34 +36,76 @@ function publicUser(u: any) {
   };
 }
 
+export interface RegisterInput {
+  email: string;
+  password: string;
+  name?: string;
+  /** Согласия, отмеченные в форме регистрации. */
+  consents: ConsentInput[];
+  ip?: string;
+  userAgent?: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
     private readonly audit: AuditService,
+    private readonly legal: LegalService,
   ) {}
 
-  async register(email: string, password: string, name: string | undefined, ip?: string) {
-    email = email.toLowerCase().trim();
-    if (password.length < 8) throw new BadRequestException('Пароль минимум 8 символов');
+  /**
+   * Регистрация. Согласия фиксируются здесь же, в момент передачи данных, —
+   * это единственный момент, когда согласие на обработку ПДн вообще имеет смысл:
+   * раньше данных ещё нет, а позже они уже обработаны без основания.
+   */
+  async register(input: RegisterInput) {
+    const email = input.email.toLowerCase().trim();
+    if (input.password.length < 8) throw new BadRequestException('Пароль минимум 8 символов');
+
+    const granted = new Set(input.consents.filter((c) => c.granted).map((c) => c.kind));
+    const missing = REQUIRED_CONSENTS.filter((k) => !granted.has(k));
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        'Без принятия пользовательского соглашения и согласия на обработку ' +
+          'персональных данных регистрация невозможна',
+      );
+    }
+
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Пользователь с таким email уже есть');
+
+    // Рекламные каналы включаются РОВНО по галочке рассылок. Дефолт схемы
+    // (`notifyRoutes: true`) рассчитан на уже существующих подписчиков дайджеста
+    // и для новых регистраций не годится — здесь значение всегда явное.
+    const marketing = granted.has(ConsentKind.MARKETING);
 
     const code = verifyCode();
     const user = await this.prisma.user.create({
       data: {
         email,
-        name,
-        passwordHash: await bcrypt.hash(password, 10),
+        name: input.name,
+        passwordHash: await bcrypt.hash(input.password, BCRYPT_ROUNDS),
         role: 'MEMBER',
         emailVerifyToken: code,
         emailVerifyExpiry: new Date(Date.now() + CODE_TTL_MS),
+        notifyNews: marketing,
+        notifyRoutes: marketing,
+        notifyOffers: marketing,
+        digestOptOut: !marketing,
       },
     });
+    // Только после создания пользователя — у согласия внешний ключ на него.
+    await this.legal.record(user.id, input.consents, {
+      source: 'register',
+      ip: input.ip,
+      userAgent: input.userAgent,
+    });
     await this.sendVerifyEmail(email, code);
-    await this.audit.log({ userId: user.id, action: 'register', objectType: 'user', objectId: user.id, ip });
-    return { token: signToken({ sub: user.id, email: user.email, role: user.role }), user: publicUser(user) };
+    await this.audit.log({ userId: user.id, action: 'register', objectType: 'user', objectId: user.id, ip: input.ip });
+    const fresh = await this.prisma.user.findUnique({ where: { id: user.id } });
+    return { token: signToken({ sub: user.id, email: user.email, role: user.role }), user: publicUser(fresh) };
   }
 
   async login(email: string, password: string, ip?: string) {
@@ -73,10 +119,18 @@ export class AuthService {
     return { token: signToken({ sub: user.id, email: user.email, role: user.role }), user: publicUser(user) };
   }
 
+  /**
+   * Текущая сессия. Отдаём вместе со списком согласий, которых не хватает:
+   * окно-гейт спрашивает про них на каждой странице, и отдельный запрос за
+   * этим списком означал бы второй поход к API при каждой загрузке.
+   */
   async me(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const [user, pendingConsents] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: userId } }),
+      this.legal.missingRequired(userId),
+    ]);
     if (!user) throw new UnauthorizedException();
-    return publicUser(user);
+    return { ...publicUser(user), pendingConsents };
   }
 
   /** Re-send a fresh verification code to the current user (if not yet verified). */
@@ -115,17 +169,31 @@ export class AuthService {
     return { ok: true };
   }
 
-  /** Record acceptance of the Terms of Use (idempotent — keeps the first time). */
-  async acceptTerms(userId: string) {
+  /**
+   * Принятие соглашения и согласия на обработку ПДн окном-гейтом — для тех, кто
+   * зарегистрировался ДО появления галочек в форме, и при выходе новой редакции
+   * документов.
+   *
+   * Идемпотентности больше нет намеренно: если редакция сменилась, согласие надо
+   * получить заново, и запись о нём — новая строка. Прежняя версия молча
+   * возвращала «уже принято» и новую редакцию никто бы не подписал.
+   */
+  async acceptTerms(userId: string, ctx: { ip?: string; userAgent?: string } = {}) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
-    if (user.termsAcceptedAt) return { ok: true, termsAcceptedAt: user.termsAcceptedAt };
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: { termsAcceptedAt: new Date() },
-    });
+
+    const missing = await this.legal.missingRequired(userId);
+    if (missing.length === 0) {
+      return { ok: true, termsAcceptedAt: user.termsAcceptedAt };
+    }
+    await this.legal.record(
+      userId,
+      missing.map((kind) => ({ kind, granted: true, version: currentVersionFor(kind) })),
+      { source: 'gate', ip: ctx.ip, userAgent: ctx.userAgent },
+    );
+    const updated = await this.prisma.user.findUnique({ where: { id: userId } });
     await this.audit.log({ userId, action: 'terms.accept', objectType: 'user', objectId: userId });
-    return { ok: true, termsAcceptedAt: updated.termsAcceptedAt };
+    return { ok: true, termsAcceptedAt: updated?.termsAcceptedAt ?? null };
   }
 
   async requestPasswordReset(email: string) {
@@ -157,7 +225,7 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
-        passwordHash: await bcrypt.hash(newPassword, 10),
+        passwordHash: await bcrypt.hash(newPassword, BCRYPT_ROUNDS),
         passwordResetToken: null,
         passwordResetExpiry: null,
       },

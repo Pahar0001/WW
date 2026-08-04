@@ -9,8 +9,27 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   // Serve uploaded images at /uploads (outside the /api prefix).
   app.useStaticAssets(UPLOAD_DIR, { prefix: '/uploads/' });
+
+  // За балансировщиком Render ровно один прокси. Без этого `req.ip` — адрес
+  // прокси (все клиенты слипаются в один счётчик ограничителя частоты), а с
+  // разбором `X-Forwarded-For` вручную адрес подделывается клиентом.
+  app.set('trust proxy', 1);
+
+  // CORS. Прежняя настройка `origin: '*'` вместе с `credentials: true` не
+  // работала вовсе: браузер отвергает звёздочку в ответе на запрос с
+  // учётными данными — то есть межсайтовые запросы с авторизацией не проходили,
+  // а выглядело это как «CORS открыт всем».
+  //
+  // Браузеру CORS здесь и не нужен: страница всегда обращается к своему origin,
+  // а Next-сервер форвардит запрос на API (см. frontend/src/lib/proxy.ts).
+  // Поэтому по умолчанию отключаем межсайтовые запросы совсем и включаем их
+  // только явным списком адресов в CORS_ORIGIN.
+  const corsOrigins = (process.env.CORS_ORIGIN ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') ?? '*',
+    origin: corsOrigins.length > 0 ? corsOrigins : false,
     credentials: true,
   });
   // Request validation is handled per-controller with zod (see modules); no

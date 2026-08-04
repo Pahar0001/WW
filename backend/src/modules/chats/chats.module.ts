@@ -14,6 +14,7 @@ import { ChatsService } from './chats.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtAuthGuard } from '../auth/auth.guards';
 import { CurrentUser, type AuthUser } from '../auth/auth.decorators';
+import { RateLimit } from '../../common/rate-limit.guard';
 
 // Мессенджер. Все маршруты — только для вошедших.
 @Controller('chats')
@@ -60,6 +61,7 @@ class ChatsController {
   }
 
   @Post(':id/messages')
+  @RateLimit({ limit: 120, windowMs: 60_000 })       // флуд в переписке
   send(
     @CurrentUser() me: AuthUser,
     @Param('id') id: string,

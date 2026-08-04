@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { auth, getToken } from '@/lib/auth';
+import { auth, hasSession } from '@/lib/auth';
 import { AuthShell, inp, btn } from '@/components/auth/AuthShell';
 import { toast } from '@/components/ui/Toaster';
 
@@ -26,7 +26,7 @@ function Verify() {
 
   // If there's no email in the URL but the user is logged in, use theirs.
   useEffect(() => {
-    if (!email && getToken()) auth.me().then((u) => u && setEmail(u.email));
+    if (!email && hasSession()) auth.me().then((u) => u && setEmail(u.email));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -42,7 +42,7 @@ function Verify() {
       window.dispatchEvent(new Event('vela:auth-changed'));
       // Новый пользователь идёт на знакомство (/welcome) — один раз на устройство.
       // Тот, кто просто подтверждает почту повторно, остаётся здесь.
-      if (!r.alreadyVerified && getToken() && !welcomed()) {
+      if (!r.alreadyVerified && hasSession() && !welcomed()) {
         setTimeout(() => {
           window.location.href = '/welcome';
         }, 1200);
@@ -55,7 +55,7 @@ function Verify() {
   }
 
   async function resend() {
-    if (!getToken()) {
+    if (!hasSession()) {
       toast.info('Войдите в аккаунт, чтобы отправить код повторно');
       return;
     }
@@ -74,7 +74,7 @@ function Verify() {
     return (
       <p className="text-paper-dim">
         Email подтверждён ✓{' '}
-        {getToken() && !welcomed() ? (
+        {hasSession() && !welcomed() ? (
           <Link href="/welcome" className="text-paper hover:text-aurora">Знакомство с Vela</Link>
         ) : (
           <Link href="/login" className="text-paper hover:text-aurora">Войти</Link>

@@ -18,6 +18,7 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/auth.guards';
 import { Public } from '../auth/auth.decorators';
 import { StorageService, UPLOAD_DIR } from './storage.service';
+import { RateLimit } from '../../common/rate-limit.guard';
 
 export { UPLOAD_DIR };
 
@@ -37,6 +38,7 @@ class UploadsController {
   constructor(private readonly storage: StorageService) {}
 
   @Post()
+  @RateLimit({ limit: 60, windowMs: 60 * 60_000 })   // файлы лежат в БД — забить её легко
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(
     FileInterceptor('file', {

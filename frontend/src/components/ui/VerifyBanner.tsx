@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { auth, getToken } from '@/lib/auth';
+import { auth, hasSession } from '@/lib/auth';
 import { toast } from '@/components/ui/Toaster';
 
 /**
@@ -15,7 +15,7 @@ export function VerifyBanner() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) return;
+    if (!hasSession()) return;
     auth.me().then((u) => {
       if (u && !u.emailVerified) {
         setEmail(u.email);

@@ -279,6 +279,15 @@ export default function ProfilePage() {
                 <ThemeToggle />
               </div>
               <DigestToggle />
+              {/* Управление своими данными: согласия, уведомления, выгрузка,
+                  удаление аккаунта. Права субъекта ПДн должны быть доступны
+                  отсюда, а не через обращение в поддержку. */}
+              <Link
+                href="/profile/settings"
+                className="mt-2 block w-full rounded-full border border-ink-line px-4 py-2.5 text-center text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
+              >
+                Настройки аккаунта
+              </Link>
               <button
                 onClick={() => logout()}
                 className="mt-2 w-full rounded-full border border-ink-line px-4 py-2.5 text-sm text-paper-dim transition-colors hover:border-red-400/50 hover:text-paper"

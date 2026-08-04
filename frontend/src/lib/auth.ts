@@ -1,9 +1,31 @@
 'use client';
 
-// Client-side auth: token in localStorage, sent as Bearer through the /api proxy.
+// Сессия на клиенте.
+//
+// Токен живёт в httpOnly-cookie `vela_token`, которую ставит обработчик
+// `app/api/auth/[action]/route.ts`; странице он недоступен. Здесь остаётся
+// только отметка `vela_session` — «сессия есть», без самого токена, — и чтение
+// старого localStorage для тех, кто вошёл до перехода на cookie.
 const TOKEN_KEY = 'vela_token';
+const SESSION_MARKER = 'vela_session';
 
 export type Role = 'SUPER_ADMIN' | 'ADMIN' | 'ORGANIZER' | 'MEMBER';
+
+/** Виды согласий — те же, что в enum ConsentKind на бэкенде. */
+export type ConsentKind =
+  | 'TERMS'
+  | 'PRIVACY'
+  | 'MARKETING'
+  | 'COOKIE_ANALYTICS'
+  | 'COOKIE_MARKETING';
+
+export interface ConsentEntry {
+  kind: ConsentKind;
+  granted: boolean;
+  /** Редакция документа, которую человек видел на экране. */
+  version: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -14,24 +36,63 @@ export interface AuthUser {
   status: string;
   emailVerified: boolean;
   termsAcceptedAt?: string | null;
+  /**
+   * Обязательные согласия, которых не хватает: их нет вовсе или они даны по
+   * устаревшей редакции документа. Непустой список = показать окно-гейт.
+   */
+  pendingConsents?: ConsentKind[];
 }
 
+/**
+ * Токен из localStorage — ТОЛЬКО СТАРЫЕ СЕССИИ.
+ *
+ * Новый вход токен сюда не кладёт: он уезжает в httpOnly-cookie, которую
+ * выставляет обработчик `app/api/auth/[action]/route.ts`, и странице недоступен.
+ * Функция остаётся ради тех, кто вошёл до этого изменения, — их сессии обязаны
+ * дожить до истечения, а не оборваться на деплое.
+ */
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(TOKEN_KEY);
 }
-export function setToken(token: string) {
-  localStorage.setItem(TOKEN_KEY, token);
-  // Also a cookie so Server Components can read it (e.g. private trips).
-  document.cookie = `${TOKEN_KEY}=${token}; path=/; max-age=${7 * 24 * 3600}; samesite=lax`;
-  // Let always-mounted listeners (e.g. the terms gate) re-check the session.
+
+/**
+ * Есть ли сессия. Спрашивать надо это, а не `getToken()`: у новых сессий токена
+ * на странице нет вовсе, и проверка «есть токен» считала бы вошедшего гостем.
+ */
+export function hasSession(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (localStorage.getItem(TOKEN_KEY)) return true; // старая сессия
+  return document.cookie.split(';').some((c) => c.trim().startsWith(`${SESSION_MARKER}=`));
+}
+
+/** Сообщить постоянно висящим слушателям (гейт, меню), что сессия сменилась. */
+export function sessionChanged() {
   if (typeof window !== 'undefined') window.dispatchEvent(new Event('vela:auth-changed'));
 }
+
 export function logout() {
-  localStorage.removeItem(TOKEN_KEY);
+  // Сначала чистим старое хранилище, затем просим сервер погасить cookie:
+  // httpOnly-cookie из JavaScript не удаляется, это может сделать только он.
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* приватный режим */
+  }
   document.cookie = `${TOKEN_KEY}=; path=/; max-age=0`;
-  if (typeof window !== 'undefined') window.location.href = '/';
+  fetch('/api/auth/logout', { method: 'POST' })
+    .catch(() => {
+      /* даже если не вышло — уводим на главную, там гость */
+    })
+    .finally(() => {
+      window.location.href = '/';
+    });
 }
+
+/**
+ * Заголовок авторизации. Для новых сессий пуст — и это правильно: cookie уходит
+ * с запросом сама (одинаковый origin), а бэкенд читает и заголовок, и cookie.
+ */
 export function authHeaders(): Record<string, string> {
   const t = getToken();
   return t ? { Authorization: `Bearer ${t}` } : {};
@@ -59,14 +120,22 @@ function extractError(data: any): string | null {
 }
 
 export const auth = {
-  async register(email: string, password: string, name?: string) {
-    const r = await post<{ token: string; user: AuthUser }>('/auth/register', { email, password, name });
-    setToken(r.token);
+  /**
+   * Регистрация. Согласия уходят ВМЕСТЕ с данными, а не отдельным запросом
+   * следом: иначе между созданием аккаунта и записью согласия есть окно, в
+   * котором данные уже обработаны без основания, а при обрыве связи оно
+   * становится постоянным. Без обязательных согласий сервер откажет.
+   */
+  async register(email: string, password: string, name: string | undefined, consents: ConsentEntry[]) {
+    // Токена в ответе нет: обработчик /api/auth/[action] снял его и положил в
+    // httpOnly-cookie. Здесь остаётся только сообщить об этом интерфейсу.
+    const r = await post<{ user: AuthUser }>('/auth/register', { email, password, name, consents });
+    sessionChanged();
     return r.user;
   },
   async login(email: string, password: string) {
-    const r = await post<{ token: string; user: AuthUser }>('/auth/login', { email, password });
-    setToken(r.token);
+    const r = await post<{ user: AuthUser }>('/auth/login', { email, password });
+    sessionChanged();
     return r.user;
   },
   forgot: (email: string) => post('/auth/forgot-password', { email }),
@@ -76,7 +145,7 @@ export const auth = {
   resendVerification: () => post<{ ok: boolean; alreadyVerified?: boolean }>('/auth/resend-verification', {}),
   acceptTerms: () => post<{ ok: boolean; termsAcceptedAt: string }>('/auth/accept-terms', {}),
   async me(): Promise<AuthUser | null> {
-    if (!getToken()) {
+    if (!hasSession()) {
       meCache = null;
       return null;
     }

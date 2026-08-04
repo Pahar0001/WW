@@ -15,6 +15,7 @@ import { AssistantService } from './assistant.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtAuthGuard } from '../auth/auth.guards';
 import { CurrentUser, type AuthUser } from '../auth/auth.decorators';
+import { RateLimit } from '../../common/rate-limit.guard';
 
 const ChatIn = z.object({
   messages: z
@@ -42,6 +43,7 @@ class AssistantController {
   }
 
   @Post('chat')
+  @RateLimit({ limit: 30, windowMs: 60 * 60_000 })   // платный вызов Groq
   chat(@Body() body: unknown) {
     let d;
     try {
@@ -81,6 +83,7 @@ class AssistantController {
   }
 
   @Post('threads/:id/messages')
+  @RateLimit({ limit: 30, windowMs: 60 * 60_000 })   // тот же вызов, но в диалоге
   send(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: unknown) {
     let d;
     try {

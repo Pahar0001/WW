@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { listMyTrips, imageUrl, type Trip } from '@/lib/api';
-import { getToken } from '@/lib/auth';
+import { hasSession } from '@/lib/auth';
 
 /**
  * "Мои поездки" — trips the logged-in user belongs to (created or invited to),
@@ -14,7 +14,7 @@ export function MyTrips() {
   const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
-    if (!getToken()) {
+    if (!hasSession()) {
       setTrips([]);
       return;
     }

@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '@/lib/auth';
+import { hasSession } from '@/lib/auth';
 
 /** "Планирование" link — only for signed-in users. */
 export function PlanLink({ slug }: { slug: string }) {
   const [authed, setAuthed] = useState(false);
-  useEffect(() => setAuthed(!!getToken()), []);
+  useEffect(() => setAuthed(!!hasSession()), []);
   if (!authed) return null;
   return (
     <Link

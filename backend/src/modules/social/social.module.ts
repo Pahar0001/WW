@@ -15,7 +15,7 @@ import { z, ZodError } from 'zod';
 import { SocialService } from './social.service';
 import { JwtAuthGuard } from '../auth/auth.guards';
 import { CurrentUser, AuthUser } from '../auth/auth.decorators';
-import { verifyToken } from '../../common/jwt';
+import { optionalAccessor } from '../../common/optional-auth';
 
 function parse<T>(schema: z.ZodType<T>, body: unknown): T {
   try {
@@ -25,14 +25,8 @@ function parse<T>(schema: z.ZodType<T>, body: unknown): T {
     throw e;
   }
 }
-// Decode a Bearer token if present (optional auth, no error if absent).
-function optionalUserId(req: any): string | undefined {
-  const h: string = req.headers?.authorization ?? '';
-  const t = h.startsWith('Bearer ') ? h.slice(7) : null;
-  if (!t) return undefined;
-  const p = verifyToken(t);
-  return p ? p.sub : undefined;
-}
+// Опциональная авторизация: читает и заголовок, и cookie (см. optional-auth).
+const optionalUserId = (req: any): string | undefined => optionalAccessor(req)?.id;
 
 const TargetEnum = z.enum(['TRIP', 'POST']);
 const PostIn = z.object({ text: z.string().min(1).max(2000), imageUrl: z.string().optional() });

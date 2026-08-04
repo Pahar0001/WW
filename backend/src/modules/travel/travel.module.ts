@@ -2,17 +2,7 @@ import { Controller, Get, Module, Param, Query, Req } from '@nestjs/common';
 import { TravelService } from './travel.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { Public } from '../auth/auth.decorators';
-import { verifyToken } from '../../common/jwt';
-
-// Опциональная авторизация (как в trips.module) — нужна, чтобы планировщик
-// работал и на приватных поездках у их участников.
-function optionalAccessor(req: any): { id: string; role: string } | null {
-  const h: string = req.headers?.authorization ?? '';
-  const t = h.startsWith('Bearer ') ? h.slice(7) : null;
-  if (!t) return null;
-  const p = verifyToken(t);
-  return p ? { id: p.sub, role: p.role } : null;
-}
+import { optionalAccessor } from '../../common/optional-auth';
 
 @Controller('travel')
 class TravelController {
@@ -42,5 +32,8 @@ class TravelController {
   imports: [PrismaModule],
   controllers: [TravelController],
   providers: [TravelService],
+  // Логистика переиспользует реальные цены билетов вместо второго запроса к
+  // Aviasales: у сервиса свой кэш на 10 минут, дублировать его нечем.
+  exports: [TravelService],
 })
 export class TravelModule {}

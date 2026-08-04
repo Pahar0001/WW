@@ -23,10 +23,71 @@ if (!process.env.__VELA_BUILD_ID) {
 }
 const BUILD_ID = process.env.__VELA_BUILD_ID;
 
+const isDev = process.env.NODE_ENV !== 'production';
+
+/**
+ * Политика содержимого и прочие заголовки безопасности.
+ *
+ * `'unsafe-inline'` в script-src оставлен ОСОЗНАННО: Next вставляет в страницу
+ * собственные встроенные сценарии (загрузчик, поток данных), плюс наш выбор темы
+ * до первой отрисовки в `layout.tsx`. Убрать его можно только вместе с переходом
+ * на nonce через middleware — это отдельная работа, и делать её заодно значит
+ * рисковать белым экраном на проде. Остальные директивы при этом работают:
+ * `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` и
+ * `frame-ancestors 'none'` закрывают внедрение плагинов, подмену базового
+ * адреса, отправку формы на чужой сайт и показ Vela внутри чужого фрейма.
+ *
+ * Что чему нужно именно в этом приложении:
+ *   img-src https:   — плитки карт CARTO и фотографии мест из Википедии
+ *                      (ниже `remotePatterns` уже разрешает любой https-хост);
+ *   media-src blob:  — хиро-видео и голосовые сообщения, записанные на месте;
+ *   connect-src      — только свой origin: страница ходит в API через свой же
+ *                      Next-сервер, наружу запросов нет. В dev добавлен ws: —
+ *                      по нему живёт горячая перезагрузка;
+ *   worker-src blob: — service worker и воркеры three.js.
+ */
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+const securityHeaders = [
+  { key: 'Content-Security-Policy', value: csp },
+  // Браузер не должен угадывать тип содержимого: на этом строятся атаки, когда
+  // загруженный пользователем файл начинают исполнять как сценарий.
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  // Наружу уходит только домен, с которого пришли, — без пути и параметров.
+  // На этом же держится обещание политики: из реферера храним только хост.
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  // Микрофон и камера нужны своим же страницам (голосовые, кружки),
+  // геолокация — картам. Остальное выключено и чужим фреймам не выдаётся.
+  {
+    key: 'Permissions-Policy',
+    value: 'camera=(self), microphone=(self), geolocation=(self), interest-cohort=()',
+  },
+  // Действует только по https; на localhost браузер заголовок игнорирует.
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   generateBuildId: () => BUILD_ID,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
+  async headers() {
+    return [{ source: '/:path*', headers: securityHeaders }];
+  },
   // 'standalone' is for the Docker image (CMD runs server.js). On Netlify/Vercel
   // the platform's own Next runtime handles output, so leave it default there.
   output: process.env.BUILD_STANDALONE === 'true' ? 'standalone' : undefined,
