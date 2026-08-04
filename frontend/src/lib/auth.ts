@@ -66,9 +66,25 @@ export function hasSession(): boolean {
   return document.cookie.split(';').some((c) => c.trim().startsWith(`${SESSION_MARKER}=`));
 }
 
-/** Сообщить постоянно висящим слушателям (гейт, меню), что сессия сменилась. */
+/**
+ * Сессия сменилась: чистим следы прошлой и будим постоянно висящих слушателей
+ * (гейт документов, меню аккаунта).
+ *
+ * ⚠️ Удаление старого токена из localStorage — НЕ уборка, а необходимость. Он
+ * остаётся у всех, кто входил до перехода на httpOnly-cookie, и `authHeaders()`
+ * продолжает слать его Bearer'ом поверх новой, валидной cookie. Пока бэкенд
+ * предпочитал заголовок, это выбрасывало человека из админки сразу после
+ * успешного входа. Бэкенд теперь перебирает оба источника, но держать заведомо
+ * протухший токен и слать его при каждом запросе всё равно незачем.
+ */
 export function sessionChanged() {
-  if (typeof window !== 'undefined') window.dispatchEvent(new Event('vela:auth-changed'));
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* приватный режим — хранилище недоступно */
+  }
+  window.dispatchEvent(new Event('vela:auth-changed'));
 }
 
 export function logout() {

@@ -15,18 +15,30 @@ import { PUBLIC_KEY, ROLES_KEY } from './auth.decorators';
 export const TOKEN_COOKIE = 'vela_token';
 
 /**
- * Токен запроса: сначала заголовок `Authorization`, затем cookie.
+ * ВСЕ токены запроса: из заголовка `Authorization` и из cookie.
  *
- * Cookie нужна, чтобы токен мог жить в httpOnly-хранилище: до неё он лежал в
- * localStorage, откуда его забирает любой XSS. Заголовок остаётся первым —
- * по нему ходят уже выданные сессии и любые внешние клиенты.
+ * ⚠️ ВОЗВРАЩАЕТ СПИСОК, А НЕ ПЕРВЫЙ НАЙДЕННЫЙ, и это не придирка. Раньше здесь
+ * было «заголовок, иначе cookie», и это запирало снаружи всех, кто входил ДО
+ * перехода на httpOnly-cookie: у них в localStorage остался прежний токен, и
+ * `authHeaders()` продолжал слать его Bearer'ом. После нового входа появлялась
+ * валидная cookie, но заголовок побеждал, подпись не сходилась — 401 при живой
+ * сессии. Со стороны это выглядело так: вход проходит, админка моргает
+ * «проверка доступа» и выбрасывает обратно.
+ *
+ * Теперь гвард перебирает кандидатов и берёт первый, который проверяется:
+ * негодный заголовок больше не отменяет годную cookie.
  *
  * Cookie разбираем вручную: ради одной строки тащить `cookie-parser` в образ,
  * который собирается без lock-файла, не стоит (§12.1 хендоффа).
  */
-export function tokenOf(req: any): string | null {
+export function tokensOf(req: any): string[] {
+  const out: string[] = [];
+
   const header: string = req.headers['authorization'] ?? '';
-  if (header.startsWith('Bearer ')) return header.slice(7);
+  if (header.startsWith('Bearer ')) {
+    const t = header.slice(7).trim();
+    if (t) out.push(t);
+  }
 
   const raw: string = req.headers['cookie'] ?? '';
   for (const part of raw.split(';')) {
@@ -34,7 +46,16 @@ export function tokenOf(req: any): string | null {
     if (eq < 0) continue;
     if (part.slice(0, eq).trim() !== TOKEN_COOKIE) continue;
     const value = part.slice(eq + 1).trim();
-    return value ? decodeURIComponent(value) : null;
+    if (value) out.push(decodeURIComponent(value));
+  }
+  return out;
+}
+
+/** Первая полезная нагрузка, которая действительно проверилась. */
+export function verifiedPayload(req: any) {
+  for (const token of tokensOf(req)) {
+    const payload = verifyToken(token);
+    if (payload) return payload;
   }
   return null;
 }
@@ -59,10 +80,9 @@ export class JwtAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = ctx.switchToHttp().getRequest();
-    const token = tokenOf(req);
-    if (!token) throw new UnauthorizedException('Требуется вход');
+    if (tokensOf(req).length === 0) throw new UnauthorizedException('Требуется вход');
 
-    const payload = verifyToken(token);
+    const payload = verifiedPayload(req);
     if (!payload) throw new UnauthorizedException('Недействительный токен');
 
     const user = await this.prisma.user.findUnique({
