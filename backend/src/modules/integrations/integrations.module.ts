@@ -1,6 +1,7 @@
 import { Controller, Get, Module, Query } from '@nestjs/common';
 import { ALL_ADAPTERS } from './adapters';
 import { Offer, SearchResult } from './types';
+import { ServicesController } from './services.controller';
 
 class IntegrationsService {
   /** Provider readiness — shown in CMS / status page. */
@@ -55,5 +56,5 @@ class IntegrationsController {
   }
 }
 
-@Module({ controllers: [IntegrationsController] })
+@Module({ controllers: [IntegrationsController, ServicesController] })
 export class IntegrationsModule {}

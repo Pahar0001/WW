@@ -9,9 +9,17 @@ export type ProviderId =
   | 'skyscanner'
   | 'twelvego'
   | 'yandex-travel'
-  | 'expedia';
+  | 'expedia'
+  // Трансферы: заказ машины к рейсу и обратно.
+  | 'kiwitaxi'
+  | 'gettransfer'
+  // Аренда транспорта на месте.
+  | 'localrent'
+  // Карты и маршрутизация — не «предложения», но тот же слой интеграций:
+  // без ключа фича молча прячется, а не показывает пустую карту.
+  | 'maps';
 
-export type OfferKind = 'HOTEL' | 'FLIGHT' | 'TRANSPORT';
+export type OfferKind = 'HOTEL' | 'FLIGHT' | 'TRANSPORT' | 'TRANSFER' | 'RENTAL' | 'MAP';
 
 export interface Money {
   amount: number;
@@ -53,6 +61,15 @@ export interface FlightQuery {
   passengers?: number;
 }
 
+export interface TransferQuery {
+  /** Откуда: код аэропорта или название точки. */
+  from: string;
+  to: string;
+  /** Дата и время подачи, ISO. */
+  at: string;
+  passengers?: number;
+}
+
 /**
  * Every provider implements this. Legal rule: official APIs with valid keys
  * only — no scraping, no ToS circumvention, robots.txt respected.
@@ -63,4 +80,5 @@ export interface TravelAdapter {
   isConfigured(): boolean;
   searchHotels?(q: HotelQuery): Promise<SearchResult>;
   searchFlights?(q: FlightQuery): Promise<SearchResult>;
+  searchTransfers?(q: TransferQuery): Promise<SearchResult>;
 }

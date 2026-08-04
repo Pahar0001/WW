@@ -64,6 +64,50 @@ class ExpediaAdapter extends BaseAdapter {
   protected readonly envKey = 'EXPEDIA_API_KEY';
 }
 
+// ── Трансферы, аренда и карты ──────────────────────────────────────────────
+// Появились вместе с разделом «Логистика путешествия»: там нужны заказ машины
+// к рейсу, аренда на месте и построение маршрута. Реализации нет ни у одного —
+// без ключа и коммерческого договора адаптер обязан говорить NOT_CONFIGURED,
+// а не показывать выдуманные цены.
+
+class KiwitaxiAdapter extends BaseAdapter {
+  readonly id: ProviderId = 'kiwitaxi';
+  readonly kinds: OfferKind[] = ['TRANSFER'];
+  protected readonly envKey = 'KIWITAXI_API_KEY';
+  async searchTransfers() {
+    if (!this.isConfigured()) return this.notConfigured();
+    // TODO: партнёрский API Kiwitaxi → Offer[] с kind TRANSFER.
+    return this.notConfigured();
+  }
+}
+
+class GetTransferAdapter extends BaseAdapter {
+  readonly id: ProviderId = 'gettransfer';
+  readonly kinds: OfferKind[] = ['TRANSFER'];
+  protected readonly envKey = 'GETTRANSFER_API_KEY';
+  async searchTransfers() {
+    return this.notConfigured();
+  }
+}
+
+class LocalrentAdapter extends BaseAdapter {
+  readonly id: ProviderId = 'localrent';
+  readonly kinds: OfferKind[] = ['RENTAL'];
+  protected readonly envKey = 'LOCALRENT_API_KEY';
+}
+
+/**
+ * Карты. Сейчас карты рисует Leaflet поверх бесплатных тайлов CARTO, ключ не
+ * нужен; адаптер объявлен, чтобы у маршрутизации и геокодирования (а им ключ
+ * понадобится) было готовое место, а страница статуса показывала честное «не
+ * настроено» вместо молчания.
+ */
+class MapsAdapter extends BaseAdapter {
+  readonly id: ProviderId = 'maps';
+  readonly kinds: OfferKind[] = ['MAP'];
+  protected readonly envKey = 'MAPS_API_KEY';
+}
+
 // Typed as the interface so callers see searchHotels/searchFlights as optional
 // (some providers implement only one). This is what keeps the build strict-safe.
 export const ALL_ADAPTERS: TravelAdapter[] = [
@@ -74,4 +118,8 @@ export const ALL_ADAPTERS: TravelAdapter[] = [
   new TwelveGoAdapter(),
   new YandexTravelAdapter(),
   new ExpediaAdapter(),
+  new KiwitaxiAdapter(),
+  new GetTransferAdapter(),
+  new LocalrentAdapter(),
+  new MapsAdapter(),
 ];

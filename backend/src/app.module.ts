@@ -26,6 +26,7 @@ import { CurrencyModule } from './modules/currency/currency.module';
 import { DigestModule } from './modules/digest/digest.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { AccountModule } from './modules/account/account.module';
+import { LogisticsModule } from './modules/logistics/logistics.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AccountModule } from './modules/account/account.module';
     DigestModule,
     LegalModule,
     AccountModule,
+    LogisticsModule,
   ],
   providers: [
     // Глобально, но срабатывает только там, где на обработчике стоит

@@ -83,6 +83,14 @@ export default async function TripPage({ params }: { params: { slug: string } })
           <EditTripLink slug={params.slug} />
           <PlanLink slug={params.slug} />
           <Link
+            href={`/trips/${params.slug}/logistics`}
+            data-cursor="hover"
+            title="Как добраться, транспорт, отели у аэропорта, таймлайн"
+            className="text-sm text-paper-dim hover:text-paper"
+          >
+            Логистика
+          </Link>
+          <Link
             href={`/trips/${params.slug}/print`}
             data-cursor="hover"
             title="Печатный документ поездки (PDF)"
@@ -264,6 +272,29 @@ export default async function TripPage({ params }: { params: { slug: string } })
       {/* Interactive experience (карта по дням / весь маршрут внутри) */}
       <section className="container-vela">
         <TripExperience trip={trip} />
+      </section>
+
+      {/* Логистика — ПОСЛЕ маршрута и ПЕРЕД бюджетом: сначала человек понимает,
+          что увидит, потом как туда добраться, и только потом считает деньги.
+          Сам раздел живёт отдельной страницей: он зависит от города вылета и
+          дат, и разворачивать его прямо здесь значит утопить страницу. */}
+      <section className="container-vela mt-16">
+        <Link
+          href={`/trips/${params.slug}/logistics`}
+          className="group flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-ink-line bg-ink-soft/40 p-7 transition-colors hover:border-aurora/40"
+        >
+          <span>
+            <span className="block font-serif text-2xl tracking-tightest text-paper">
+              Логистика путешествия
+            </span>
+            <span className="mt-1.5 block text-sm text-paper-dim">
+              Как добраться, чем ехать внутри страны, где ночевать перед вылетом и в первую ночь
+            </span>
+          </span>
+          <span className="text-sm text-aurora transition-transform group-hover:translate-x-1">
+            Открыть →
+          </span>
+        </Link>
       </section>
 
       {/* Перелёт под даты (реальные цены Aviasales) + полный расчёт трат */}
