@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import { EASE, onFrame } from '@/lib/motion';
 import { pluralize } from '@/lib/plural';
-import { PUBLIC_REGIONS, REGIONS, ARTIFACTS } from '../regions';
+import { PUBLIC_REGIONS, REGIONS, ARTIFACTS, COUNTRY_NAME } from '../regions';
 import { gameStore, live, useGame } from '../state';
 import { HeightField, WORLD, groundColor, lavaAt, waterLevelAt } from '../world/terrain';
 import { FRAGMENTS } from '../story';
@@ -403,6 +403,46 @@ function RegionCard() {
                 Продолжить путь
               </button>
             </motion.div>
+
+            {/*
+              Мост из вымышленного мира в настоящий. Смысл игры на сайте
+              путешествий не в том, чтобы удержать игрока внутри, а в том, чтобы
+              вывести его наружу: открыл ледник в игре — вот страны, где ледник
+              настоящий, и вот кнопка собрать туда маршрут.
+            */}
+            {card.realWorld && (
+              <motion.div
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.9, ease: EASE, delay: 0.95 }}
+                className="relative mt-7 border-t border-white/12 pt-6"
+              >
+                <p className="text-[11px] uppercase tracking-[0.24em] text-white/40">
+                  В настоящем мире
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-white/70">
+                  Это {card.realWorld.theme}. Такое есть здесь:
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {card.realWorld.countries.map((slug) => (
+                    <Link
+                      key={slug}
+                      href={`/community/${slug}`}
+                      className="rounded-full border border-white/20 px-3.5 py-1.5 text-xs text-white/75 transition-colors hover:border-white/45 hover:text-white"
+                    >
+                      {COUNTRY_NAME[slug] ?? slug}
+                    </Link>
+                  ))}
+                </div>
+                <Link
+                  href={`/trips/new?region=${card.id}`}
+                  className="mt-4 inline-flex items-center gap-2 text-sm text-[#e6c179] transition-colors hover:text-white"
+                >
+                  Открыть настоящее путешествие в такое место
+                  <span>→</span>
+                </Link>
+              </motion.div>
+            )}
           </motion.div>
         </motion.div>
       )}

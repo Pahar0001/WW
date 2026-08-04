@@ -1,7 +1,14 @@
 'use client';
 
 import * as THREE from 'three';
-import { HeightField, WORLD, waterLevelAt } from '../world/terrain';
+import {
+  HeightField,
+  WORLD,
+  waterLevelAt,
+  surfaceAt,
+  SURFACE_GRIP,
+  type Surface,
+} from '../world/terrain';
 import { blocked, buildColliders } from '../world/colliders';
 
 /**
@@ -230,6 +237,10 @@ export type Character = {
   hold: number;
   /** Глубина воды под ногами (0 — сухо). */
   wade: number;
+  /** Материал под ногами — для физики, звука шагов и подсказок в HUD. */
+  surface: Surface;
+  /** Насколько героя тащит вниз по склону, 0..1 — для позы и HUD. */
+  slide: number;
 };
 
 export const WALK_SPEED = 4.3;
@@ -257,6 +268,8 @@ export function createCharacter(hf: HeightField): Character {
     air: 0,
     hold: 0,
     wade: 0,
+    surface: 'sand',
+    slide: 0,
   };
 }
 
@@ -308,22 +321,76 @@ export function stepCharacter(
   }
   const wishLen = Math.hypot(wishX, wishZ);
 
-  // Подъём в гору замедляет: уклон под ногами напрямую режет цель по скорости.
+  // ── Поверхность под ногами ──
+  // `SURFACE_GRIP` был посчитан в terrain.ts вместе с материалами и до сих пор
+  // лежал без дела: физика не различала лёд и камень. Теперь сцепление — единый
+  // множитель разгона, торможения, прыжка и скатывания, поэтому лёд ведёт себя
+  // как лёд без единой отдельной ветки «если ледник».
   const slope = hf.slope(c.pos.x, c.pos.z);
+  const groundHere = hf.sample(c.pos.x, c.pos.z);
+  c.surface = surfaceAt(c.pos.x, c.pos.z, groundHere, slope);
+  const grip = SURFACE_GRIP[c.surface];
+
+  // Подъём в гору замедляет: уклон под ногами напрямую режет цель по скорости.
   const slopePenalty = 1 - Math.min(0.55, Math.max(0, slope - 0.12) * 1.1);
   const wadePenalty = c.wade > 0.05 ? 1 - Math.min(0.55, c.wade * 0.5) : 1;
   const maxSpeed = (input.run && !frozen ? RUN_SPEED : WALK_SPEED) * slopePenalty * wadePenalty;
 
   const targetVX = wishX * maxSpeed;
   const targetVZ = wishZ * maxSpeed;
-  const a = (c.grounded ? ACCEL : AIR_ACCEL) * d;
-  c.vel.x += (targetVX - c.vel.x) * Math.min(1, a / Math.max(1, maxSpeed || 1) * 3);
-  c.vel.z += (targetVZ - c.vel.z) * Math.min(1, a / Math.max(1, maxSpeed || 1) * 3);
-  // Трение в покое, иначе герой бесконечно скользит.
-  if (wishLen < 0.01 && c.grounded) {
-    const damp = Math.max(0, 1 - d * 12);
+
+  // Разгон и торможение — через УСКОРЕНИЕ в м/с², а не через долю разницы за
+  // кадр. Доля зависит от частоты кадров: прежняя формула на 144 Гц разгоняла
+  // героя заметно резче, чем на 60, — та же ошибка, ради которой в motion.ts
+  // живёт `damp()`. Сцепление здесь и создаёт инерцию: на льду набор скорости
+  // и остановка занимают в шесть раз больше времени, чем на камне.
+  // ⚠️ Разгон к цели применяется, только пока управление НАЖАТО (или герой в
+  // воздухе). Иначе цель равна нулю, и та же формула начинает работать как
+  // мощнейший тормоз: на льду она гасила 4.2 м/с² против 2.0 м/с² от склона —
+  // скольжение вычислялось, показатель `slide` рос, а герой стоял на месте.
+  // Отпущенное управление означает «не тормози», а не «остановись»; замедляет
+  // после этого только трение ниже, и оно зависит от сцепления.
+  if (wishLen > 0.01 || !c.grounded) {
+    const accel = (c.grounded ? ACCEL * grip : AIR_ACCEL) * d;
+    const dvx = targetVX - c.vel.x;
+    const dvz = targetVZ - c.vel.z;
+    const dv = Math.hypot(dvx, dvz);
+    if (dv > 1e-4) {
+      const step = Math.min(dv, accel);
+      c.vel.x += (dvx / dv) * step;
+      c.vel.z += (dvz / dv) * step;
+    }
+  } else {
+    // Трение в покое, иначе герой едет вечно. По сцеплению: на камне он встаёт
+    // за пятую долю секунды, на льду продолжает ехать секунду с лишним.
+    const damp = Math.max(0, 1 - d * 12 * grip);
     c.vel.x *= damp;
     c.vel.z *= damp;
+  }
+
+  // Вода вязкая: помимо срезанной максимальной скорости — сопротивление, из-за
+  // которого вбегание в воду гасит разгон, а не проносит героя по инерции.
+  if (c.wade > 0.05) {
+    const drag = Math.max(0, 1 - d * (1.2 + c.wade * 2.4));
+    c.vel.x *= drag;
+    c.vel.z *= drag;
+  }
+
+  // ── Скатывание ──
+  // Горизонтальная часть нормали поля высот смотрит ВНИЗ по склону (nx ∝ −dh/dx),
+  // поэтому направление скатывания берётся из неё напрямую. Порог зависит от
+  // сцепления: камень (grip ≥ 1) не скользит никогда, лёд поедет уже с пологого.
+  const slideStart = 0.18 + Math.min(1, grip) * 0.5;
+  c.slide = 0;
+  if (c.grounded && slope > slideStart && grip < 1) {
+    const n = hf.normal(c.pos.x, c.pos.z);
+    const dl = Math.hypot(n[0], n[2]);
+    if (dl > 1e-4) {
+      const force = GRAVITY * (slope - slideStart) * (1 - grip);
+      c.vel.x += (n[0] / dl) * force * d;
+      c.vel.z += (n[2] / dl) * force * d;
+      c.slide = Math.min(1, (slope - slideStart) * (1 - grip) * 3);
+    }
   }
 
   // ── Горизонтальное перемещение с проверкой рельефа ──
@@ -354,7 +421,11 @@ export function stepCharacter(
 
   const wantJump = !frozen && input.jumpAt > 0 && performance.now() - input.jumpAt < 150;
   if (c.grounded && wantJump) {
-    c.vel.y = JUMP_V;
+    // Оттолкнуться можно только от того, что держит: на льду прыжок вялый, а
+    // по пояс в воде — почти никакой. Ниже 55 % не опускаемся, иначе прыжок
+    // перестаёт читаться как прыжок и выглядит поломкой управления.
+    const push = Math.min(1, grip) * (1 - Math.min(0.7, c.wade * 0.6));
+    c.vel.y = JUMP_V * (0.55 + 0.45 * push);
     c.grounded = false;
     c.air = 0;
     input.jumpAt = -1;

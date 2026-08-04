@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { auth, isAdminRole, type AuthUser } from '@/lib/auth';
 import { TripForm } from '@/components/trips/TripForm';
+import { FromVelaBanner } from '@/components/trips/FromVelaBanner';
 
 /**
  * Member-facing "create a trip" page. Any logged-in user can create a PRIVATE
@@ -34,6 +35,12 @@ export default function NewTripPage() {
         Соберите свой маршрут по дням, выберите темп и пригласите друзей. Поездка
         будет приватной — её увидите только вы и приглашённые участники.
       </p>
+
+      {/* Suspense обязателен: useSearchParams переводит страницу на отрисовку по
+          запросу, и без границы next build ругается на всю ветку. */}
+      <Suspense fallback={null}>
+        <FromVelaBanner />
+      </Suspense>
 
       <TripForm canSetPublic={isAdminRole(me!.role)} />
     </main>

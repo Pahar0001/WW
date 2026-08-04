@@ -150,6 +150,21 @@ function GameLoop({
         character.current.pos.set(x, hf.sample(x, z) + 0.5, z);
         character.current.vel.set(0, 0, 0);
       },
+      // Шаг физики вручную. Нужен, чтобы мерить физику ЧИСЛАМИ, а не на глаз:
+      // на скрытой панели превью `requestAnimationFrame` придушен до ~0.3 кадра
+      // в секунду (§12.8), и «посмотреть, как скользит» там невозможно. А так
+      // прогоняется хоть тысяча шагов с точным dt, и результат не зависит от
+      // того, рисует браузер кадры или нет.
+      step: (dt = 1 / 60, steps = 1) => {
+        for (let i = 0; i < steps; i++) stepCharacter(character.current, hf, 0, dt, false);
+        const c = character.current;
+        return {
+          pos: [+c.pos.x.toFixed(2), +c.pos.z.toFixed(2)],
+          speed: +c.speed.toFixed(3),
+          surface: c.surface,
+          slide: +c.slide.toFixed(3),
+        };
+      },
     };
   }, [hf, character]);
 
@@ -433,16 +448,58 @@ function TouchControls() {
           className="h-12 w-12 rounded-full border border-white/35 bg-white/25 transition-transform duration-100"
         />
       </div>
-      <button
-        type="button"
-        aria-label="Прыжок"
-        onPointerDown={() => {
-          input.jumpAt = performance.now();
-        }}
-        className="pointer-events-auto grid h-20 w-20 place-items-center rounded-full border border-[#e6c179]/40 bg-black/30 text-xs uppercase tracking-[0.16em] text-[#e6c179] backdrop-blur-md active:scale-95"
-      >
-        Прыжок
-      </button>
+      <div className="flex flex-col items-end gap-3">
+        {/*
+          Кнопка действия. До неё на телефоне не было НИ ОДНОГО способа нажать
+          «E», а на нём держатся съёмка и работы на месте — то есть часть
+          заданий была физически непроходима, хотя мир и джойстик работали.
+
+          Держим и `action`, и `actionAt`: первое нужно работам (настил моста
+          требует пары секунд удержания), второе — одиночным действиям, где
+          короткое касание иначе укладывается между двумя кадрами и теряется.
+          Отпускание ловим и по `up`, и по `cancel`, и по `leave`: палец,
+          соскользнувший с кнопки, обязан считаться отпущенным, иначе работа
+          продолжалась бы сама.
+        */}
+        <button
+          type="button"
+          aria-label="Действие"
+          onPointerDown={() => {
+            input.action = true;
+            input.actionAt = performance.now();
+          }}
+          onPointerUp={() => {
+            input.action = false;
+          }}
+          onPointerCancel={() => {
+            input.action = false;
+          }}
+          // И `out`, и `leave`: React синтезирует `pointerleave` из `pointerout`,
+          // и один только `leave` не срабатывает, если событие приходит не от
+          // живого пальца. Отпустить кнопку обязаны оба пути — иначе
+          // соскользнувший палец оставит работу выполняться саму.
+          onPointerOut={() => {
+            input.action = false;
+          }}
+          onPointerLeave={() => {
+            input.action = false;
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+          className="pointer-events-auto grid h-20 w-20 select-none place-items-center rounded-full border border-white/30 bg-black/30 text-xs uppercase tracking-[0.16em] text-white/85 backdrop-blur-md active:scale-95"
+        >
+          Действие
+        </button>
+        <button
+          type="button"
+          aria-label="Прыжок"
+          onPointerDown={() => {
+            input.jumpAt = performance.now();
+          }}
+          className="pointer-events-auto grid h-20 w-20 select-none place-items-center rounded-full border border-[#e6c179]/40 bg-black/30 text-xs uppercase tracking-[0.16em] text-[#e6c179] backdrop-blur-md active:scale-95"
+        >
+          Прыжок
+        </button>
+      </div>
     </div>
   );
 }

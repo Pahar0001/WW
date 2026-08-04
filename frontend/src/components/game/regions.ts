@@ -38,6 +38,46 @@ export type Region = {
   secret?: boolean;
   /** Цвет метки/свечения. */
   tone: string;
+  /**
+   * Настоящие направления с таким же ландшафтом.
+   *
+   * Ради этого игра и стоит на сайте: открыв вымышленный ледник, человек
+   * получает предложение съездить на настоящий. Слаги — из каталога стран,
+   * чтобы ссылки вели в живые разделы, а не в никуда.
+   */
+  realWorld?: {
+    /** Чем это место является в реальном мире. */
+    theme: string;
+    /** Слаги стран каталога — от самого близкого по ощущению. */
+    countries: string[];
+  };
+};
+
+/**
+ * Названия стран, на которые ссылаются регионы.
+ *
+ * Своя короткая таблица, а не импорт `lib/world-countries.ts` с девяноста
+ * записями: бандл игры изолирован маршрутом `/vela` и держится отдельно от
+ * сайта, тянуть в него общий справочник ради пятнадцати названий незачем.
+ */
+export const COUNTRY_NAME: Record<string, string> = {
+  ae: 'ОАЭ',
+  am: 'Армения',
+  cn: 'Китай',
+  eg: 'Египет',
+  ge: 'Грузия',
+  gr: 'Греция',
+  id: 'Индонезия',
+  it: 'Италия',
+  jp: 'Япония',
+  kz: 'Казахстан',
+  lk: 'Шри-Ланка',
+  me: 'Черногория',
+  mv: 'Мальдивы',
+  th: 'Таиланд',
+  tr: 'Турция',
+  us: 'США',
+  vn: 'Вьетнам',
 };
 
 export const REGIONS: Region[] = [
@@ -53,6 +93,10 @@ export const REGIONS: Region[] = [
     radius: 40,
     zone: 'cove',
     tone: '#f0c987',
+    realWorld: {
+      theme: 'тёплое море и бухты',
+      countries: ['th', 'me', 'id', 'gr'],
+    },
   },
   {
     id: 'forest',
@@ -66,6 +110,10 @@ export const REGIONS: Region[] = [
     radius: 56,
     zone: 'jungle',
     tone: '#a8d59a',
+    realWorld: {
+      theme: 'влажные тропические леса',
+      countries: ['vn', 'id', 'lk', 'th'],
+    },
   },
   {
     id: 'falls',
@@ -79,6 +127,10 @@ export const REGIONS: Region[] = [
     radius: 34,
     zone: 'meadow',
     tone: '#9fd7e8',
+    realWorld: {
+      theme: 'большие водопады и зелёные долины',
+      countries: ['ge', 'vn', 'id'],
+    },
   },
   {
     id: 'lake',
@@ -92,6 +144,10 @@ export const REGIONS: Region[] = [
     radius: 38,
     zone: 'crater',
     tone: '#b9c9ef',
+    realWorld: {
+      theme: 'горные и кратерные озёра',
+      countries: ['ge', 'kz', 'jp', 'id'],
+    },
   },
   {
     id: 'summit',
@@ -105,6 +161,10 @@ export const REGIONS: Region[] = [
     radius: 42,
     zone: 'ridge',
     tone: '#e8e4f0',
+    realWorld: {
+      theme: 'высокогорные хребты и перевалы',
+      countries: ['ge', 'kz', 'am'],
+    },
   },
   {
     id: 'ruins',
@@ -118,6 +178,10 @@ export const REGIONS: Region[] = [
     radius: 58,
     zone: 'ruins',
     tone: '#dcc08a',
+    realWorld: {
+      theme: 'древние города и археология',
+      countries: ['gr', 'eg', 'it', 'tr'],
+    },
   },
   {
     id: 'glacier',
@@ -131,6 +195,10 @@ export const REGIONS: Region[] = [
     radius: 48,
     zone: 'glacier',
     tone: '#cfe6f5',
+    realWorld: {
+      theme: 'ледники, снег и высокогорье',
+      countries: ['kz', 'ge', 'jp'],
+    },
   },
   {
     id: 'volcano',
@@ -144,6 +212,10 @@ export const REGIONS: Region[] = [
     radius: 40,
     zone: 'volcano',
     tone: '#f6a071',
+    realWorld: {
+      theme: 'действующие вулканы',
+      countries: ['id', 'it', 'jp'],
+    },
   },
   {
     id: 'desert',
@@ -157,6 +229,10 @@ export const REGIONS: Region[] = [
     radius: 46,
     zone: 'desert',
     tone: '#efc98a',
+    realWorld: {
+      theme: 'пустыни, барханы и оазисы',
+      countries: ['ae', 'eg', 'kz'],
+    },
   },
   {
     id: 'canyon',
@@ -170,6 +246,10 @@ export const REGIONS: Region[] = [
     radius: 48,
     zone: 'canyon',
     tone: '#e0906b',
+    realWorld: {
+      theme: 'каньоны и красные скалы',
+      countries: ['us', 'eg', 'tr'],
+    },
   },
   // ── Скрытые места ──
   {
@@ -185,6 +265,10 @@ export const REGIONS: Region[] = [
     zone: 'jungle',
     secret: true,
     tone: '#c8b6f2',
+    realWorld: {
+      theme: 'морские гроты и пещеры',
+      countries: ['th', 'me', 'vn'],
+    },
   },
   {
     id: 'balcony',
@@ -199,6 +283,10 @@ export const REGIONS: Region[] = [
     zone: 'ruins',
     secret: true,
     tone: '#f2b6b6',
+    realWorld: {
+      theme: 'смотровые площадки над обрывом',
+      countries: ['gr', 'it', 'cn'],
+    },
   },
   {
     id: 'exile',
@@ -213,6 +301,10 @@ export const REGIONS: Region[] = [
     zone: 'cove',
     secret: true,
     tone: '#9fe0d0',
+    realWorld: {
+      theme: 'далёкие острова',
+      countries: ['mv', 'id', 'lk'],
+    },
   },
 ];
 

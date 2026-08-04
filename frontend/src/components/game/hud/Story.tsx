@@ -6,6 +6,7 @@ import { EASE, onFrame } from '@/lib/motion';
 import { CHAPTERS, CHAPTER_BY_ID, FRAGMENTS, INTRO, JOURNAL_BY_ID } from '../story';
 import { QUESTS } from '../quests';
 import { gameStore, live, questAvailable, useGame } from '../state';
+import { input } from '../player/controller';
 
 /**
  * Интерфейс сюжетного слоя: вступление, экраны глав, трекер задания, подсказка
@@ -223,11 +224,13 @@ export function ActionPrompt() {
   const box = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLSpanElement>(null);
   const ring = useRef<SVGCircleElement>(null);
+  const key = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const b = box.current;
     if (!b) return;
     let lastHint: string | null = null;
+    let lastTouch: boolean | null = null;
     const C = 2 * Math.PI * 15;
     return onFrame(() => {
       const hint = live.actionHint;
@@ -239,6 +242,12 @@ export function ActionPrompt() {
       if (hint !== lastHint) {
         lastHint = hint;
         if (text.current) text.current.textContent = hint;
+      }
+      // Значок клавиши меняется на «●», как только человек коснулся экрана:
+      // тач-управление включается по первому касанию и до него неизвестно.
+      if (input.touch !== lastTouch) {
+        lastTouch = input.touch;
+        if (key.current) key.current.textContent = input.touch ? '●' : 'E';
       }
       if (ring.current) {
         ring.current.style.strokeDashoffset = `${C * (1 - live.workProgress)}`;
@@ -267,7 +276,11 @@ export function ActionPrompt() {
             strokeDashoffset={2 * Math.PI * 15}
           />
         </svg>
-        <span className="text-[10px] font-semibold text-[#e6c179]">E</span>
+        {/* На тач-устройстве клавиши E нет — там подсказка обязана указывать на
+            экранную кнопку, иначе игрок ищет несуществующее. */}
+        <span ref={key} className="text-[10px] font-semibold text-[#e6c179]">
+          E
+        </span>
       </span>
       <span ref={text} />
     </div>
