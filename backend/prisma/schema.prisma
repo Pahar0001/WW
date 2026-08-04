@@ -603,6 +603,7 @@ model User {
   friendshipsReceived Friendship[]   @relation("FriendAddressee")
   notifications       Notification[] @relation("UserNotifications")
   tripOrders          TripOrder[]    @relation("UserTripOrders")
+  serviceRequests     ServiceRequest[] @relation("UserServiceRequests")
   conversations       ConversationMember[]  @relation("UserConversations")
   chatMessagesSent    ConversationMessage[] @relation("UserChatMessages")
   visitedCountries    VisitedCountry[]      @relation("UserVisited")
@@ -633,6 +634,56 @@ model TripOrder {
   priceRub  Int?            // стоимость услуги «маршрут под ключ» — назначает админ
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ───────────────── Заявки на услуги в поездке (логистика) ─────────────────
+
+enum ServiceRequestKind {
+  TRANSFER_TO_AIRPORT     // машина к рейсу: из дома в аэропорт вылета
+  TRANSFER_FROM_AIRPORT   // встретить по возвращении, в том числе ночью
+  PARKING                 // оставить машину у аэропорта на время поездки
+}
+
+enum ServiceRequestStatus {
+  NEW
+  IN_PROGRESS
+  CONFIRMED    // услуга подтверждена перевозчиком/парковкой
+  DONE
+  CANCELLED
+}
+
+// Заявка на трансфер или парковку из раздела «Логистика путешествия».
+//
+// Зачем своя модель, а не TripOrder: у «маршрута под ключ» другая природа —
+// свободное пожелание и ИИ-бриф. Здесь же заявка структурна (аэропорт, дата,
+// время, число пассажиров), и админу нужно видеть именно эти поля, чтобы
+// заказать машину, а не вычитывать их из текста.
+//
+// ⚠️ ПДн. `pickup` — адрес подачи, `phone` — телефон: это персональные данные,
+// которых у Сервиса раньше не было. Оба поля НЕОБЯЗАТЕЛЬНЫ, состав описан в
+// политике конфиденциальности (раздел «Какие данные обрабатываются»), а связь
+// с человеком идёт через почту аккаунта — заявку может оставить только
+// авторизованный пользователь.
+model ServiceRequest {
+  id          String               @id @default(cuid())
+  userId      String
+  user        User                 @relation("UserServiceRequests", fields: [userId], references: [id], onDelete: Cascade)
+  kind        ServiceRequestKind
+  tripSlug    String?              // из какой поездки пришла заявка
+  airportIata String               // SVO / DME / LED …
+  serviceDate String               // YYYY-MM-DD, местная дата аэропорта
+  serviceTime String?              // HH:MM, местное время подачи
+  pax         Int                  @default(1)
+  pickup      String?              // адрес подачи или марка и номер машины
+  phone       String?              // для связи; по умолчанию пишем на почту аккаунта
+  comment     String?
+  status      ServiceRequestStatus @default(NEW)
+  adminNote   String?              // ответ админа, виден пользователю
+  priceRub    Int?                 // согласованная цена — ставит админ
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   @@index([status, createdAt])
   @@index([userId, createdAt])
 }

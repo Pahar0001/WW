@@ -217,6 +217,16 @@ export const api = {
 
 export type Comfort = 'BUDGET' | 'STANDARD' | 'COMFORT';
 
+/** Строка расчёта: сумма, откуда она взялась и по какой формуле получена. */
+export interface EstimateLine {
+  category: string;
+  amount: number | null;
+  dataStatus: DataStatus;
+  /** Формула словами: «2000 ₽ × 6 ноч. × 1.8 (стандарт) × 0.42 (уровень цен страны)». */
+  method: string;
+  source: string | null;
+}
+
 export interface SpendEstimate {
   currency: 'RUB';
   comfort: Comfort;
@@ -226,9 +236,24 @@ export interface SpendEstimate {
   nights: number;
   cities: number;
   transfers: number;
+  /** 'plan' — переезды посчитаны по плану по дням, 'cities' — по числу городов. */
+  transfersFrom: 'plan' | 'cities';
   flight: { perPerson: number; source: 'aviasales'; dataStatus: DataStatus } | null;
+  /** Уровень цен страны (World Bank, ICP). null — страны нет в данных. */
+  priceLevel: {
+    country: string | null;
+    /** Индекс уровня цен, США = 100. */
+    pli: number;
+    /** Год данных именно этой страны. */
+    year: number;
+    /** Множитель к ценам страны-эталона. */
+    index: number;
+    reference: { iso2: string; pli: number; year: number };
+    source: string;
+    sourceUrl: string;
+  } | null;
   perPerson: {
-    categories: { category: string; amount: number | null; dataStatus: DataStatus }[];
+    categories: EstimateLine[];
     total: number;
     low: number;
     high: number;
@@ -237,8 +262,10 @@ export interface SpendEstimate {
   dataStatus: DataStatus;
   assumptions: {
     note: string;
-    baseRatesEconomy: Record<string, number>;
+    baseRatesReference: Record<string, number>;
+    referenceCountry: string;
     comfortIndex: number;
+    countryIndex: number;
     reserveRate: number;
     band: number;
   };
@@ -469,6 +496,79 @@ export async function adminUpdateOrder(
 ): Promise<boolean> {
   try {
     const res = await fetch(`${BROWSER_BASE}/orders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify(patch),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ── Заявки на трансфер и парковку (из раздела логистики) ──
+
+export type ServiceRequestKind =
+  | 'TRANSFER_TO_AIRPORT'
+  | 'TRANSFER_FROM_AIRPORT'
+  | 'PARKING';
+
+export type ServiceRequestStatus = 'NEW' | 'IN_PROGRESS' | 'CONFIRMED' | 'DONE' | 'CANCELLED';
+
+export interface ServiceRequest {
+  id: string;
+  kind: ServiceRequestKind;
+  tripSlug: string | null;
+  airportIata: string;
+  serviceDate: string;
+  serviceTime: string | null;
+  pax: number;
+  pickup: string | null;
+  phone: string | null;
+  comment: string | null;
+  status: ServiceRequestStatus;
+  adminNote: string | null;
+  priceRub: number | null;
+  createdAt: string;
+  user?: { id: string; email: string; name: string | null };
+}
+
+/** Все заявки на услуги (админка). */
+export async function adminListServiceRequests(): Promise<ServiceRequest[]> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/service-requests`, {
+      headers: authHeader(),
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as ServiceRequest[];
+  } catch {
+    return [];
+  }
+}
+
+/** Сколько заявок на услуги ждут разбора — бейдж в админке. */
+export async function adminNewServiceRequestsCount(): Promise<number> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/service-requests/new-count`, {
+      headers: authHeader(),
+      cache: 'no-store',
+    });
+    if (!res.ok) return 0;
+    const data = (await res.json()) as { count?: number };
+    return data.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Обновить статус/ответ/цену заявки на услугу (админка). */
+export async function adminUpdateServiceRequest(
+  id: string,
+  patch: { status?: ServiceRequestStatus; adminNote?: string; priceRub?: number | null },
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${BROWSER_BASE}/service-requests/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify(patch),

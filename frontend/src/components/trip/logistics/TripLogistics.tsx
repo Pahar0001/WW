@@ -4,14 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   getLogistics,
   COMFORT_LABEL,
+  HOTEL_KIND_RU,
   TRANSPORT_LABEL,
   type LogisticsPlan,
+  type NearbyHotel,
   type StayOption,
   type TransportOption,
 } from '@/lib/logistics';
 import { pluralize } from '@/lib/plural';
 import { RouteDiagram } from './RouteDiagram';
 import { LogisticsMap } from './LogisticsMap';
+import { TransferBooking } from './TransferBooking';
 
 /**
  * Раздел «Логистика путешествия».
@@ -47,7 +50,19 @@ const addDays = (iso: string, n: number) => {
 };
 const money = (n: number) => `${n.toLocaleString('ru-RU')} ₽`;
 
-export function TripLogistics({ slug, durationDays }: { slug: string; durationDays: number }) {
+export function TripLogistics({
+  slug,
+  durationDays,
+  transferWidgetUrl,
+}: {
+  slug: string;
+  durationDays: number;
+  /**
+   * Адрес виджета заказа трансфера. Приходит со страницы (сервер), а не из API:
+   * тем же значением задаётся `frame-src` в CSP, и разводить их нельзя (§12.15).
+   */
+  transferWidgetUrl?: string | null;
+}) {
   const defaultDepart = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
@@ -138,9 +153,16 @@ export function TripLogistics({ slug, durationDays }: { slug: string; durationDa
             </Section>
           )}
           <Timeline plan={plan} />
+          <TransferBooking
+            plan={plan}
+            depart={depart}
+            ret={ret}
+            widgetUrl={transferWidgetUrl ?? null}
+          />
           <GroundTransport options={plan.ground} country={plan.country.name} />
           <Stays
             title="Где ночевать"
+            provenance={plan.hotelsProvenance}
             groups={[
               { label: 'Перед вылетом', options: plan.stays.beforeFlight },
               { label: 'Первая ночь на месте', options: plan.stays.firstNight },
@@ -369,15 +391,58 @@ function GroundTransport({ options, country }: { options: TransportOption[]; cou
 
 // ── 3. Ночёвки ──────────────────────────────────────────────────────────────
 
+/**
+ * Карточка настоящего отеля: название, тип, расстояние до терминала и ссылки —
+ * сначала на его собственный сайт, потом туда, где бронируют.
+ *
+ * Цены здесь нет намеренно. Всё, что написано на карточке, — проверяемый факт
+ * из OpenStreetMap; цена таким фактом не является ни на минуту вперёд.
+ */
+function HotelCard({ hotel }: { hotel: NearbyHotel }) {
+  return (
+    <li className="rounded-lg border border-ink-line/60 bg-ink/20 px-3.5 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="text-sm text-paper">
+          {hotel.name}
+          {hotel.stars ? <span className="ml-1.5 text-aurora">{'★'.repeat(hotel.stars)}</span> : null}
+        </span>
+        {/* Расстояние — главная причина, по которой этот отель вообще здесь. */}
+        <span className="whitespace-nowrap text-xs text-paper-faint">
+          {hotel.distanceKm} км · {HOTEL_KIND_RU[hotel.kind]}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1">
+        {hotel.links.map((l) => (
+          <a
+            key={l.label}
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-xs hover:underline ${
+              l.kind === 'official' ? 'text-paper-dim' : 'text-aurora'
+            }`}
+          >
+            {l.label} →
+          </a>
+        ))}
+        {hotel.phone && <span className="text-xs text-paper-faint">{hotel.phone}</span>}
+      </div>
+    </li>
+  );
+}
+
 function Stays({
   title,
   groups,
+  provenance,
 }: {
   title: string;
   groups: { label: string; options: StayOption[] }[];
+  provenance: { source: string; sourceUrl: string; fetchedAt: string };
 }) {
   const filled = groups.filter((g) => g.options.length > 0);
   if (filled.length === 0) return null;
+  const anyHotels = filled.some((g) => g.options.some((o) => o.hotels.length > 0));
 
   return (
     <Section title={title}>
@@ -387,7 +452,7 @@ function Stays({
             <h4 className="text-xs uppercase tracking-[0.22em] text-paper-faint">{g.label}</h4>
             {/* На телефоне — лента с прилипанием вместо столбика одинаковых
                 блоков: так видно, что вариантов несколько. */}
-            <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:overflow-visible">
+            <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:items-start md:overflow-visible">
               {g.options.map((s, i) => (
                 <li
                   key={i}
@@ -395,32 +460,85 @@ function Stays({
                 >
                   <p className="text-sm text-paper">{s.title}</p>
                   <p className="mt-1.5 text-xs leading-relaxed text-paper-faint">{s.reason}</p>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                    {s.links.map((l) => (
-                      <a
-                        key={l.label}
-                        href={l.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-aurora hover:underline"
-                      >
-                        {l.label} →
-                      </a>
-                    ))}
-                  </div>
+
+                  {/* Настоящие отели этой зоны. Если их нет — остаётся поиск. */}
+                  {s.hotels.length > 0 ? (
+                    <>
+                      {s.nights && (
+                        <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-paper-faint">
+                          ночь {ruShort(s.nights.checkIn)} → {ruShort(s.nights.checkOut)}
+                        </p>
+                      )}
+                      <ul className="mt-2 space-y-2">
+                        {s.hotels.map((h) => (
+                          <HotelCard key={h.name + h.distanceKm} hotel={h} />
+                        ))}
+                      </ul>
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                        {s.links.map((l) => (
+                          <a
+                            key={l.label}
+                            href={l.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-paper-faint hover:text-paper hover:underline"
+                          >
+                            Все варианты · {l.label} →
+                          </a>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                      {s.links.map((l) => (
+                        <a
+                          key={l.label}
+                          href={l.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-aurora hover:underline"
+                        >
+                          {l.label} →
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
         ))}
       </div>
+
       <p className="mt-5 text-xs leading-relaxed text-paper-faint">
-        Конкретных отелей с ценами и рейтингами здесь нет: отельного API у нас сейчас нет, а
-        придумывать их мы не станем. Ссылки ведут в живой поиск — там цены настоящие.
+        {anyHotels ? (
+          <>
+            Отели у терминалов — из{' '}
+            <a
+              href={provenance.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-paper-dim hover:underline"
+            >
+              {provenance.source}
+            </a>
+            , выгрузка от {provenance.fetchedAt}; расстояние посчитано по координатам. Цен и
+            рейтингов у нас нет и мы их не придумываем — они на сайте отеля и у сервисов
+            бронирования, куда ведут ссылки с уже подставленными названием и датами.
+          </>
+        ) : (
+          <>
+            По этому аэропорту выгрузки отелей нет — показываем живой поиск с подставленными
+            датами. Придумывать список отелей мы не станем.
+          </>
+        )}
       </p>
     </Section>
   );
 }
+
+/** «2026-09-14» → «14.09». Даты ночёвки коротко, год тут лишний. */
+const ruShort = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 // ── 4. Парковка ─────────────────────────────────────────────────────────────
 
@@ -500,7 +618,7 @@ function ReturnHome({ plan }: { plan: LogisticsPlan }) {
         <h4 className="text-xs uppercase tracking-[0.22em] text-paper-faint">
           Переночевать рядом с аэропортом
         </h4>
-        <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:overflow-visible">
+        <ul className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-3 md:items-start md:overflow-visible">
           {plan.returnHome.stays.map((s, i) => (
             <li
               key={i}
@@ -508,19 +626,34 @@ function ReturnHome({ plan }: { plan: LogisticsPlan }) {
             >
               <p className="text-sm text-paper">{s.title}</p>
               <p className="mt-1.5 text-xs leading-relaxed text-paper-faint">{s.reason}</p>
-              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-                {s.links.map((l) => (
-                  <a
-                    key={l.label}
-                    href={l.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-aurora hover:underline"
-                  >
-                    {l.label} →
-                  </a>
-                ))}
-              </div>
+              {s.hotels.length > 0 ? (
+                <>
+                  {s.nights && (
+                    <p className="mt-3 text-[11px] uppercase tracking-[0.18em] text-paper-faint">
+                      ночь {ruShort(s.nights.checkIn)} → {ruShort(s.nights.checkOut)}
+                    </p>
+                  )}
+                  <ul className="mt-2 space-y-2">
+                    {s.hotels.map((h) => (
+                      <HotelCard key={h.name + h.distanceKm} hotel={h} />
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                  {s.links.map((l) => (
+                    <a
+                      key={l.label}
+                      href={l.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-aurora hover:underline"
+                    >
+                      {l.label} →
+                    </a>
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ul>

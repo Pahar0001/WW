@@ -716,11 +716,20 @@ export class TripsService {
   }
 
   /**
-   * Automatic ballpark spend estimate for a trip (see common/estimate.ts).
-   * Pulls the minimal inputs straight from the trip — duration and the number of
-   * distinct base cities on the balanced itinerary — so it works with zero manual
-   * data. `travelers`/`comfort` are optional overrides from the UI. Respects the
-   * same visibility gate as getBySlug (private trips need access).
+   * Automatic spend estimate for a trip (see common/estimate.ts).
+   *
+   * Всё, на чём стоит расчёт, берётся из самого маршрута и из внешних данных, а
+   * не спрашивается у человека: длительность, города, СТРАНА (по ней берётся
+   * индекс уровня цен World Bank) и настоящее число межгородских переездов.
+   *
+   * ⚠️ Переезды считаем по плечам плана (`legs`), а не «городов минус один».
+   * Маршрут, который возвращается в базовый город, даёт больше переездов, чем
+   * городов, — старая формула такие поездки недосчитывала. Плечи внутри одного
+   * города (трансфер до отеля) переездом не считаются: интересуют только те,
+   * что меняют базовый город.
+   *
+   * `travelers`/`comfort` — выбор человека в интерфейсе. Гейт видимости тот же,
+   * что у getBySlug: приватную поездку считает только участник.
    */
   async estimateSpend(
     slug: string,
@@ -729,17 +738,37 @@ export class TripsService {
   ) {
     const trip = await this.getBySlug(slug, accessor); // gate + load graph
     const balanced = trip.variants.find((v) => v.pace === 'BALANCED') ?? trip.variants[0];
+    const days = balanced?.days ?? [];
+
     const cities = new Set<string>();
-    for (const d of balanced?.days ?? []) {
+    for (const d of days) {
       const c = d.baseCity?.trim();
       if (c) cities.add(c);
     }
+
+    // Смена базового города от дня ко дню — и есть межгородской переезд.
+    let intercityLegs: number | null = null;
+    if (days.length > 0) {
+      let count = 0;
+      let prev: string | null = null;
+      for (const d of days) {
+        const c = d.baseCity?.trim() || null;
+        if (c && prev && c !== prev) count++;
+        if (c) prev = c;
+      }
+      intercityLegs = count;
+    }
+
     return estimateTripSpend({
       durationDays: trip.durationDays,
       cities: cities.size || 1,
       travelers: opts.travelers ?? 2,
       comfort: opts.comfort ?? 'STANDARD',
       flightRub: opts.flightRub ?? null,
+      countrySlug: trip.country?.slug ?? null,
+      countryIso: trip.country?.isoCode ?? null,
+      countryName: trip.country?.name ?? null,
+      intercityLegs,
     });
   }
 }

@@ -71,11 +71,51 @@ export interface TransportOption {
   sourceUrl?: string;
 }
 
+/** Ссылка у карточки отеля: свой сайт, сервис бронирования или карта. */
+export interface HotelLink {
+  label: string;
+  href: string;
+  kind: 'official' | 'booking' | 'map';
+}
+
+/** Настоящий отель у аэропорта (OpenStreetMap), а не критерий выбора. */
+export interface NearbyHotel {
+  name: string;
+  /** Километры до точки аэропорта по прямой. */
+  distanceKm: number;
+  kind: 'hotel' | 'hostel' | 'guest_house' | 'apartment' | 'motel';
+  stars?: number;
+  phone?: string;
+  links: HotelLink[];
+}
+
 export interface StayOption {
   title: string;
   reason: string;
   links: { label: string; href: string }[];
+  hotels: NearbyHotel[];
+  /** Даты именно этой ночи — они не совпадают с датами поездки. */
+  nights?: { checkIn: string; checkOut: string };
 }
+
+/**
+ * Трансфер: партнёрские ссылки с подставленными параметрами.
+ *
+ * Адреса виджета здесь НЕТ намеренно — он приходит со страницы (переменная
+ * веб-сервиса), потому что тем же значением задаётся `frame-src` в CSP.
+ */
+export interface TransferBlock {
+  links: { provider: string; label: string; href: string; note: string }[];
+  markerConfigured: boolean;
+}
+
+export const HOTEL_KIND_RU: Record<NearbyHotel['kind'], string> = {
+  hotel: 'отель',
+  hostel: 'хостел',
+  guest_house: 'гостевой дом',
+  apartment: 'апартаменты',
+  motel: 'мотель',
+};
 
 export interface TimelineStep {
   day: number;
@@ -102,8 +142,57 @@ export interface LogisticsPlan {
   map: LogisticsMapPoint[];
   parking: ParkingBlock[];
   returnHome: { airports: Airport[]; stays: StayOption[] };
+  transfer: TransferBlock;
+  /** Откуда взяты отели у аэропортов и на какую дату выгружены (ODbL). */
+  hotelsProvenance: { source: string; sourceUrl: string; fetchedAt: string };
   /** Самый ранний вылет среди найденных, если он до 08:00. Иначе null. */
   earlyDeparture: { time: string; hour: number } | null;
+}
+
+// ── Заявки на трансфер и парковку ────────────────────────────────────────────
+
+export type ServiceRequestKind =
+  | 'TRANSFER_TO_AIRPORT'
+  | 'TRANSFER_FROM_AIRPORT'
+  | 'PARKING';
+
+export interface CreateServiceRequest {
+  kind: ServiceRequestKind;
+  tripSlug?: string;
+  airportIata: string;
+  serviceDate: string;
+  serviceTime?: string;
+  pax?: number;
+  pickup?: string;
+  phone?: string;
+  comment?: string;
+}
+
+/**
+ * Отправка заявки. Возвращает текст ошибки строкой, а не бросает: форма должна
+ * показать причину («дата уже прошла»), а не молча мигнуть.
+ */
+export async function createServiceRequest(
+  input: CreateServiceRequest,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await fetch('/api/service-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(input),
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 401) {
+      return { ok: false, error: 'Чтобы оставить заявку, войдите в аккаунт — ответ придёт на вашу почту.' };
+    }
+    if (res.status === 429) {
+      return { ok: false, error: 'Слишком много заявок подряд. Попробуйте через час.' };
+    }
+    const body = await res.json().catch(() => null);
+    return { ok: false, error: body?.message ?? 'Не удалось отправить заявку. Попробуйте позже.' };
+  } catch {
+    return { ok: false, error: 'Нет связи с сервером. Проверьте соединение.' };
+  }
 }
 
 export async function getLogistics(

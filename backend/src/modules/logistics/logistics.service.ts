@@ -9,6 +9,12 @@ import {
   type AirportParking,
 } from './airports';
 import { groundTransport, type TransportOption } from './ground-transport';
+import {
+  hotelsNearAirport,
+  HOTELS_PROVENANCE,
+  type NearbyHotel,
+} from './airport-hotels';
+import { transferBlock, type TransferBlock } from './transfer';
 
 /**
  * Логистика поездки: «как я туда реально доберусь».
@@ -31,6 +37,18 @@ export interface StayOption {
   reason: string;
   /** Поисковые ссылки — цен и рейтингов у нас нет, показываем живой поиск. */
   links: { label: string; href: string }[];
+  /**
+   * Настоящие отели в этой зоне (OpenStreetMap) — с расстоянием до терминала и
+   * ссылкой на КАЖДЫЙ конкретный отель, а не общим поиском. Пусто там, где
+   * выгрузки по аэропорту нет: тогда остаются поисковые ссылки выше.
+   */
+  hotels: NearbyHotel[];
+  /**
+   * Даты именно этой ночёвки. Они НЕ совпадают с датами поездки: ночь перед
+   * вылетом — это ночь накануне, а ночь по возвращении — ночь после посадки.
+   * Подставляются в ссылки бронирования, чтобы человек не вводил их заново.
+   */
+  nights?: { checkIn: string; checkOut: string };
 }
 
 export interface TimelineStep {
@@ -83,6 +101,10 @@ export interface LogisticsPlan {
   parking: ParkingBlock[];
   /** Возвращение домой: ночёвка и выезд из аэропорта после позднего прилёта. */
   returnHome: ReturnHome;
+  /** Трансфер до аэропорта: виджет, партнёрские ссылки, заявка на сайте. */
+  transfer: TransferBlock;
+  /** Откуда взяты отели у аэропортов и на какую дату выгружены. */
+  hotelsProvenance: typeof HOTELS_PROVENANCE;
   /**
    * Самый ранний вылет среди найденных предложений, если он до 08:00.
    * Считается по РЕАЛЬНОМУ времени из выдачи, а не предполагается: именно
@@ -176,15 +198,22 @@ export class LogisticsService {
       },
       ground: groundTransport(trip.country.slug),
       stays: {
-        beforeFlight: beforeFlightStays(from, depart, ret),
-        firstNight: firstNightStays(firstCity, depart, ret),
+        beforeFlight: beforeFlightStays(from, depart),
+        firstNight: firstNightStays(firstCity, arrival, depart, ret),
       },
       timeline: buildTimeline(days, arrival[0], firstCity, offers[0], early),
       map: buildMap(from, arrival),
       parking: from
         .filter((a) => a.parking?.length)
         .map((a) => ({ airport: a.name, iata: a.iata, options: a.parking! })),
-      returnHome: { airports: from, stays: returnHomeStays(from) },
+      returnHome: { airports: from, stays: returnHomeStays(from, ret) },
+      transfer: transferBlock({
+        airportName: from[0]?.name ?? ORIGINS[origin],
+        airportIata: from[0]?.iata ?? origin,
+        city: ORIGINS[origin],
+        date: depart,
+      }),
+      hotelsProvenance: HOTELS_PROVENANCE,
       earlyDeparture: early,
     };
   }
@@ -231,41 +260,66 @@ function searchUrl(origin: string, destination: string | undefined, depart?: str
   return `https://www.aviasales.ru/search/${origin}${dd(depart)}${destination}${dd(ret)}1`;
 }
 
-const hotelSearch = (query: string, depart?: string, ret?: string) => {
+/**
+ * Поисковые ссылки по зоне — запасной путь, когда выгрузки отелей по аэропорту
+ * нет и показать конкретные объекты нечем.
+ *
+ * ⚠️ Адрес поиска Ostrovok — `/hotels/?q=`. Прежний `/hotel/search/?q=` отдаёт
+ * 404: до этой правки каждая ссылка на Ostrovok из логистики вела на страницу
+ * ошибки. Проверено запросом.
+ */
+const hotelSearch = (query: string, checkIn?: string, checkOut?: string) => {
   const q = encodeURIComponent(query);
   const ru = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-  const dates = depart && ret;
+  const dates = checkIn && checkOut;
   return [
     {
       label: 'Ostrovok',
       href: dates
-        ? `https://ostrovok.ru/hotel/search/?q=${q}&dates=${ru(depart!)}-${ru(ret!)}`
-        : `https://ostrovok.ru/hotel/search/?q=${q}`,
+        ? `https://ostrovok.ru/hotels/?q=${q}&dates=${ru(checkIn!)}-${ru(checkOut!)}`
+        : `https://ostrovok.ru/hotels/?q=${q}`,
     },
     {
       label: 'Яндекс Путешествия',
       href: dates
-        ? `https://travel.yandex.ru/hotels/?text=${q}&checkinDate=${depart}&checkoutDate=${ret}`
+        ? `https://travel.yandex.ru/hotels/?text=${q}&checkinDate=${checkIn}&checkoutDate=${checkOut}`
         : `https://travel.yandex.ru/hotels/?text=${q}`,
     },
   ];
 };
 
+/** Сдвиг ISO-даты на дни. Считаем в UTC: тут важен календарь, а не часы. */
+function shiftDate(iso: string | undefined, days: number): string | undefined {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return undefined;
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return undefined;
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /**
  * Где ночевать перед вылетом. Смысл блока — ранние рейсы: на вылет в 06:00
  * общественный транспорт не успевает, а такси через весь город ночью стоит
  * дороже номера у терминала.
+ *
+ * ⚠️ Даты этой ночёвки — НЕ даты поездки. Нужна ровно одна ночь: заезд накануне
+ * вылета, выезд в день вылета. Раньше сюда уходил поиск вообще без дат, и
+ * человек вводил их заново — притом что мы их знаем.
  */
-function beforeFlightStays(airports: Airport[], depart?: string, ret?: string): StayOption[] {
+function beforeFlightStays(airports: Airport[], depart?: string): StayOption[] {
+  const checkIn = shiftDate(depart, -1);
+  const checkOut = depart;
+  const nights = checkIn && checkOut ? { checkIn, checkOut } : undefined;
+
   return airports.slice(0, 3).map((a) => ({
     title: `Рядом с аэропортом ${a.name}`,
     reason:
       a.distanceKm !== undefined
         ? `${a.distanceKm} км от центра — на ранний рейс безопаснее ночевать у терминала, чем ехать через город.`
         : 'Ночёвка у терминала избавляет от гонки на ранний рейс.',
-    // Ночь перед вылетом — одна: даты поиска не совпадают с датами поездки,
-    // поэтому даём поиск без дат и человек ставит свою ночь сам.
-    links: hotelSearch(`аэропорт ${a.name}`),
+    links: hotelSearch(`аэропорт ${a.name}`, checkIn, checkOut),
+    hotels: hotelsNearAirport(a.iata, { limit: 4, checkIn, checkOut }),
+    ...(nights ? { nights } : {}),
   }));
 }
 
@@ -325,35 +379,80 @@ function buildMap(from: Airport[], to: Airport[]): MapPoint[] {
  * бы выдумка. Поэтому блок показывается всегда и сформулирован условием: «если
  * прилетаете ночью».
  */
-function returnHomeStays(from: Airport[]): StayOption[] {
+function returnHomeStays(from: Airport[], ret?: string): StayOption[] {
+  // Ночь ПОСЛЕ посадки: заезд в день возвращения, выезд наутро.
+  const checkIn = ret;
+  const checkOut = shiftDate(ret, 1);
+  const nights = checkIn && checkOut ? { checkIn, checkOut } : undefined;
+
   return from.slice(0, 3).map((a) => ({
     title: `Ночь рядом с ${a.name}`,
     reason:
       a.lateNight ??
       'Если рейс домой приземляется ночью, номер у терминала часто дешевле ночного такси через весь город.',
-    links: hotelSearch(`аэропорт ${a.name}`),
+    links: hotelSearch(`аэропорт ${a.name}`, checkIn, checkOut),
+    hotels: hotelsNearAirport(a.iata, { limit: 4, checkIn, checkOut }),
+    ...(nights ? { nights } : {}),
   }));
 }
 
-/** Где остановиться в первую ночь — критерии, а не выдуманные отели. */
-function firstNightStays(city: string, depart?: string, ret?: string): StayOption[] {
-  return [
+/**
+ * Где остановиться в первую ночь.
+ *
+ * Два разных ответа на разные ситуации. Прилетели днём — вопрос в том, в каком
+ * районе города жить, и здесь честнее давать КРИТЕРИИ (центр, метро, вокзал), а
+ * не список отелей: чем город больше, тем сильнее выбор зависит от плана дней.
+ * Прилетели ночью — вопрос другой и совершенно конкретный: до города ехать не
+ * на чем, и нужен отель у ТЕРМИНАЛА. Вот на него отвечаем настоящими объектами.
+ */
+function firstNightStays(
+  city: string,
+  arrival: Airport[],
+  depart?: string,
+  ret?: string,
+): StayOption[] {
+  const options: StayOption[] = [
     {
       title: `${city}: рядом с центром`,
       reason: 'Всё в пешей доступности — разумно, если на город всего один-два дня.',
       links: hotelSearch(`${city} центр`, depart, ret),
+      hotels: [],
     },
     {
       title: `${city}: рядом с метро или вокзалом`,
       reason: 'Дешевле центра, но вы быстро попадаете куда угодно. Хорошо для длинной поездки.',
       links: hotelSearch(`${city} метро`, depart, ret),
+      hotels: [],
     },
     {
       title: `${city}: рядом с транспортным узлом`,
       reason: 'Если наутро едете дальше — не придётся пересекать город с чемоданами.',
       links: hotelSearch(`${city} вокзал`, depart, ret),
+      hotels: [],
     },
   ];
+
+  // Ночь прилёта — одна, со следующим утром: дальше человек едет по маршруту.
+  const airport = arrival[0];
+  const nearby = airport ? hotelsNearAirport(airport.iata, {
+    limit: 4,
+    checkIn: depart,
+    checkOut: shiftDate(depart, 1),
+  }) : [];
+
+  if (airport && nearby.length > 0) {
+    const checkOut = shiftDate(depart, 1);
+    options.unshift({
+      title: `У терминала ${airport.name}`,
+      reason:
+        'Если рейс садится поздно, до города вы уже не уедете обычным транспортом — ночь у аэропорта решает вопрос.',
+      links: hotelSearch(`аэропорт ${airport.name}`, depart, checkOut),
+      hotels: nearby,
+      ...(depart && checkOut ? { nights: { checkIn: depart, checkOut } } : {}),
+    });
+  }
+
+  return options;
 }
 
 /**

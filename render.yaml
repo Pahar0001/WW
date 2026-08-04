@@ -61,7 +61,13 @@ services:
         sync: false
       # Партнёрский marker Travelpayouts (кабинет → Программы → Aviasales):
       # добавляется к ссылкам выдачи — комиссия владельцу с бронирований.
+      # Тот же marker уходит в ссылки на трансферы (Kiwitaxi, GetTransfer).
       - key: TRAVELPAYOUTS_MARKER
+        sync: false
+      # Виджет Kiwitaxi White Label (кабинет → Программы → Kiwitaxi → Виджеты).
+      # Задан — трансфер оформляется прямо на странице логистики, без перехода
+      # на чужой сайт. Не задан — виджета нет, остаются ссылки и заявка на сайте.
+      - key: KIWITAXI_WL_URL
         sync: false
       # Optional S3-compatible file storage (Cloudflare R2 recommended).
       # If unset, uploads use local disk (ephemeral on free tier).

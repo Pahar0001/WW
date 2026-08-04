@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminListTrips, adminNewOrdersCount, deleteTrip, imageUrl, type Trip, sizedImageUrl } from '@/lib/api';
+import { adminListTrips, adminNewOrdersCount, adminNewServiceRequestsCount, deleteTrip, imageUrl, type Trip, sizedImageUrl } from '@/lib/api';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 import { toast } from '@/components/ui/Toaster';
 import { TripForm } from '@/components/trips/TripForm';
@@ -21,10 +21,15 @@ export default function AdminPage() {
     });
   }, []);
 
-  // Бейдж «сколько заявок ждут разбора» — в единственной навигации (шапке).
+  // Бейджи «сколько заявок ждут разбора» — в единственной навигации (шапке).
+  // Потоков два и они разные: «маршрут под ключ» и трансфер с парковкой.
+  // Складывать их в один счётчик нельзя — у них разная срочность: трансфер
+  // привязан к дате рейса и протухает.
   const [newOrders, setNewOrders] = useState(0);
+  const [newRequests, setNewRequests] = useState(0);
   useEffect(() => {
     adminNewOrdersCount().then(setNewOrders);
+    adminNewServiceRequestsCount().then(setNewRequests);
   }, []);
 
   // Existing trips (for deletion).
@@ -59,6 +64,14 @@ export default function AdminPage() {
             {newOrders > 0 && (
               <span className="inline-grid h-5 min-w-[20px] place-items-center rounded-full bg-aurora px-1 text-[11px] font-semibold text-aurora-fg">
                 {newOrders}
+              </span>
+            )}
+          </Link>
+          <Link href="/admin/requests" data-cursor="hover" className="inline-flex items-center gap-1.5 text-paper-dim hover:text-paper">
+            Трансфер
+            {newRequests > 0 && (
+              <span className="inline-grid h-5 min-w-[20px] place-items-center rounded-full bg-aurora px-1 text-[11px] font-semibold text-aurora-fg">
+                {newRequests}
               </span>
             )}
           </Link>

@@ -45,7 +45,25 @@ const isDev = process.env.NODE_ENV !== 'production';
  *                      Next-сервер, наружу запросов нет. В dev добавлен ws: —
  *                      по нему живёт горячая перезагрузка;
  *   worker-src blob: — service worker и воркеры three.js.
+ *   frame-src        — виджет заказа трансфера, и ТОЛЬКО он (см. ниже).
  */
+
+/**
+ * ⚠️ frame-src для виджета трансфера — ловушка §12.15 в чистом виде.
+ *
+ * Директивы `frame-src` в политике не было вовсе, а значит действовал откат к
+ * `default-src 'self'`: любой чужой фрейм молча блокировался. Виджет заказа
+ * трансфера отрисовался бы пустым прямоугольником — без запроса в сеть, без
+ * ошибки в консоли, вообще без улик, как уже было с картами и с картинками.
+ *
+ * Список хостов СТАТИЧЕСКИЙ и лежит в `src/lib/widget-hosts.js`. Соблазн взять
+ * хост из `KIWITAXI_WL_URL` велик и неверен: Next вмораживает эти заголовки в
+ * `routes-manifest.json` на СБОРКЕ, и переменная, заданная потом в панели
+ * Render, на политику уже не повлияет — проверено. Подробности и правило
+ * добавления партнёра — в том же файле.
+ */
+const { WIDGET_FRAME_HOSTS } = require('./src/lib/widget-hosts');
+
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
@@ -56,6 +74,7 @@ const csp = [
   `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
+  `frame-src 'self' ${WIDGET_FRAME_HOSTS.join(' ')}`,
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

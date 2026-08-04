@@ -202,8 +202,10 @@ export class TravelService {
       yandex:
         `https://travel.yandex.ru/hotels/?text=${encodeURIComponent(city)}` +
         `&checkinDate=${depart}&checkoutDate=${ret}`,
+      // ⚠️ Адрес поиска — `/hotels/?q=`. Прежний `/hotel/search/?q=` отдаёт 404,
+      // то есть все ссылки на Ostrovok со страницы маршрута вели на ошибку.
       ostrovok:
-        `https://ostrovok.ru/hotel/search/?q=${encodeURIComponent(city)}` +
+        `https://ostrovok.ru/hotels/?q=${encodeURIComponent(city)}` +
         `&dates=${dd(depart)}-${dd(ret)}`,
     }));
 

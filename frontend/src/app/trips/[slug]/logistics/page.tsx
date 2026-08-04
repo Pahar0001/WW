@@ -3,6 +3,9 @@ import { cookies } from 'next/headers';
 import type { Metadata } from 'next';
 import { api, type Trip } from '@/lib/api';
 import { TripLogistics } from '@/components/trip/logistics/TripLogistics';
+// Общий CommonJS-модуль: тот же файл читает next.config.js, который импортировать
+// TypeScript не умеет. Один список хостов на политику и на страницу.
+import { isAllowedWidgetUrl } from '@/lib/widget-hosts';
 
 /**
  * «Логистика путешествия» — отдельная страница поездки.
@@ -14,6 +17,31 @@ import { TripLogistics } from '@/components/trip/logistics/TripLogistics';
  * Данные грузит клиентский компонент: они зависят от города вылета и дат, а те
  * живут в состоянии страницы. На сервере рисуем шапку и факты о поездке.
  */
+
+/**
+ * Адрес виджета заказа трансфера.
+ *
+ * ⚠️ Читается ЗДЕСЬ, на веб-сервисе, а не приходит из API: фрейм и политика,
+ * которая его пропускает, обязаны жить в одном месте (§12.15).
+ *
+ * Адрес сверяется с тем же списком хостов, из которого собран `frame-src`
+ * (`src/lib/widget-hosts.js`). Это не формальность: адрес с чужого домена CSP
+ * всё равно заблокирует, но заблокирует МОЛЧА — пустой прямоугольник и ни
+ * одной улики. Лучше честно не показать виджет, чем показать мёртвый.
+ */
+function transferWidgetUrl(): string | null {
+  const raw = process.env.KIWITAXI_WL_URL?.trim();
+  if (!raw) return null;
+  if (!isAllowedWidgetUrl(raw)) {
+    // Разворачиваем тихую поломку в громкую: это видно в логах сервиса.
+    console.warn(
+      `[logistics] KIWITAXI_WL_URL="${raw}" — хост не в списке разрешённых для фрейма ` +
+        `(frontend/src/lib/widget-hosts.js). Виджет скрыт, чтобы не показывать пустой блок.`,
+    );
+    return null;
+  }
+  return raw;
+}
 
 async function loadTrip(slug: string): Promise<Trip | null> {
   // Как и на странице поездки: cookie нужна, чтобы участник приватного
@@ -83,7 +111,11 @@ export default async function LogisticsPage({ params }: { params: { slug: string
       </p>
 
       <div className="mt-10">
-        <TripLogistics slug={params.slug} durationDays={trip.durationDays} />
+        <TripLogistics
+          slug={params.slug}
+          durationDays={trip.durationDays}
+          transferWidgetUrl={transferWidgetUrl()}
+        />
       </div>
     </main>
   );

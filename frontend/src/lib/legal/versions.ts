@@ -14,6 +14,6 @@ import type { LegalDocumentKey } from './types';
  */
 export const DOCUMENT_VERSIONS: Record<LegalDocumentKey, string> = {
   TERMS: '1.0 · 26.06.2026',
-  PRIVACY: '1.0 · 03.08.2026',
+  PRIVACY: '1.1 · 04.08.2026',
   COOKIES: '1.0 · 03.08.2026',
 };
