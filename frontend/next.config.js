@@ -62,6 +62,24 @@ const csp = [
   "frame-ancestors 'none'",
 ].join('; ');
 
+/**
+ * ⚠️ ОТДЕЛЬНАЯ ПОЛИТИКА ДЛЯ SERVICE WORKER — иначе он рвёт все чужие картинки.
+ *
+ * Воркер наследует CSP того ответа, которым отдан его скрипт. Он перехватывает
+ * КАЖДЫЙ GET и переспрашивает его своим `fetch()`, а `fetch` в воркере
+ * подчиняется `connect-src`. С `connect-src 'self'` любой запрос наружу внутри
+ * воркера обрывался — и на проде умирали разом обложки маршрутов с Викимедиа и
+ * плитки карт CARTO. Со стороны это выглядело как «фото не грузятся»: запроса в
+ * сеть нет, ошибки в консоли страницы нет, а картинка пустая.
+ *
+ * Локально не воспроизводилось: воркер регистрируется только в production.
+ *
+ * Странице `connect-src 'self'` оставляем — она и правда никуда наружу не ходит,
+ * в API она стучится через свой же Next-сервер. Послабление получает только
+ * воркер, и только на исходящие запросы.
+ */
+const swCsp = csp.replace("connect-src 'self'", "connect-src 'self' https:");
+
 const securityHeaders = [
   { key: 'Content-Security-Policy', value: csp },
   // Браузер не должен угадывать тип содержимого: на этом строятся атаки, когда
@@ -81,12 +99,23 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
 ];
 
+/** Те же заголовки, но с политикой, разрешающей воркеру исходящие запросы. */
+const swHeaders = securityHeaders.map((h) =>
+  h.key === 'Content-Security-Policy' ? { key: h.key, value: swCsp } : h,
+);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   generateBuildId: () => BUILD_ID,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      // Всё, кроме самого воркера. Отрицательный просмотр вперёд нужен, чтобы
+      // на /sw.js не попали ДВА заголовка CSP: браузер применяет пересечение
+      // политик, и строгая всё равно победила бы.
+      { source: '/((?!sw\\.js$).*)', headers: securityHeaders },
+      { source: '/sw.js', headers: swHeaders },
+    ];
   },
   // 'standalone' is for the Docker image (CMD runs server.js). On Netlify/Vercel
   // the platform's own Next runtime handles output, so leave it default there.
