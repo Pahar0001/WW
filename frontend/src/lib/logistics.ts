@@ -24,12 +24,37 @@ export type TransportKind =
 
 export type Comfort = 'HIGH' | 'MEDIUM' | 'BASIC';
 
+export interface AirportParking {
+  title: string;
+  url: string;
+  note: string;
+}
+
 export interface Airport {
   iata: string;
+  lat: number;
+  lng: number;
   name: string;
   city: string;
   distanceKm?: number;
   toCity?: string;
+  parking?: AirportParking[];
+  /** Чем уехать из аэропорта поздней ночью, когда вернулись домой. */
+  lateNight?: string;
+}
+
+export interface LogisticsMapPoint {
+  label: string;
+  sub?: string;
+  lat: number;
+  lng: number;
+  kind: 'origin' | 'destination';
+}
+
+export interface ParkingBlock {
+  airport: string;
+  iata: string;
+  options: AirportParking[];
 }
 
 export interface TransportOption {
@@ -74,6 +99,11 @@ export interface LogisticsPlan {
   ground: TransportOption[];
   stays: { beforeFlight: StayOption[]; firstNight: StayOption[] };
   timeline: TimelineStep[];
+  map: LogisticsMapPoint[];
+  parking: ParkingBlock[];
+  returnHome: { airports: Airport[]; stays: StayOption[] };
+  /** Самый ранний вылет среди найденных, если он до 08:00. Иначе null. */
+  earlyDeparture: { time: string; hour: number } | null;
 }
 
 export async function getLogistics(

@@ -2,7 +2,12 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { TravelService, type FlightOffer } from '../travel/travel.service';
 import { ORIGINS } from '../travel/destinations';
-import { arrivalAirports, departureAirports, type Airport } from './airports';
+import {
+  arrivalAirports,
+  departureAirports,
+  type Airport,
+  type AirportParking,
+} from './airports';
 import { groundTransport, type TransportOption } from './ground-transport';
 
 /**
@@ -35,6 +40,26 @@ export interface TimelineStep {
   items: { icon: string; text: string }[];
 }
 
+export interface MapPoint {
+  label: string;
+  sub?: string;
+  lat: number;
+  lng: number;
+  kind: 'origin' | 'destination';
+}
+
+export interface ParkingBlock {
+  airport: string;
+  iata: string;
+  options: AirportParking[];
+}
+
+/** Возвращение домой: то, что начинается после посадки в родном аэропорту. */
+export interface ReturnHome {
+  airports: Airport[];
+  stays: StayOption[];
+}
+
 export interface LogisticsPlan {
   trip: { slug: string; title: string; durationDays: number };
   country: { slug: string; name: string };
@@ -52,6 +77,19 @@ export interface LogisticsPlan {
   ground: TransportOption[];
   stays: { beforeFlight: StayOption[]; firstNight: StayOption[] };
   timeline: TimelineStep[];
+  /** Точки для карты: откуда летим и куда прилетаем. */
+  map: MapPoint[];
+  /** Парковки у аэропортов вылета — для тех, кто едет на своей машине. */
+  parking: ParkingBlock[];
+  /** Возвращение домой: ночёвка и выезд из аэропорта после позднего прилёта. */
+  returnHome: ReturnHome;
+  /**
+   * Самый ранний вылет среди найденных предложений, если он до 08:00.
+   * Считается по РЕАЛЬНОМУ времени из выдачи, а не предполагается: именно
+   * ранний рейс превращает «где ночевать перед вылетом» из общего совета в
+   * необходимость. `null` — значит все рейсы дневные и пугать нечем.
+   */
+  earlyDeparture: { time: string; hour: number } | null;
 }
 
 interface Accessor {
@@ -120,6 +158,8 @@ export class LogisticsService {
 
     const days = trip.variants[0]?.days ?? [];
     const firstCity = days[0]?.baseCity?.trim() || arrival[0]?.city || trip.country.name;
+    const from = departureAirports(origin);
+    const early = earliestDeparture(offers);
 
     return {
       trip: { slug: trip.slug, title: trip.title, durationDays: trip.durationDays },
@@ -136,10 +176,16 @@ export class LogisticsService {
       },
       ground: groundTransport(trip.country.slug),
       stays: {
-        beforeFlight: beforeFlightStays(departureAirports(origin), depart, ret),
+        beforeFlight: beforeFlightStays(from, depart, ret),
         firstNight: firstNightStays(firstCity, depart, ret),
       },
-      timeline: buildTimeline(days, arrival[0], firstCity, offers[0]),
+      timeline: buildTimeline(days, arrival[0], firstCity, offers[0], early),
+      map: buildMap(from, arrival),
+      parking: from
+        .filter((a) => a.parking?.length)
+        .map((a) => ({ airport: a.name, iata: a.iata, options: a.parking! })),
+      returnHome: { airports: from, stays: returnHomeStays(from) },
+      earlyDeparture: early,
     };
   }
 
@@ -223,6 +269,72 @@ function beforeFlightStays(airports: Airport[], depart?: string, ret?: string): 
   }));
 }
 
+/**
+ * Самый ранний вылет среди найденных предложений, если он до 08:00.
+ *
+ * ⚠️ Час берём ИЗ СТРОКИ, а не через `new Date()`. Время в выдаче — местное
+ * время вылета, ровно то, что напечатано на билете. Разобрав его датой, мы
+ * пересчитали бы его в часовой пояс сервера и получили бы «вылет в 3 часа»
+ * там, где на билете стоит 6:00.
+ */
+function earliestDeparture(offers: FlightOffer[]): { time: string; hour: number } | null {
+  let best: { time: string; hour: number } | null = null;
+  for (const o of offers) {
+    const m = /T(\d{2}):(\d{2})/.exec(o.departureAt || '');
+    if (!m) continue;
+    const hour = Number(m[1]);
+    if (hour >= 8) continue;
+    if (!best || hour < best.hour) best = { time: `${m[1]}:${m[2]}`, hour };
+  }
+  return best;
+}
+
+/** Точки для карты: аэропорты вылета и прилёта. Линию рисует клиент. */
+function buildMap(from: Airport[], to: Airport[]): MapPoint[] {
+  const points: MapPoint[] = [];
+  const main = from[0];
+  if (main) {
+    points.push({
+      label: main.city,
+      sub: `${main.name} · ${main.iata}`,
+      lat: main.lat,
+      lng: main.lng,
+      kind: 'origin',
+    });
+  }
+  for (const a of to) {
+    points.push({
+      label: a.city,
+      sub: `${a.name} · ${a.iata}`,
+      lat: a.lat,
+      lng: a.lng,
+      kind: 'destination',
+    });
+  }
+  return points;
+}
+
+/**
+ * Возвращение домой. Зеркало «ночи перед вылетом», которого не хватало:
+ * прилёт в час ночи означает, что аэроэкспресс уже не ходит, метро закрыто, а
+ * ночное такси через весь город стоит как номер у терминала.
+ *
+ * ⚠️ Времени прилёта домой мы НЕ ЗНАЕМ и не считаем. В выдаче есть время
+ * вылета обратно и суммарная продолжительность за оба плеча, но нет ни времени
+ * по плечам, ни часовых поясов, — посчитать из этого час посадки нельзя, вышла
+ * бы выдумка. Поэтому блок показывается всегда и сформулирован условием: «если
+ * прилетаете ночью».
+ */
+function returnHomeStays(from: Airport[]): StayOption[] {
+  return from.slice(0, 3).map((a) => ({
+    title: `Ночь рядом с ${a.name}`,
+    reason:
+      a.lateNight ??
+      'Если рейс домой приземляется ночью, номер у терминала часто дешевле ночного такси через весь город.',
+    links: hotelSearch(`аэропорт ${a.name}`),
+  }));
+}
+
 /** Где остановиться в первую ночь — критерии, а не выдуманные отели. */
 function firstNightStays(city: string, depart?: string, ret?: string): StayOption[] {
   return [
@@ -253,6 +365,7 @@ function buildTimeline(
   arrival: Airport | undefined,
   firstCity: string,
   firstOffer: FlightOffer | undefined,
+  early: { time: string; hour: number } | null,
 ): TimelineStep[] {
   const steps: TimelineStep[] = [];
 
@@ -261,7 +374,15 @@ function buildTimeline(
     label: 'Накануне',
     items: [
       { icon: '🎒', text: 'Сборы, онлайн-регистрация, проверка документов и виз' },
-      { icon: '🏨', text: 'Если рейс ранний — ночь рядом с аэропортом' },
+      {
+        icon: '🏨',
+        // Не общий совет, а вывод из настоящего времени вылета: на рейс в 05:40
+        // общественный транспорт просто не успевает.
+        text: early
+          ? `Вылет в ${early.time} — общественный транспорт в это время ещё не ходит, ночь у терминала снимает вопрос`
+          : 'Если рейс ранний — ночь рядом с аэропортом',
+      },
+      { icon: '🚗', text: 'Едете на машине — забронируйте долгосрочную парковку заранее' },
       { icon: '🚕', text: 'Заранее заказанный трансфер дешевле ночного такси' },
     ],
   });
