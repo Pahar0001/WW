@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import 'leaflet/dist/leaflet.css';
 
 /**
  * Unified trip map (OpenStreetMap tiles via CARTO + Leaflet, NO API KEY).
@@ -8,6 +9,17 @@ import { useEffect, useRef, useState } from 'react';
  * optional hotels. Used both for a single day and for the whole route — the
  * parent switches the `points`/`fitKey`. Coordinates come from the backend;
  * nothing is fabricated. The Leaflet flag prefix in the attribution is removed.
+ *
+ * ⚠️ LEAFLET БЕРЁТСЯ ИЗ СВОЕГО БАНДЛА, НЕ С CDN. Раньше скрипт и стили
+ * подгружались тегами с unpkg.com, и появление строгой CSP (`script-src 'self'`)
+ * это молча убило: карта переставала грузиться на всех страницах маршрутов, а в
+ * консоли оставалось только сообщение о блокировке. Возвращать CDN, дописав
+ * unpkg в разрешённые источники, не надо — своя копия лучше по трём причинам:
+ * CSP остаётся строгой, карта не зависит от чужого сервиса, и IP посетителя не
+ * уходит в стороннюю сеть доставки, которой нет в политике обработки ПДн.
+ *
+ * Грузим динамическим импортом, а не обычным: Leaflet трогает `window` на
+ * верхнем уровне модуля и на отрисовке на сервере падает.
  */
 declare global {
   interface Window {
@@ -16,26 +28,13 @@ declare global {
   }
 }
 
-const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-
 function loadLeaflet(): Promise<void> {
   if (typeof window === 'undefined') return Promise.reject();
   if (window.L) return Promise.resolve();
   if (window.__velaLeaflet) return window.__velaLeaflet;
-  window.__velaLeaflet = new Promise<void>((resolve, reject) => {
-    if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = LEAFLET_CSS;
-      document.head.appendChild(link);
-    }
-    const s = document.createElement('script');
-    s.src = LEAFLET_JS;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Leaflet failed to load'));
-    document.head.appendChild(s);
+  window.__velaLeaflet = import('leaflet').then((mod) => {
+    // Остальной код компонента работает через `window.L` — оставляем как было.
+    window.L = (mod as any).default ?? mod;
   });
   return window.__velaLeaflet;
 }
