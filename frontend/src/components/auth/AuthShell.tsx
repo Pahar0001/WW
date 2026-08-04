@@ -15,7 +15,7 @@
  */
 
 import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { buildGradeSvg, GRADE_FILTER_ID } from '@/components/hero/ColorGrading';
 
@@ -72,18 +72,54 @@ export function AuthShell({
   subtitle?: string;
   children: React.ReactNode;
 }) {
-  // Замедляем видео до «созерцательного» темпа; reduced-motion — постер.
+  /**
+   * Кино-фон экранов входа.
+   *
+   * ⚠️ ВИДЕО ИДЁТ В СВОЁМ ТЕМПЕ. Раньше здесь стоял `playbackRate = 0.55` ради
+   * «созерцательности», и он же всё портил: на 0.55× каждый кадр держится вдвое
+   * дольше, а поверх видео на весь экран висит SVG-грейдинг (`filter: url(…)`),
+   * который пересчитывается на каждом кадре композитора. Вдвое больше проходов
+   * фильтра на ту же секунду видео — и картинка дёргается вместо того, чтобы
+   * плыть. Замедлять обратно не надо: нужен спокойный темп — перекодируйте сам
+   * файл, это бесплатно в рантайме.
+   *
+   * Тяжёлый фон включается не всегда. На телефоне и при `prefers-reduced-motion`
+   * остаётся постер, а 16-МБ файл вообще не скачивается: `src` не проставлен.
+   * Ровно так же поступает главная (`HeroVideo`, `isStatic`) — там это уже
+   * проверено на слабых устройствах.
+   */
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [cinema, setCinema] = useState(false);
+
+  useEffect(() => {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const mobile = window.matchMedia('(max-width: 767px)');
+    // Подписываемся, а не читаем один раз: окно, растянутое с телефонной ширины
+    // до настольной, должно получить фон, а не остаться с постером навсегда.
+    // Так же устроен hero на главной.
+    const sync = () => setCinema(!reduced.matches && !mobile.matches);
+    sync();
+    reduced.addEventListener('change', sync);
+    mobile.addEventListener('change', sync);
+    return () => {
+      reduced.removeEventListener('change', sync);
+      mobile.removeEventListener('change', sync);
+    };
+  }, []);
+
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      v.pause();
-      return;
-    }
-    v.playbackRate = 0.55;
-    v.play().catch(() => {}); // автоплей может быть запрещён — остаёмся на постере
-  }, []);
+    if (!v || !cinema) return;
+    // Ждём, пока данных хватит на непрерывное проигрывание. Прежний вариант
+    // звал play() сразу с `preload="metadata"`: воспроизведение начиналось на
+    // пустом буфере и вставало посреди кадра, догружая файл.
+    const start = () => {
+      v.play().catch(() => {}); // автоплей может быть запрещён — остаёмся на постере
+    };
+    if (v.readyState >= 3) start();
+    else v.addEventListener('canplay', start, { once: true });
+    return () => v.removeEventListener('canplay', start);
+  }, [cinema]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#0d0b08]">
@@ -93,12 +129,14 @@ export function AuthShell({
       {/* Кино-фон на весь экран */}
       <video
         ref={videoRef}
-        src={AUTH_VIDEO}
+        // Без `src` браузер показывает постер и НЕ качает файл — так экран
+        // входа на телефоне стоит одну картинку вместо шестнадцати мегабайт.
+        src={cinema ? AUTH_VIDEO : undefined}
         poster={AUTH_POSTER}
         muted
         loop
         playsInline
-        preload="metadata"
+        preload="auto"
         aria-hidden
         className="absolute inset-0 h-full w-full object-cover"
         style={{ filter: `url(#${GRADE_FILTER_ID})` }}
