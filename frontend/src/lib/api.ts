@@ -317,7 +317,7 @@ export interface TravelPlan {
   return: string;
   nights: number;
   flights: FlightOffer[];
-  hotelLinks: { city: string; booking: string; yandex: string; ostrovok: string }[];
+  hotelLinks: { city: string; mapSearch: string }[];
   dataStatus: DataStatus;
   fetchedAt: string;
   marker?: string | null;

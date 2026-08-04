@@ -25,12 +25,19 @@ export function HotelsSection({
     if (c && !cities.includes(c)) cities.push(c);
   }
 
-  const bookingUrl = (city: string) =>
-    `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}`;
-  // Yandex Travel removed the `/hotels/search/` route (now 404). The live search
-  // page is `/hotels/`; the destination text is passed via the `text` query param.
-  const yandexUrl = (city: string) =>
-    `https://travel.yandex.ru/hotels/?text=${encodeURIComponent(city)}`;
+  /**
+   * ⚠️ Здесь стояли ссылки на Booking (`searchresults?ss=`) и Яндекс
+   * Путешествия (`/hotels/?text=`), и ОБЕ были мёртвыми: Booking сбрасывает
+   * запрос на главную, Яндекс открывает пустую форму. Комментарий над ними
+   * уверял, что адрес живой, — уверенности в комментарии оказалось больше, чем
+   * проверки. Ни один сервис бронирования не принимает поиск по тексту ссылкой;
+   * разбор и список проверенных форматов — в `backend/src/common/place-links.ts`.
+   *
+   * Поиск по карте отдаёт живой список отелей города с рейтингами и ценами.
+   * Проверено в браузере: у SPA код ответа 200 приходит и на мёртвый адрес.
+   */
+  const mapSearchUrl = (city: string) =>
+    `https://yandex.ru/maps/?text=${encodeURIComponent(`отели, ${city}`)}`;
 
   return (
     <div className="rounded-2xl border border-ink-line bg-ink-soft/40 p-7">
@@ -93,26 +100,15 @@ export function HotelsSection({
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-ink-line px-4 py-3"
               >
                 <span className="text-paper">{c}</span>
-                <div className="flex gap-2">
-                  <a
-                    href={bookingUrl(c)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-cursor="hover"
-                    className="rounded-full border border-ink-line px-4 py-1.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
-                  >
-                    Booking
-                  </a>
-                  <a
-                    href={yandexUrl(c)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-cursor="hover"
-                    className="rounded-full border border-ink-line px-4 py-1.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
-                  >
-                    Яндекс Путешествия
-                  </a>
-                </div>
+                <a
+                  href={mapSearchUrl(c)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-cursor="hover"
+                  className="rounded-full border border-ink-line px-4 py-1.5 text-sm text-paper-dim transition-colors hover:border-aurora/40 hover:text-paper"
+                >
+                  Отели на карте →
+                </a>
               </div>
             ))}
           </div>

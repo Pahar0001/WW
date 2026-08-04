@@ -419,7 +419,7 @@ function HotelCard({ hotel }: { hotel: NearbyHotel }) {
             target="_blank"
             rel="noopener noreferrer"
             className={`text-xs hover:underline ${
-              l.kind === 'official' ? 'text-paper-dim' : 'text-aurora'
+              l.kind === 'map' ? 'text-aurora' : 'text-paper-dim'
             }`}
           >
             {l.label} →
@@ -483,7 +483,7 @@ function Stays({
                             rel="noopener noreferrer"
                             className="text-xs text-paper-faint hover:text-paper hover:underline"
                           >
-                            Все варианты · {l.label} →
+                            {l.label}
                           </a>
                         ))}
                       </div>

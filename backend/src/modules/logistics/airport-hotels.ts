@@ -17,6 +17,7 @@
  * далеко ли», а цену человек видит у того, кто её знает, — по ссылке с уже
  * подставленным названием и датами.
  */
+import { mapPointUrl, mapSearchUrl } from '../../common/place-links';
 import {
   AIRPORT_HOTELS,
   AIRPORT_HOTELS_FETCHED_AT,
@@ -28,8 +29,8 @@ import {
 export interface HotelLink {
   label: string;
   href: string;
-  /** 'official' — сайт самого отеля, 'booking' — где бронировать, 'map' — где это. */
-  kind: 'official' | 'booking' | 'map';
+  /** 'official' — сайт отеля, 'map' — карточка точки, 'source' — объект в OSM. */
+  kind: 'official' | 'map' | 'source';
 }
 
 export interface NearbyHotel {
@@ -58,58 +59,38 @@ const KIND_RU: Record<AirportHotel['kind'], string> = {
 
 export const hotelKindRu = (kind: AirportHotel['kind']) => KIND_RU[kind] ?? 'ночлег';
 
-/** Даты для Ostrovok: он принимает ДД.ММ.ГГГГ-ДД.ММ.ГГГГ. */
-const ruDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-
 /**
- * Ссылки на конкретный отель.
+ * Ссылки на конкретный отель — только проверенные в браузере форматы.
  *
- * Порядок не случаен: сначала сайт самого отеля (там точно он и никого больше),
- * потом сервисы бронирования с подставленным названием, потом карта.
+ * ⚠️ Ссылок «забронировать на Ostrovok / Яндекс Путешествиях / Booking» здесь
+ * больше НЕТ, и это не упущение. Ни один из трёх не принимает поиск по названию
+ * ссылкой: Ostrovok отдаёт 404, Яндекс Путешествия открывают пустую форму,
+ * Booking сбрасывает запрос на главную. Проверено вручную, разбор — в
+ * `common/place-links.ts`. Лучше две работающие ссылки, чем четыре, из которых
+ * две ведут в никуда: неработающая ссылка хуже её отсутствия, потому что
+ * человек уходит с сайта и не возвращается.
  *
- * ⚠️ Адрес поиска Ostrovok — `/hotels/?q=`. Прежний `/hotel/search/?q=`, который
- * стоял в коде, отдаёт 404: человек с раздела логистики попадал на страницу
- * ошибки. Проверено запросом, не на глаз.
- *
- * Для зарубежных отелей в запрос идёт латинское название, если OSM его знает:
- * русские сервисы бронирования индексируют международные названия лучше, чем
- * локальные («Ξενοδοχείο …» не найдётся никогда).
+ * Что осталось и почему работает:
+ *  · сайт самого отеля — там точно он и никого больше (есть примерно у трети);
+ *  · карточка точки на Яндекс Картах по КООРДИНАТАМ — координата указывает на
+ *    здание однозначно, её не надо искать в чужой базе. На карточке отеля
+ *    Яндекс сам показывает цены и кнопку бронирования;
+ *  · объект в OpenStreetMap — источник, по нему проверяется любой наш факт.
  */
-function hotelLinks(hotel: AirportHotel, checkIn?: string, checkOut?: string): HotelLink[] {
+function hotelLinks(hotel: AirportHotel): HotelLink[] {
   const links: HotelLink[] = [];
 
   if (hotel.website) {
     links.push({ label: 'Сайт отеля', href: hotel.website, kind: 'official' });
   }
 
-  const searchName = hotel.nameEn ?? hotel.name;
-  const q = encodeURIComponent(searchName);
-  const dates = checkIn && checkOut;
-
   links.push({
-    label: 'Ostrovok',
-    href: dates
-      ? `https://ostrovok.ru/hotels/?q=${q}&dates=${ruDate(checkIn!)}-${ruDate(checkOut!)}`
-      : `https://ostrovok.ru/hotels/?q=${q}`,
-    kind: 'booking',
-  });
-
-  links.push({
-    label: 'Яндекс Путешествия',
-    href: dates
-      ? `https://travel.yandex.ru/hotels/?text=${q}&checkinDate=${checkIn}&checkoutDate=${checkOut}`
-      : `https://travel.yandex.ru/hotels/?text=${q}`,
-    kind: 'booking',
-  });
-
-  // Карта по координатам — единственная ссылка, которая ведёт ИМЕННО в эту
-  // точку, а не в результат поиска по названию. Нужна, когда названий-двойников
-  // несколько, а такое бывает часто: «Аэропорт», «Транзит», три «GettSleep».
-  links.push({
-    label: 'На карте',
-    href: `https://www.openstreetmap.org/?mlat=${hotel.lat}&mlon=${hotel.lng}#map=17/${hotel.lat}/${hotel.lng}`,
+    label: 'Цены и отзывы на карте',
+    href: mapPointUrl(hotel.lat, hotel.lng),
     kind: 'map',
   });
+
+  links.push({ label: 'Источник', href: hotel.osm, kind: 'source' });
 
   return links;
 }
@@ -141,10 +122,7 @@ const displayName = (h: AirportHotel) =>
  * Шереметьеве); показать их подряд — значит потратить половину короткого списка
  * на строки, неотличимые друг от друга.
  */
-export function hotelsNearAirport(
-  iata: string,
-  opts: { limit?: number; checkIn?: string; checkOut?: string } = {},
-): NearbyHotel[] {
+export function hotelsNearAirport(iata: string, opts: { limit?: number } = {}): NearbyHotel[] {
   const raw = AIRPORT_HOTELS[iata] ?? [];
   const seen = new Set<string>();
   const out: NearbyHotel[] = [];
@@ -163,7 +141,7 @@ export function hotelsNearAirport(
       kind: h.kind,
       ...(h.stars ? { stars: h.stars } : {}),
       ...(h.phone ? { phone: h.phone } : {}),
-      links: hotelLinks(h, opts.checkIn, opts.checkOut),
+      links: hotelLinks(h),
     });
     if (out.length >= limit) break;
   }

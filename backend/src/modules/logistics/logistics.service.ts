@@ -15,6 +15,7 @@ import {
   type NearbyHotel,
 } from './airport-hotels';
 import { transferBlock, type TransferBlock } from './transfer';
+import { mapSearchUrl } from '../../common/place-links';
 
 /**
  * Логистика поездки: «как я туда реально доберусь».
@@ -261,32 +262,20 @@ function searchUrl(origin: string, destination: string | undefined, depart?: str
 }
 
 /**
- * Поисковые ссылки по зоне — запасной путь, когда выгрузки отелей по аэропорту
- * нет и показать конкретные объекты нечем.
+ * «Показать все варианты рядом» — поиск мест на карте вокруг точки.
  *
- * ⚠️ Адрес поиска Ostrovok — `/hotels/?q=`. Прежний `/hotel/search/?q=` отдаёт
- * 404: до этой правки каждая ссылка на Ostrovok из логистики вела на страницу
- * ошибки. Проверено запросом.
+ * ⚠️ Здесь стояли ссылки на Ostrovok и Яндекс Путешествия, и ОБЕ были мёртвыми:
+ * первая отдавала 404, вторая открывала пустую форму поиска. Ни один сервис
+ * бронирования не принимает поиск по тексту ссылкой — разбор в
+ * `common/place-links.ts`. Поиск по карте отдаёт живой список отелей с
+ * рейтингами и ценами, и он проверен в браузере, а не по коду ответа.
+ *
+ * Даты сюда не передаются: карта их не принимает, а подставлять параметр,
+ * который молча игнорируется, — тот же самый самообман.
  */
-const hotelSearch = (query: string, checkIn?: string, checkOut?: string) => {
-  const q = encodeURIComponent(query);
-  const ru = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
-  const dates = checkIn && checkOut;
-  return [
-    {
-      label: 'Ostrovok',
-      href: dates
-        ? `https://ostrovok.ru/hotels/?q=${q}&dates=${ru(checkIn!)}-${ru(checkOut!)}`
-        : `https://ostrovok.ru/hotels/?q=${q}`,
-    },
-    {
-      label: 'Яндекс Путешествия',
-      href: dates
-        ? `https://travel.yandex.ru/hotels/?text=${q}&checkinDate=${checkIn}&checkoutDate=${checkOut}`
-        : `https://travel.yandex.ru/hotels/?text=${q}`,
-    },
-  ];
-};
+const hotelSearch = (query: string, lat?: number, lng?: number) => [
+  { label: 'Все отели рядом на карте', href: mapSearchUrl(query, lat, lng) },
+];
 
 /** Сдвиг ISO-даты на дни. Считаем в UTC: тут важен календарь, а не часы. */
 function shiftDate(iso: string | undefined, days: number): string | undefined {
@@ -317,8 +306,8 @@ function beforeFlightStays(airports: Airport[], depart?: string): StayOption[] {
       a.distanceKm !== undefined
         ? `${a.distanceKm} км от центра — на ранний рейс безопаснее ночевать у терминала, чем ехать через город.`
         : 'Ночёвка у терминала избавляет от гонки на ранний рейс.',
-    links: hotelSearch(`аэропорт ${a.name}`, checkIn, checkOut),
-    hotels: hotelsNearAirport(a.iata, { limit: 4, checkIn, checkOut }),
+    links: hotelSearch(`отели рядом с аэропортом ${a.name}`, a.lat, a.lng),
+    hotels: hotelsNearAirport(a.iata, { limit: 4 }),
     ...(nights ? { nights } : {}),
   }));
 }
@@ -390,8 +379,8 @@ function returnHomeStays(from: Airport[], ret?: string): StayOption[] {
     reason:
       a.lateNight ??
       'Если рейс домой приземляется ночью, номер у терминала часто дешевле ночного такси через весь город.',
-    links: hotelSearch(`аэропорт ${a.name}`, checkIn, checkOut),
-    hotels: hotelsNearAirport(a.iata, { limit: 4, checkIn, checkOut }),
+    links: hotelSearch(`отели рядом с аэропортом ${a.name}`, a.lat, a.lng),
+    hotels: hotelsNearAirport(a.iata, { limit: 4 }),
     ...(nights ? { nights } : {}),
   }));
 }
@@ -415,30 +404,26 @@ function firstNightStays(
     {
       title: `${city}: рядом с центром`,
       reason: 'Всё в пешей доступности — разумно, если на город всего один-два дня.',
-      links: hotelSearch(`${city} центр`, depart, ret),
+      links: hotelSearch(`отели в центре, ${city}`),
       hotels: [],
     },
     {
       title: `${city}: рядом с метро или вокзалом`,
       reason: 'Дешевле центра, но вы быстро попадаете куда угодно. Хорошо для длинной поездки.',
-      links: hotelSearch(`${city} метро`, depart, ret),
+      links: hotelSearch(`отели у метро, ${city}`),
       hotels: [],
     },
     {
       title: `${city}: рядом с транспортным узлом`,
       reason: 'Если наутро едете дальше — не придётся пересекать город с чемоданами.',
-      links: hotelSearch(`${city} вокзал`, depart, ret),
+      links: hotelSearch(`отели у вокзала, ${city}`),
       hotels: [],
     },
   ];
 
   // Ночь прилёта — одна, со следующим утром: дальше человек едет по маршруту.
   const airport = arrival[0];
-  const nearby = airport ? hotelsNearAirport(airport.iata, {
-    limit: 4,
-    checkIn: depart,
-    checkOut: shiftDate(depart, 1),
-  }) : [];
+  const nearby = airport ? hotelsNearAirport(airport.iata, { limit: 4 }) : [];
 
   if (airport && nearby.length > 0) {
     const checkOut = shiftDate(depart, 1);
@@ -446,7 +431,7 @@ function firstNightStays(
       title: `У терминала ${airport.name}`,
       reason:
         'Если рейс садится поздно, до города вы уже не уедете обычным транспортом — ночь у аэропорта решает вопрос.',
-      links: hotelSearch(`аэропорт ${airport.name}`, depart, checkOut),
+      links: hotelSearch(`отели рядом с аэропортом ${airport.name}`, airport.lat, airport.lng),
       hotels: nearby,
       ...(depart && checkOut ? { nights: { checkIn: depart, checkOut } } : {}),
     });

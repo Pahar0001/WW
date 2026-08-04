@@ -75,7 +75,7 @@ export interface TransportOption {
 export interface HotelLink {
   label: string;
   href: string;
-  kind: 'official' | 'booking' | 'map';
+  kind: 'official' | 'map' | 'source';
 }
 
 /** Настоящий отель у аэропорта (OpenStreetMap), а не критерий выбора. */

@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DESTINATIONS, ORIGINS, type Destination } from './destinations';
+import { mapSearchUrl } from '../../common/place-links';
 
 // Реальные цены на авиабилеты — Aviasales Data API (Travelpayouts).
 // Real Data Policy: цены не выдумываются. Если токена нет или API не ответил —
@@ -29,7 +30,8 @@ export interface TravelPlan {
   return: string;
   nights: number;
   flights: FlightOffer[];
-  hotelLinks: { city: string; booking: string; yandex: string; ostrovok: string }[];
+  /** По городу маршрута — где посмотреть отели. Формат проверен в браузере. */
+  hotelLinks: { city: string; mapSearch: string }[];
   source: 'aviasales';
   dataStatus: 'VERIFIED';
   fetchedAt: string;
@@ -190,23 +192,15 @@ export class TravelService {
     if (cities.length === 0 && dest) cities.push(dest.city);
 
     const nights = Math.round((retDate.getTime() - departDate.getTime()) / 86400000);
-    const dd = (iso: string) => {
-      const [y, m, d] = iso.split('-');
-      return `${d}.${m}.${y}`;
-    };
+
+    // ⚠️ Здесь были три ссылки — Booking, Яндекс Путешествия и Ostrovok — и все
+    // три вели в никуда: Booking сбрасывает запрос на главную, Яндекс открывает
+    // пустую форму, Ostrovok отдаёт 404. Ни один сервис бронирования не
+    // принимает поиск по названию ссылкой; разбор в `common/place-links.ts`.
+    // Поиск по карте отдаёт живой список отелей города с рейтингами и ценами.
     const hotelLinks = cities.slice(0, 8).map((city) => ({
       city,
-      booking:
-        `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(city)}` +
-        `&checkin=${depart}&checkout=${ret}`,
-      yandex:
-        `https://travel.yandex.ru/hotels/?text=${encodeURIComponent(city)}` +
-        `&checkinDate=${depart}&checkoutDate=${ret}`,
-      // ⚠️ Адрес поиска — `/hotels/?q=`. Прежний `/hotel/search/?q=` отдаёт 404,
-      // то есть все ссылки на Ostrovok со страницы маршрута вели на ошибку.
-      ostrovok:
-        `https://ostrovok.ru/hotels/?q=${encodeURIComponent(city)}` +
-        `&dates=${dd(depart)}-${dd(ret)}`,
+      mapSearch: mapSearchUrl(`отели, ${city}`),
     }));
 
     return {

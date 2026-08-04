@@ -241,11 +241,7 @@ export function TravelPlanner({
               >
                 <span className="text-paper">{h.city}</span>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: 'Яндекс Путешествия', href: h.yandex },
-                    { label: 'Ostrovok', href: h.ostrovok },
-                    { label: 'Booking', href: h.booking },
-                  ].map((l) => (
+                  {[{ label: 'Отели на карте →', href: h.mapSearch }].map((l) => (
                     <a
                       key={l.label}
                       href={l.href}
@@ -261,9 +257,11 @@ export function TravelPlanner({
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-paper-faint">
-            Ссылки открывают живой поиск с вашими датами ({fmtDay(depart)} — {fmtDay(ret)},{' '}
-            {pluralize(plan.nights, 'ночь', 'ночи', 'ночей')}).
+          <p className="mt-3 text-xs leading-relaxed text-paper-faint">
+            Поиск на карте показывает отели города с рейтингами и ценами. Даты ({fmtDay(depart)} —{' '}
+            {fmtDay(ret)}, {pluralize(plan.nights, 'ночь', 'ночи', 'ночей')}) укажете там: сервисы
+            бронирования не принимают их ссылкой, а подставлять параметр, который молча
+            игнорируется, — обманывать себя.
             Цены отелей мы не выдумываем — только реальная выдача агрегаторов.
           </p>
         </div>
