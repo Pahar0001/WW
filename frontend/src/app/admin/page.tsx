@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { adminListTrips, adminNewOrdersCount, deleteTrip, imageUrl, type Trip } from '@/lib/api';
+import { adminListTrips, adminNewOrdersCount, deleteTrip, imageUrl, type Trip, sizedImageUrl } from '@/lib/api';
 import { auth, isAdminRole, logout, type AuthUser } from '@/lib/auth';
 import { toast } from '@/components/ui/Toaster';
 import { TripForm } from '@/components/trips/TripForm';
@@ -97,7 +97,7 @@ export default function AdminPage() {
                 <div className="flex items-center gap-3">
                   {imageUrl(t.heroImage) && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageUrl(t.heroImage)!} alt="" className="h-10 w-14 rounded-md object-cover" />
+                    <img src={sizedImageUrl(t.heroImage, 200)!} alt="" decoding="async" className="h-10 w-14 rounded-md object-cover" />
                   )}
                   <div>
                     <div className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import type { Metadata } from 'next';
-import { api, imageUrl, type Trip } from '@/lib/api';
+import { api, imageUrl, sizedImageUrl, type Trip } from '@/lib/api';
 import { TripExperience } from '@/components/trip/TripExperience';
 import { TripCosts } from '@/components/trip/TripCosts';
 import { PlanLink } from '@/components/trip/PlanLink';
@@ -111,8 +111,13 @@ export default async function TripPage({ params }: { params: { slug: string } })
           <div className="relative h-[62vh] min-h-[440px] w-full overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={imageUrl(trip.heroImage)!}
-              alt={trip.title}
+              src={sizedImageUrl(trip.heroImage, 1400)!}
+              // alt пустой ОСОЗНАННО: обложка декоративная, название маршрута
+              // стоит рядом в <h1>. С непустым alt браузер, пока картинка идёт
+              // (а это были мегабайты), рисовал этот текст голыми буквами в углу
+              // — ровно то, что выглядело как сломанная вёрстка.
+              alt=""
+              decoding="async"
               className="h-full w-full object-cover"
             />
             {/* Explicit dark overlay + light text (image is always dark).
@@ -353,14 +358,19 @@ function fmt(n: number): string {
 /**
  * Картинки маршрута для офлайн-кэша: обложка и фото мест. Ограничиваем список,
  * чтобы «Сохранить офлайн» не тянуло десятки мегабайт на мобильном интернете.
+ *
+ * ⚠️ Адреса обязаны СОВПАДАТЬ с теми, что запрашивает страница, — кэш ищет по
+ * точному адресу. Поэтому здесь тот же `sizedImageUrl` и та же ширина, что в
+ * разметке: сохранив оригинал, офлайн-режим показал бы пустоту, честно скачав
+ * при этом мегабайты.
  */
 function offlineAssets(trip: Trip): string[] {
   const urls: string[] = [];
-  const push = (v?: string | null) => {
-    const u = imageUrl(v);
+  const push = (v?: string | null, width = 1000) => {
+    const u = sizedImageUrl(v, width);
     if (u && !urls.includes(u)) urls.push(u);
   };
-  push(trip.heroImage);
+  push(trip.heroImage, 1400);
   for (const variant of trip.variants) {
     for (const day of variant.days) {
       for (const dp of day.places) push(dp.place.photoUrl);

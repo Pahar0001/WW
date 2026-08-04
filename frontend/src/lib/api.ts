@@ -20,6 +20,41 @@ export function imageUrl(value?: string | null): string | null {
   return value.startsWith('/') ? value : `/${value}`;
 }
 
+/**
+ * Обложка нужного размера.
+ *
+ * ⚠️ ЗАЧЕМ. Обложки маршрутов пришли из Википедии при сидировании, и это
+ * ОРИГИНАЛЫ: обложка Великобритании весит 9.3 МБ, Германии — 3.8, Чехии — 3.4.
+ * Браузер грузил их в полный размер, и пока файл шёл, на месте фотографии
+ * висел голый текст `alt` в углу — страница выглядела сломанной. В каталоге на
+ * главной таких картинок два десятка сразу.
+ *
+ * Викимедиа умеет отдавать уменьшённую копию через `Special:FilePath?width=`:
+ * та же обложка в 1000 px весит 523 КБ вместо 9.3 МБ. Это документированный и
+ * стабильный интерфейс; прямые адреса миниатюр (`/thumb/…/1000px-…`) собирать
+ * вручную нельзя — для части файлов они отдают 400, проверено.
+ *
+ * Всё, что не с Викимедиа (наши загрузки в `/uploads/…`, чужие хосты),
+ * проходит насквозь: чужой сервер не обязан понимать наши параметры.
+ */
+export function sizedImageUrl(value?: string | null, width = 1200): string | null {
+  const url = imageUrl(value);
+  if (!url) return null;
+
+  const m = url.match(/^https?:\/\/upload\.wikimedia\.org\/wikipedia\/([a-z-]+)\/(.+)$/);
+  if (!m) return url;
+
+  const [, project, rest] = m;
+  // Уже миниатюра (…/thumb/a/ab/File.jpg/330px-File.jpg) — трогать нечего.
+  if (rest.startsWith('thumb/')) return url;
+
+  const file = rest.split('/').pop();
+  if (!file) return url;
+
+  const host = project === 'commons' ? 'commons.wikimedia.org' : `${project}.wikipedia.org`;
+  return `https://${host}/wiki/Special:FilePath/${file}?width=${width}`;
+}
+
 function baseUrl(): string {
   return typeof window === 'undefined' ? serverBase() : BROWSER_BASE;
 }

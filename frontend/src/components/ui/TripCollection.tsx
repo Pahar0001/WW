@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { imageUrl, type Trip } from '@/lib/api';
+import { imageUrl, type Trip, sizedImageUrl } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { FadeIn } from '@/components/ui/Motion';
 import { pluralize } from '@/lib/plural';
@@ -18,7 +18,9 @@ export function TripCollection({ trips }: { trips: Trip[] }) {
     <>
       <div className="grid gap-6 md:grid-cols-2">
         {visible.map((t, i) => {
-          const hero = imageUrl(t.heroImage);
+          // Карточек в каталоге два десятка — просим у Викимедиа копию под размер
+          // карточки, а не оригинал на мегабайты (см. sizedImageUrl).
+          const hero = sizedImageUrl(t.heroImage, 800);
           return (
             <FadeIn key={t.id} delay={Math.min(i, PREVIEW) * 0.05}>
               <Card href={`/trips/${t.slug}`} className="group h-full overflow-hidden">

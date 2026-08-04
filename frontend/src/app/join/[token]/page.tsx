@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { auth, authHeaders, type AuthUser } from '@/lib/auth';
-import { imageUrl } from '@/lib/api';
+import { imageUrl, sizedImageUrl } from '@/lib/api';
 import { pluralize } from '@/lib/plural';
 
 interface InviteInfo {
@@ -83,7 +83,7 @@ export default function JoinPage() {
         {imageUrl(info.heroImage) && (
           <div className="relative h-52 w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl(info.heroImage)!} alt="" className="h-full w-full object-cover" />
+            <img src={sizedImageUrl(info.heroImage, 1200)!} alt="" decoding="async" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
           </div>
         )}

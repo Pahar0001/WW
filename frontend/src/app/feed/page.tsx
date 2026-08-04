@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { auth, type AuthUser } from '@/lib/auth';
-import { imageUrl } from '@/lib/api';
+import { imageUrl, sizedImageUrl } from '@/lib/api';
 import { social, type FeedTrip } from '@/lib/social';
 import { SocialTabs } from '@/components/social/SocialTabs';
 import { CommentThread } from '@/components/social/CommentThread';
@@ -67,7 +67,7 @@ function TripCard({ trip, meId }: { trip: FeedTrip; meId?: string }) {
   const [reposts, setReposts] = useState(trip.reposts);
   const [comments, setComments] = useState(trip.comments);
   const [open, setOpen] = useState(false);
-  const hero = imageUrl(trip.heroImage);
+  const hero = sizedImageUrl(trip.heroImage, 800);
 
   async function like() {
     setLiked((v) => !v); setLikes((n) => n + (liked ? -1 : 1));

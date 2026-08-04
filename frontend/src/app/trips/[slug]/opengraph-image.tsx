@@ -1,4 +1,4 @@
-import { api, imageUrl } from '@/lib/api';
+import { api, imageUrl, sizedImageUrl } from '@/lib/api';
 import { ogCard, ogClamp, OG_SIZE, OG_CONTENT_TYPE } from '@/lib/og';
 import { pluralize } from '@/lib/plural';
 
@@ -20,7 +20,7 @@ export default async function Image({ params }: { params: { slug: string } }) {
     return ogCard({ eyebrow: 'Vela', title: 'Путешествия, которые запоминаются' });
   }
 
-  const hero = imageUrl(trip.heroImage);
+  const hero = sizedImageUrl(trip.heroImage, 1200);
   const background = hero && /^https?:\/\//.test(hero) ? hero : null;
 
   return ogCard({
