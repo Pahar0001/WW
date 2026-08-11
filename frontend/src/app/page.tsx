@@ -138,6 +138,11 @@ export default async function HomePage() {
           </nav>
           <span>© {new Date().getFullYear()} Vela</span>
         </div>
+
+        {/* Кто сделал сайт — самой бледной строкой, ниже копирайта продукта */}
+        <p className="mt-8 border-t border-ink-line/60 pt-6 text-center text-[11px] uppercase tracking-[0.24em] text-paper-faint/60">
+          © {new Date().getFullYear()} VANTA — DIGITAL STUDIO
+        </p>
       </footer>
     </main>
   );
