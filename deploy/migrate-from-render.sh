@@ -41,8 +41,8 @@ $COMPOSE up -d db
 $COMPOSE exec -T db sh -c "until pg_isready -U $DB_USER -d $DB_NAME >/dev/null 2>&1; do sleep 1; done"
 
 echo "[2/4] снимаем дамп с Render → $DUMP"
-# pg_dump берём из того же образа postgres:16, чтобы версии совпадали:
-# системный pg_dump старше сервера — откажется работать.
+# pg_dump берём из образа службы db, чтобы версия совпала с сервером
+# (там PostgreSQL 18): системный pg_dump обычно старше и просто откажется.
 $COMPOSE run --rm --no-deps --entrypoint sh db -c \
   "pg_dump '$SRC' --clean --if-exists --no-owner --no-privileges" | gzip -9 > "$DUMP"
 

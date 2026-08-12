@@ -25,7 +25,11 @@
 
 services:
   db:
-    image: postgres:16-alpine
+    # Ровно та же основная версия, что на прежней площадке (проверено
+    # подключением к боевой базе 12 августа 2026: PostgreSQL 18.4).
+    # Взять младше нельзя: pg_dump 16 отказывается снимать дамп с сервера 18,
+    # а восстановить дамп 18 в сервер 16 не даст уже сам psql.
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-vela}
