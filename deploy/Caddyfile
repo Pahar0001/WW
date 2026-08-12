@@ -1,15 +1,40 @@
-# Caddy auto-obtains and auto-renews Let's Encrypt TLS for these domains.
-# Requirements: ports 80 and 443 open on the VPS, and DNS A-records for
-# velatrips.ru and www.velatrips.ru pointing to the VPS public IP.
+# Caddy сам получает и продлевает сертификат Let's Encrypt.
+#
+# Что нужно с вашей стороны:
+#   · открытые порты 80 и 443 на сервере;
+#   · A-записи DOMAIN и www.DOMAIN, указывающие на публичный IP сервера.
+#
+# Домен берётся из .env (переменная DOMAIN) — в конфиге он не зашит,
+# поэтому переезд на другой адрес не требует правки этого файла.
 
-# Redirect www → apex (keeps a single canonical URL).
-www.velatrips.ru {
-	redir https://velatrips.ru{uri} permanent
+{
+	email {$ACME_EMAIL}
 }
 
-velatrips.ru {
+# www → без www: у сайта должен быть один канонический адрес.
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
 	encode zstd gzip
-	# Everything goes to the Next.js server, which itself proxies /api and
-	# /uploads to the backend.
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Загруженные файлы отдаются надолго: их имена содержат хэш содержимого.
+	@uploads path /uploads/*
+	header @uploads Cache-Control "public, max-age=2592000"
+
+	# Всё уходит на Next.js, а он сам форвардит /api и /uploads на backend.
 	reverse_proxy web:3000
+
+	log {
+		output file /data/access.log
+		format console
+	}
 }

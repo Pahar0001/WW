@@ -1,11 +1,11 @@
 import type { MetadataRoute } from 'next';
+import { SITE } from '@/lib/site';
 
 /**
  * robots.txt: открыт публичный контент, закрыты личные и служебные разделы
  * (админка, аккаунт, соцлента, печатные версии), плюс ссылка на карту сайта.
  */
 
-const SITE = 'https://velatrips.ru';
 
 export default function robots(): MetadataRoute.Robots {
   return {

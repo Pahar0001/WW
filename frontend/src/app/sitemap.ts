@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { api } from '@/lib/api';
+import { SITE } from '@/lib/site';
 
 /**
  * Карта сайта: статические разделы + все публичные маршруты и страницы стран
@@ -9,7 +10,6 @@ import { api } from '@/lib/api';
 
 export const revalidate = 3600;
 
-const SITE = 'https://velatrips.ru';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();

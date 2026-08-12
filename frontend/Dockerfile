@@ -3,8 +3,13 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+# Публичный адрес сайта нужен именно на сборке: Next печёт его в sitemap.xml,
+# robots.txt и OG-теги. Если не передать — останется значение по умолчанию
+# из frontend/src/lib/site.ts.
+ARG NEXT_PUBLIC_SITE_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 # Produce a standalone server for the Docker runtime (server.js).
 ENV BUILD_STANDALONE=true
 COPY package.json ./

@@ -1,18 +1,48 @@
-# Production stack for a single VPS (e.g. reg.ru "Облачный сервер").
+# Vela на выделенном сервере: всё своё, наружу ничего не уходит.
 #
-#   Internet ──▶ Caddy (80/443, auto HTTPS) ──▶ web (Next.js :3000)
-#                                                 └─ proxies /api,/uploads ─▶ backend (NestJS :4000)
-#   backend ──▶ Neon (managed PostgreSQL, external) via DATABASE_URL
-#   files   ──▶ Supabase Storage (external) via S3_* ; local disk is fallback
+#   Интернет ──▶ Caddy (80/443, сам выпускает HTTPS) ──▶ web (Next.js :3000)
+#                                                          └─ /api и /uploads ─▶ backend (NestJS :4000)
+#   backend ──▶ db (PostgreSQL 16) — на этой же машине, в томе vela_pgdata
+#   файлы   ──▶ том vela_uploads — на этой же машине
 #
-# There is NO local Postgres here — the database lives on Neon (free, managed).
-# Only Caddy publishes ports; web and backend stay on the internal network.
+# Чем это отличается от прежней схемы: база жила в Neon, а файлы в Supabase
+# Storage — оба сервиса зарубежные. Для сервиса с российскими пользователями
+# персональные данные должны храниться в России (152-ФЗ, ст. 18 ч. 5), да и
+# зависеть от чужой инфраструктуры не хочется. Теперь база и файлы лежат
+# на том же сервере, где работает приложение.
 #
-# Usage on the server:
-#   cp .env.prod.example .env     # then fill in real values (see docs/DEPLOY_VPS.md)
+# S3_* остались в конфигурации, но по умолчанию пустые: если когда-нибудь
+# понадобится вынести файлы в российское объектное хранилище (Yandex Object
+# Storage, VK Cloud), достаточно заполнить переменные — код это уже умеет.
+#
+# Наружу смотрит только Caddy. db, backend и web видны лишь внутри сети.
+#
+# Запуск на сервере:
+#   cp .env.prod.example .env     # и заполнить (см. docs/DEPLOY_DEDICATED.md)
 #   docker compose -f docker-compose.prod.yml up -d --build
 
 services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vela}
+      POSTGRES_USER: ${POSTGRES_USER:-vela}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env}
+      # без этого initdb выберет C-локаль, и сортировка кириллицы будет неверной
+      LANG: ru_RU.utf8
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - vela_pgdata:/var/lib/postgresql/data
+    # порт наружу не публикуем: до базы дотягивается только backend по сети compose
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vela} -d ${POSTGRES_DB:-vela}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   backend:
     build:
       context: ./backend
@@ -22,23 +52,33 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: "4000"
+      # Адрес базы собирается здесь, а не в .env: пароль и так уже есть в .env,
+      # дублировать его во второй строке — лишний повод для рассинхрона.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-vela}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vela}?schema=public
     volumes:
-      - vela_uploads:/app/uploads   # fallback for uploads if S3 is unset/misconfigured
+      - vela_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
     expose:
       - "4000"
-    # Image CMD runs: prisma db push (creates schema on Neon) → seed → start.
+    # CMD образа: prisma db push (создаёт схему) → seed → запуск API.
 
   web:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # адрес нужен на сборке: из него Next собирает sitemap, robots и OG-теги
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN:?задайте DOMAIN в .env}
     restart: unless-stopped
     depends_on:
       - backend
     environment:
       NODE_ENV: production
-      # The Next server proxies the browser's /api and /uploads to the backend.
+      # Next-сервер форвардит браузерные /api и /uploads на backend
       BACKEND_URL: http://backend:4000
+      NEXT_PUBLIC_SITE_URL: https://${DOMAIN}
     expose:
       - "3000"
 
@@ -50,12 +90,16 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?задайте DOMAIN в .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data       # persists issued TLS certificates
+      - caddy_data:/data       # здесь лежат выпущенные сертификаты
       - caddy_config:/config
 
 volumes:
+  vela_pgdata:
   vela_uploads:
   caddy_data:
   caddy_config:

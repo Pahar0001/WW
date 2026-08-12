@@ -11,6 +11,7 @@ import { CookieBanner } from '@/components/legal/CookieBanner';
 import { AssistantWidget } from '@/components/assistant/AssistantWidget';
 import { PwaProvider } from '@/components/pwa/PwaProvider';
 import { Toaster } from '@/components/ui/Toaster';
+import { SITE } from '@/lib/site';
 
 // Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
 const themeInit = `(function(){try{var t=localStorage.getItem('vela_theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
     template: '%s',
   },
   description: DESCRIPTION,
-  metadataBase: new URL('https://velatrips.ru'),
+  metadataBase: new URL(SITE),
   applicationName: 'Vela',
   keywords: [
     'маршруты путешествий',
