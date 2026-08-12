@@ -23,10 +23,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-vela}
       POSTGRES_USER: ${POSTGRES_USER:-vela}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env}
-      LANG: ru_RU.utf8
+      # ru_RU.utf8 в musl-alpine нет; C.UTF-8 хранит кириллицу без искажений
+      # (сортировка побайтовая — приложение и так сортирует по своим полям)
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
     volumes:
-      - vela_pgdata:/var/lib/postgresql/data
+      # postgres:18 хранит данные в подкаталоге с номером версии, поэтому том
+      # монтируется в /var/lib/postgresql, а не в /var/lib/postgresql/data:
+      # старая раскладка роняет контейнер ещё до initdb (см. PR docker-library/postgres#1259)
+      - vela_pgdata:/var/lib/postgresql
     networks: [internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vela} -d ${POSTGRES_DB:-vela}"]
