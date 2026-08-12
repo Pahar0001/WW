@@ -7,9 +7,19 @@ ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 # robots.txt и OG-теги. Если не передать — останется значение по умолчанию
 # из frontend/src/lib/site.ts.
 ARG NEXT_PUBLIC_SITE_URL
+# Видео первого экрана: пусто — берётся public/hero/thailand.mp4, «none» — выключено
+ARG NEXT_PUBLIC_HERO_MEDIA_URL
+ARG NEXT_PUBLIC_HERO_MEDIA_POSTER
+# Версия сборки попадает в адрес service worker (/sw.js?v=…). Если её не менять,
+# браузер продолжает держать прежний worker и его кэш — люди после обновления
+# видят старый сайт. См. frontend/src/components/pwa/PwaProvider.tsx.
+ARG NEXT_PUBLIC_BUILD_ID=dev
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
+ENV NEXT_PUBLIC_HERO_MEDIA_URL=$NEXT_PUBLIC_HERO_MEDIA_URL
+ENV NEXT_PUBLIC_HERO_MEDIA_POSTER=$NEXT_PUBLIC_HERO_MEDIA_POSTER
+ENV NEXT_PUBLIC_BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 # Produce a standalone server for the Docker runtime (server.js).
 ENV BUILD_STANDALONE=true
 COPY package.json ./
