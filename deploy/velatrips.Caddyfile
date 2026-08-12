@@ -1,0 +1,30 @@
+# Блок для velatrips.ru — добавляется в общий Caddyfile портфолио
+# (/opt/sites/Caddyfile), потому что 80/443 держит один Caddy на всю машину.
+#
+# Домен здесь записан явно, а не через {$DOMAIN}: {$DOMAIN} принадлежит
+# портфолио (burbey.ru). У Vela свой домен, и он не должен зависеть от .env
+# соседнего проекта.
+#
+# vela-web — имя контейнера в сети sites_web (к ней он подключён вторым
+# интерфейсом). Caddy и vela-web в одной сети, поэтому имя резолвится.
+
+www.velatrips.ru {
+	redir https://velatrips.ru{uri} permanent
+}
+
+velatrips.ru {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Загруженные файлы и статика — надолго в кэш
+	@static path /uploads/* /_next/static/* /hero/*
+	header @static Cache-Control "public, max-age=2592000"
+
+	reverse_proxy vela-web:3000
+}
