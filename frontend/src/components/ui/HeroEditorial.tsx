@@ -3,6 +3,7 @@ import type { Trip } from '@/lib/api';
 import { sizedImageUrl } from '@/lib/api';
 import { ButtonLink } from '@/components/ui/Button';
 import { FadeIn } from '@/components/ui/Motion';
+import { SmartSearch } from '@/components/ui/SmartSearch';
 
 // Редакционный hero (референс Maison Sarah Lavoine): крупная антиква-типографика
 // поверх настоящего фото маршрута, спокойная премиальность вместо видео/3D-глобуса.
@@ -53,8 +54,14 @@ export function HeroEditorial({ featured }: { featured: Trip | null }) {
           </p>
         </FadeIn>
 
-        <FadeIn delay={0.28}>
-          <div className="mt-9 flex flex-wrap items-center gap-4">
+        <FadeIn delay={0.24}>
+          <div className="mt-8">
+            <SmartSearch />
+          </div>
+        </FadeIn>
+
+        <FadeIn delay={0.34}>
+          <div className="mt-8 flex flex-wrap items-center gap-4">
             <ButtonLink href="/trips/new" variant="gold" size="lg" withArrow magnetic>
               Собрать поездку
             </ButtonLink>

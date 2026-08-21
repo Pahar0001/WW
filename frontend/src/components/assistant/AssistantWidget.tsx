@@ -30,6 +30,7 @@ export function AssistantWidget() {
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
   // Индекс последнего ответа, который ещё «печатается».
   const [typingIdx, setTypingIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -39,10 +40,24 @@ export function AssistantWidget() {
 
   useEffect(() => {
     setLoggedIn(!!hasSession());
-    const openIt = () => setOpen(true);
-    window.addEventListener('vela:open-assistant', openIt);
-    return () => window.removeEventListener('vela:open-assistant', openIt);
+    const openIt = (e: Event) => {
+      setOpen(true);
+      const p = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+      if (p && p.trim()) setPending(p.trim());
+    };
+    window.addEventListener('vela:open-assistant', openIt as EventListener);
+    return () => window.removeEventListener('vela:open-assistant', openIt as EventListener);
   }, []);
+
+  // Запрос из Smart Search: как только панель открыта — отправляем его в чат.
+  useEffect(() => {
+    if (open && pending && !busy) {
+      const p = pending;
+      setPending(null);
+      void send(p);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pending]);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
