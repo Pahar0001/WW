@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Fraunces } from 'next/font/google';
+import { Onest, Playfair_Display } from 'next/font/google';
 import './globals.css';
 import { Atmosphere } from '@/components/fx/Atmosphere';
 import { Ambience } from '@/components/fx/Ambience';
@@ -16,8 +16,8 @@ import { SITE } from '@/lib/site';
 // Set theme before paint (no flash). Default = light (calm); 'dark' if saved.
 const themeInit = `(function(){try{var t=localStorage.getItem('vela_theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`;
 
-const inter = Inter({ subsets: ['latin', 'cyrillic'], variable: '--font-sans' });
-const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-serif' });
+const inter = Onest({ subsets: ['latin', 'cyrillic'], variable: '--font-sans' });
+const fraunces = Playfair_Display({ subsets: ['latin', 'cyrillic'], weight: ['400','500','600','700'], variable: '--font-serif' });
 
 const DESCRIPTION =
   'Премиальная платформа для планирования путешествий. Готовые маршруты, конструктор по дням, карты и честные данные из реальных источников.';

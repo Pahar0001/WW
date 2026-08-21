@@ -6,10 +6,8 @@ import { HomeMenu } from '@/components/ui/HomeMenu';
 import { Marquee } from '@/components/ui/Marquee';
 import { VerifyBanner } from '@/components/ui/VerifyBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { HeroImmersive } from '@/components/ui/HeroImmersive';
-import { HeroVideo } from '@/components/hero/HeroVideo';
+import { HeroEditorial } from '@/components/ui/HeroEditorial';
 import { GlobeSection } from '@/components/ui/GlobeSection';
-import { getHeroMedia } from '@/lib/hero-media';
 import { ScrollRail } from '@/components/ui/ScrollRail';
 import { Card } from '@/components/ui/Card';
 import { ButtonLink } from '@/components/ui/Button';
@@ -20,9 +18,6 @@ import { LEGAL_LINKS } from '@/lib/legal';
 
 export default async function HomePage() {
   const trips = (await api.listTrips()) ?? [];
-  // Кино-hero (видео, управляемое скроллом), если медиа задано;
-  // фолбэк — интерактивный 3D-глобус (NEXT_PUBLIC_HERO_MEDIA_URL=none).
-  const heroMedia = getHeroMedia();
 
   return (
     <main className="relative min-h-screen">
@@ -34,12 +29,8 @@ export default async function HomePage() {
       {/* Бегущая строка с ключевой информацией */}
       <Marquee />
 
-      {/* Заглавный экран: кинематографический полёт или 3D-глобус */}
-      {heroMedia.kind === 'video' ? (
-        <HeroVideo src={heroMedia.src} poster={heroMedia.poster} tripCount={trips.length} />
-      ) : (
-        <HeroImmersive featured={trips[0] ?? null} tripCount={trips.length} trips={trips} />
-      )}
+      {/* Заглавный экран: редакционный hero (фото маршрута + антиква-типографика) */}
+      <HeroEditorial featured={trips[0] ?? null} />
 
       {/* «Нить путешествия»: золотая линия слева (desktop) — заполняется по
           мере прокрутки, секции с data-rail появляются и получают узлы. */}

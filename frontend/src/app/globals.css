@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-serif: 'Fraunces', Georgia, serif;
+  --font-sans: 'Onest', system-ui, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
   --radius: 1rem;
 
   /* ── Light (default): soft cream + warm charcoal + muted antique gold ──
