@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { sortRussiaFirst } from '@/lib/destination-order';
 import { SiteHeader } from '@/components/ui/SiteHeader';
 import { MyTrips } from '@/components/ui/MyTrips';
 import { HomeMenu } from '@/components/ui/HomeMenu';
@@ -17,7 +18,7 @@ import { pluralize } from '@/lib/plural';
 import { LEGAL_LINKS } from '@/lib/legal';
 
 export default async function HomePage() {
-  const trips = (await api.listTrips()) ?? [];
+  const trips = sortRussiaFirst((await api.listTrips()) ?? []);
 
   return (
     <main className="relative min-h-screen">
